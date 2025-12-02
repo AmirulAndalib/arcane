@@ -107,12 +107,13 @@
 		return allTags.filter((tag) => !allUsedTags.includes(tag) && tag.toLowerCase().includes(partial));
 	});
 
-	const showSuggestions = $derived(tagSuggestions.length > 0 || statusSuggestions.length > 0);
+	// Only one type of suggestion is active at a time based on suggestionType
+	const activeSuggestions = $derived(suggestionType === 'status' ? statusSuggestions : tagSuggestions);
+	const showSuggestions = $derived(activeSuggestions.length > 0);
 
 	// Reset selection index when suggestions change
 	$effect(() => {
-		const totalSuggestions = tagSuggestions.length + statusSuggestions.length;
-		if (totalSuggestions > 0) {
+		if (activeSuggestions.length > 0) {
 			selectedSuggestionIndex = 0;
 		} else {
 			selectedSuggestionIndex = -1;
@@ -230,12 +231,10 @@
 	}
 
 	function handleSearchKeydown(event: KeyboardEvent) {
-		const totalSuggestions = tagSuggestions.length + statusSuggestions.length;
-		
 		if (showSuggestions) {
 			if (event.key === 'ArrowDown') {
 				event.preventDefault();
-				selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, totalSuggestions - 1);
+				selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, activeSuggestions.length - 1);
 				scrollSelectedIntoView();
 			} else if (event.key === 'ArrowUp') {
 				event.preventDefault();
@@ -489,7 +488,7 @@
 						<div class="bg-popover border-border absolute left-0 right-0 top-full z-50 mt-1 rounded-md border shadow-md">
 							<div class="text-muted-foreground px-3 py-1.5 text-xs">{m.env_selector_suggestions()}</div>
 							<div class="max-h-[180px] overflow-y-auto p-1 pt-0">
-								{#if statusSuggestions.length > 0}
+								{#if suggestionType === 'status'}
 									{#each statusSuggestions as status, index}
 										<button
 											class={cn(
@@ -504,8 +503,7 @@
 											<span>{getStatusLabel(status)}</span>
 										</button>
 									{/each}
-								{/if}
-								{#if tagSuggestions.length > 0}
+								{:else if suggestionType === 'include' || suggestionType === 'exclude'}
 									{#each tagSuggestions as tag, index}
 										<button
 											class={cn(
