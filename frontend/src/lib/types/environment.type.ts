@@ -7,12 +7,14 @@ export type Environment = {
 	status: EnvironmentStatus;
 	enabled: boolean;
 	lastSeen?: string;
+	tags?: string[];
 };
 
 export interface CreateEnvironmentDTO {
 	apiUrl: string;
 	name: string;
 	bootstrapToken?: string;
+	tags?: string[];
 }
 
 export interface UpdateEnvironmentDTO {
@@ -20,4 +22,5 @@ export interface UpdateEnvironmentDTO {
 	name?: string;
 	enabled?: boolean;
 	bootstrapToken?: string;
+	tags?: string[];
 }

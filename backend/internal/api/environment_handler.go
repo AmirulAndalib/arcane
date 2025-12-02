@@ -107,6 +107,9 @@ func (h *EnvironmentHandler) CreateEnvironment(c *gin.Context) {
 	if req.Enabled != nil {
 		env.Enabled = *req.Enabled
 	}
+	if req.Tags != nil {
+		env.Tags = req.Tags
+	}
 
 	if (req.AccessToken == nil || *req.AccessToken == "") && req.BootstrapToken != nil && *req.BootstrapToken != "" {
 		token, err := h.environmentService.PairAgentWithBootstrap(c.Request.Context(), req.ApiUrl, *req.BootstrapToken)
@@ -241,7 +244,7 @@ func (h *EnvironmentHandler) UpdateEnvironment(c *gin.Context) {
 func (h *EnvironmentHandler) buildUpdateMapInternal(req *dto.UpdateEnvironmentDto, isLocalEnv bool) map[string]any {
 	updates := map[string]any{}
 
-	// For local environment, only allow name
+	// For local environment, only allow name and tags
 	if !isLocalEnv {
 		if req.ApiUrl != nil {
 			updates["api_url"] = *req.ApiUrl
@@ -253,6 +256,10 @@ func (h *EnvironmentHandler) buildUpdateMapInternal(req *dto.UpdateEnvironmentDt
 
 	if req.Name != nil {
 		updates["name"] = *req.Name
+	}
+
+	if req.Tags != nil {
+		updates["tags"] = models.StringSlice(req.Tags)
 	}
 
 	return updates

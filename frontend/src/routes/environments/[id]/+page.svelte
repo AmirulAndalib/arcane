@@ -13,6 +13,9 @@
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import AlertTriangleIcon from '@lucide/svelte/icons/alert-triangle';
+	import TagIcon from '@lucide/svelte/icons/tag';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import XIcon from '@lucide/svelte/icons/x';
 	import { goto, invalidateAll } from '$app/navigation';
 	import StatusBadge from '$lib/components/badges/status-badge.svelte';
 	import { toast } from 'svelte-sonner';
@@ -43,6 +46,8 @@
 	let formName = $state('');
 	let formEnabled = $state(false);
 	let formApiUrl = $state('');
+	let formTags = $state<string[]>([]);
+	let newTagInput = $state('');
 
 	// Track current status separately from environment data
 	let currentStatus = $state<'online' | 'offline' | 'error'>('offline');
@@ -52,14 +57,24 @@
 		formName = environment.name;
 		formEnabled = environment.enabled;
 		formApiUrl = environment.apiUrl;
+		formTags = environment.tags ?? [];
 		currentStatus = environment.status;
 	});
+
+	// Helper to compare arrays
+	function arraysEqual(a: string[], b: string[]): boolean {
+		if (a.length !== b.length) return false;
+		const sortedA = [...a].sort();
+		const sortedB = [...b].sort();
+		return sortedA.every((val, idx) => val === sortedB[idx]);
+	}
 
 	// Track changes
 	let hasChanges = $derived(
 		formName !== environment.name ||
 			formEnabled !== environment.enabled ||
-			(environment.id !== '0' && formApiUrl !== environment.apiUrl)
+			(environment.id !== '0' && formApiUrl !== environment.apiUrl) ||
+			!arraysEqual(formTags, environment.tags ?? [])
 	);
 
 	async function refreshEnvironment() {
@@ -71,6 +86,7 @@
 			formName = environment.name;
 			formEnabled = environment.enabled;
 			formApiUrl = environment.apiUrl;
+			formTags = environment.tags ?? [];
 			currentStatus = environment.status;
 		} catch (err) {
 			console.error('Failed to refresh environment:', err);
@@ -151,7 +167,8 @@
 			await environmentManagementService.update(environment.id, {
 				name: formName,
 				enabled: formEnabled,
-				apiUrl: formApiUrl
+				apiUrl: formApiUrl,
+				tags: formTags
 			});
 
 			toast.success(m.common_update_success({ resource: m.resource_environment_cap() }));
@@ -179,7 +196,31 @@
 		formName = environment.name;
 		formEnabled = environment.enabled;
 		formApiUrl = environment.apiUrl;
+		formTags = environment.tags ?? [];
+		newTagInput = '';
 		toast.info(m.environments_changes_reset());
+	}
+
+	function addTag() {
+		const tag = newTagInput.trim();
+		if (!tag) return;
+		if (formTags.includes(tag)) {
+			toast.error('Tag already exists');
+			return;
+		}
+		formTags = [...formTags, tag];
+		newTagInput = '';
+	}
+
+	function removeTag(tag: string) {
+		formTags = formTags.filter((t) => t !== tag);
+	}
+
+	function handleTagKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			addTag();
+		}
 	}
 
 	async function confirmSwitchAndEdit() {
@@ -338,6 +379,49 @@
 						</div>
 					</div>
 				</div>
+			</Card.Content>
+		</Card.Root>
+
+		<Card.Root class="flex flex-col">
+			<Card.Header icon={TagIcon}>
+				<div class="flex flex-col space-y-1.5">
+					<Card.Title>
+						<h2>{m.env_selector_tags()}</h2>
+					</Card.Title>
+					<Card.Description>Organize environments with tags for easier filtering and grouping</Card.Description>
+				</div>
+			</Card.Header>
+			<Card.Content class="space-y-4 p-4">
+				<div class="flex gap-2">
+					<Input
+						type="text"
+						placeholder="Add a tag..."
+						bind:value={newTagInput}
+						onkeydown={handleTagKeydown}
+						class="flex-1"
+					/>
+					<Button variant="outline" size="icon" onclick={addTag} disabled={!newTagInput.trim()}>
+						<PlusIcon class="size-4" />
+					</Button>
+				</div>
+
+				{#if formTags.length > 0}
+					<div class="flex flex-wrap gap-2">
+						{#each formTags as tag}
+							<Badge variant="secondary" class="gap-1 pr-1">
+								{tag}
+								<button
+									class="hover:bg-muted ml-0.5 rounded p-0.5 transition-colors"
+									onclick={() => removeTag(tag)}
+								>
+									<XIcon class="size-3" />
+								</button>
+							</Badge>
+						{/each}
+					</div>
+				{:else}
+					<p class="text-muted-foreground text-sm">No tags added yet. Tags help organize and filter environments.</p>
+				{/if}
 			</Card.Content>
 		</Card.Root>
 
