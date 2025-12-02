@@ -381,7 +381,7 @@
 				</div>
 
 				<div>
-					<Label for="tag-input" class="text-sm font-medium">{m.env_selector_tags()}</Label>
+					<Label for="tag-input" class="text-sm font-medium">{m.common_tags()}</Label>
 					<div 
 						class="border-input bg-background focus-within:ring-ring mt-1.5 flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-3 py-2 transition-colors focus-within:ring-1"
 					>

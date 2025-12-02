@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -47,6 +48,15 @@ func NewEnvironmentHandler(
 	{
 		apiGroup.GET("", h.ListEnvironments)
 		apiGroup.POST("", h.CreateEnvironment)
+		apiGroup.GET("/tags", h.GetAllTags)
+		apiGroup.GET("/filters", h.ListFilters)
+		apiGroup.POST("/filters", h.CreateFilter)
+		apiGroup.GET("/filters/default", h.GetDefaultFilter)
+		apiGroup.DELETE("/filters/default", h.ClearFilterDefault)
+		apiGroup.GET("/filters/:filterId", h.GetFilter)
+		apiGroup.PUT("/filters/:filterId", h.UpdateFilter)
+		apiGroup.DELETE("/filters/:filterId", h.DeleteFilter)
+		apiGroup.POST("/filters/:filterId/default", h.SetFilterDefault)
 		apiGroup.GET("/:id", h.GetEnvironment)
 		apiGroup.PUT("/:id", h.UpdateEnvironment)
 		apiGroup.DELETE("/:id", h.DeleteEnvironment)
@@ -54,7 +64,6 @@ func NewEnvironmentHandler(
 		apiGroup.POST("/:id/heartbeat", h.UpdateHeartbeat)
 		apiGroup.POST("/:id/agent/pair", h.PairAgent)
 		apiGroup.POST("/:id/sync-registries", h.SyncRegistries)
-		apiGroup.GET("/tags", h.GetAllTags)
 	}
 }
 
@@ -440,4 +449,270 @@ func (h *EnvironmentHandler) SyncRegistries(c *gin.Context) {
 		"success": true,
 		"data":    gin.H{"message": "Registries synced successfully"},
 	})
+}
+
+func (h *EnvironmentHandler) ListFilters(c *gin.Context) {
+	userID, ok := middleware.GetCurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		return
+	}
+
+	filters, err := h.environmentService.ListFilters(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	out := make([]dto.EnvironmentFilterDto, len(filters))
+	for i, f := range filters {
+		out[i] = toFilterDto(&f)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
+}
+
+func (h *EnvironmentHandler) GetFilter(c *gin.Context) {
+	userID, ok := middleware.GetCurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		return
+	}
+
+	filterID := c.Param("filterId")
+	filter, err := h.environmentService.GetFilter(c.Request.Context(), filterID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrFilterNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": "filter not found"}})
+			return
+		}
+		if errors.Is(err, services.ErrFilterForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "data": gin.H{"error": "not authorized"}})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterDto(filter)})
+}
+
+func (h *EnvironmentHandler) GetDefaultFilter(c *gin.Context) {
+	userID, ok := middleware.GetCurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		return
+	}
+
+	filter, err := h.environmentService.GetDefaultFilter(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	if filter == nil {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterDto(filter)})
+}
+
+func (h *EnvironmentHandler) CreateFilter(c *gin.Context) {
+	userID, ok := middleware.GetCurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		return
+	}
+
+	var req dto.CreateEnvironmentFilterDto
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	filter := &models.EnvironmentFilter{
+		UserID:       userID,
+		Name:         req.Name,
+		IsDefault:    req.IsDefault,
+		SelectedTags: req.SelectedTags,
+		ExcludedTags: req.ExcludedTags,
+		TagMode:      defaultTagMode(req.TagMode),
+		StatusFilter: defaultStatusFilter(req.StatusFilter),
+		GroupBy:      defaultGroupBy(req.GroupBy),
+	}
+
+	created, err := h.environmentService.CreateFilter(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"success": true, "data": toFilterDto(created)})
+}
+
+func (h *EnvironmentHandler) UpdateFilter(c *gin.Context) {
+	userID, ok := middleware.GetCurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		return
+	}
+
+	filterID := c.Param("filterId")
+
+	var req dto.UpdateEnvironmentFilterDto
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	updates := buildFilterUpdates(&req)
+	if len(updates) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": "no updates provided"}})
+		return
+	}
+
+	updated, err := h.environmentService.UpdateFilter(c.Request.Context(), filterID, userID, updates)
+	if err != nil {
+		if errors.Is(err, services.ErrFilterNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": "filter not found"}})
+			return
+		}
+		if errors.Is(err, services.ErrFilterForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "data": gin.H{"error": "not authorized"}})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterDto(updated)})
+}
+
+func (h *EnvironmentHandler) DeleteFilter(c *gin.Context) {
+	userID, ok := middleware.GetCurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		return
+	}
+
+	filterID := c.Param("filterId")
+	if err := h.environmentService.DeleteFilter(c.Request.Context(), filterID, userID); err != nil {
+		if errors.Is(err, services.ErrFilterNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": "filter not found"}})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"message": "filter deleted"}})
+}
+
+func (h *EnvironmentHandler) SetFilterDefault(c *gin.Context) {
+	userID, ok := middleware.GetCurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		return
+	}
+
+	filterID := c.Param("filterId")
+	if err := h.environmentService.SetFilterDefault(c.Request.Context(), filterID, userID); err != nil {
+		if errors.Is(err, services.ErrFilterNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": "filter not found"}})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"message": "default set"}})
+}
+
+func (h *EnvironmentHandler) ClearFilterDefault(c *gin.Context) {
+	userID, ok := middleware.GetCurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		return
+	}
+
+	if err := h.environmentService.ClearFilterDefault(c.Request.Context(), userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"message": "default cleared"}})
+}
+
+func toFilterDto(f *models.EnvironmentFilter) dto.EnvironmentFilterDto {
+	d := dto.EnvironmentFilterDto{
+		ID:           f.ID,
+		UserID:       f.UserID,
+		Name:         f.Name,
+		IsDefault:    f.IsDefault,
+		SelectedTags: f.SelectedTags,
+		ExcludedTags: f.ExcludedTags,
+		TagMode:      string(f.TagMode),
+		StatusFilter: string(f.StatusFilter),
+		GroupBy:      string(f.GroupBy),
+		CreatedAt:    f.CreatedAt.Format(time.RFC3339),
+	}
+	if f.UpdatedAt != nil {
+		d.UpdatedAt = f.UpdatedAt.Format(time.RFC3339)
+	}
+	// Ensure slices are not nil for JSON serialization
+	if d.SelectedTags == nil {
+		d.SelectedTags = []string{}
+	}
+	if d.ExcludedTags == nil {
+		d.ExcludedTags = []string{}
+	}
+	return d
+}
+
+func buildFilterUpdates(req *dto.UpdateEnvironmentFilterDto) map[string]interface{} {
+	updates := make(map[string]interface{})
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.IsDefault != nil {
+		updates["is_default"] = *req.IsDefault
+	}
+	if req.SelectedTags != nil {
+		updates["selected_tags"] = models.StringSlice(req.SelectedTags)
+	}
+	if req.ExcludedTags != nil {
+		updates["excluded_tags"] = models.StringSlice(req.ExcludedTags)
+	}
+	if req.TagMode != nil {
+		updates["tag_mode"] = models.EnvironmentFilterTagMode(*req.TagMode)
+	}
+	if req.StatusFilter != nil {
+		updates["status_filter"] = models.EnvironmentFilterStatusFilter(*req.StatusFilter)
+	}
+	if req.GroupBy != nil {
+		updates["group_by"] = models.EnvironmentFilterGroupBy(*req.GroupBy)
+	}
+	return updates
+}
+
+func defaultTagMode(val string) models.EnvironmentFilterTagMode {
+	if val == "" {
+		return models.TagModeAny
+	}
+	return models.EnvironmentFilterTagMode(val)
+}
+
+func defaultStatusFilter(val string) models.EnvironmentFilterStatusFilter {
+	if val == "" {
+		return models.StatusFilterAll
+	}
+	return models.EnvironmentFilterStatusFilter(val)
+}
+
+func defaultGroupBy(val string) models.EnvironmentFilterGroupBy {
+	if val == "" {
+		return models.GroupByNone
+	}
+	return models.EnvironmentFilterGroupBy(val)
 }

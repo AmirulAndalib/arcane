@@ -1,6 +1,12 @@
 import BaseAPIService from './api-service';
 import type { Environment } from '$lib/types/environment.type';
-import type { CreateEnvironmentDTO, UpdateEnvironmentDTO } from '$lib/types/environment.type';
+import type {
+	CreateEnvironmentDTO,
+	UpdateEnvironmentDTO,
+	EnvironmentFilter,
+	CreateEnvironmentFilterDTO,
+	UpdateEnvironmentFilterDTO
+} from '$lib/types/environment.type';
 import type { Paginated, SearchPaginationSortRequest } from '$lib/types/pagination.type';
 import { transformPaginationParams } from '$lib/utils/params.util';
 
@@ -64,6 +70,43 @@ export default class EnvironmentManagementService extends BaseAPIService {
 
 	async syncRegistries(environmentId: string): Promise<void> {
 		await this.api.post(`/environments/${environmentId}/sync-registries`);
+	}
+
+	async getSavedFilters(): Promise<EnvironmentFilter[]> {
+		const res = await this.api.get('/environments/filters');
+		return res.data.data as EnvironmentFilter[];
+	}
+
+	async getSavedFilter(filterId: string): Promise<EnvironmentFilter> {
+		const res = await this.api.get(`/environments/filters/${filterId}`);
+		return res.data.data as EnvironmentFilter;
+	}
+
+	async getDefaultSavedFilter(): Promise<EnvironmentFilter | null> {
+		const res = await this.api.get('/environments/filters/default');
+		return res.data.data as EnvironmentFilter | null;
+	}
+
+	async createSavedFilter(dto: CreateEnvironmentFilterDTO): Promise<EnvironmentFilter> {
+		const res = await this.api.post('/environments/filters', dto);
+		return res.data.data as EnvironmentFilter;
+	}
+
+	async updateSavedFilter(filterId: string, dto: UpdateEnvironmentFilterDTO): Promise<EnvironmentFilter> {
+		const res = await this.api.put(`/environments/filters/${filterId}`, dto);
+		return res.data.data as EnvironmentFilter;
+	}
+
+	async deleteSavedFilter(filterId: string): Promise<void> {
+		await this.api.delete(`/environments/filters/${filterId}`);
+	}
+
+	async setSavedFilterDefault(filterId: string): Promise<void> {
+		await this.api.post(`/environments/filters/${filterId}/default`);
+	}
+
+	async clearSavedFilterDefault(): Promise<void> {
+		await this.api.delete('/environments/filters/default');
 	}
 }
 

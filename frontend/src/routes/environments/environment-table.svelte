@@ -214,7 +214,7 @@
 		},
 		{
 			accessorKey: 'tags',
-			title: m.env_selector_tags(),
+			title: m.common_tags(),
 			cell: TagsCell
 		},
 		{
@@ -227,7 +227,7 @@
 	const mobileFields = [
 		{ id: 'id', label: m.common_id(), defaultVisible: true },
 		{ id: 'apiUrl', label: m.environments_api_url(), defaultVisible: true },
-		{ id: 'tags', label: m.env_selector_tags(), defaultVisible: true }
+		{ id: 'tags', label: m.common_tags(), defaultVisible: true }
 	];
 
 	let mobileFieldVisibility = $state<Record<string, boolean>>({});
@@ -309,7 +309,7 @@
 				show: (mobileFieldVisibility.apiUrl ?? true) && !!item.apiUrl
 			},
 			{
-				label: m.env_selector_tags(),
+				label: m.common_tags(),
 				getValue: (item: Environment) => item.tags?.join(', ') || null,
 				icon: TagIcon,
 				iconVariant: 'gray' as const,

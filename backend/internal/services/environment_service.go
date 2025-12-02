@@ -20,6 +20,11 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	ErrFilterNotFound  = errors.New("filter not found")
+	ErrFilterForbidden = errors.New("not authorized to access this filter")
+)
+
 type EnvironmentService struct {
 	db            *database.DB
 	httpClient    *http.Client
@@ -519,5 +524,162 @@ func (s *EnvironmentService) SyncRegistriesToEnvironment(ctx context.Context, en
 		slog.String("environmentID", environmentID),
 		slog.String("environmentName", environment.Name))
 
+	return nil
+}
+
+// ListFilters returns all saved filters for a given user
+func (s *EnvironmentService) ListFilters(ctx context.Context, userID string) ([]models.EnvironmentFilter, error) {
+	var filters []models.EnvironmentFilter
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("name ASC").Find(&filters).Error; err != nil {
+		return nil, fmt.Errorf("failed to list filters: %w", err)
+	}
+	return filters, nil
+}
+
+// GetFilter returns a filter by ID, ensuring it belongs to the user
+func (s *EnvironmentService) GetFilter(ctx context.Context, filterID, userID string) (*models.EnvironmentFilter, error) {
+	var filter models.EnvironmentFilter
+	if err := s.db.WithContext(ctx).Where("id = ?", filterID).First(&filter).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrFilterNotFound
+		}
+		return nil, fmt.Errorf("failed to get filter: %w", err)
+	}
+
+	if filter.UserID != userID {
+		return nil, ErrFilterForbidden
+	}
+
+	return &filter, nil
+}
+
+// GetDefaultFilter returns the default filter for a user, if one exists
+func (s *EnvironmentService) GetDefaultFilter(ctx context.Context, userID string) (*models.EnvironmentFilter, error) {
+	var filter models.EnvironmentFilter
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND is_default = ?", userID, true).First(&filter).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // No default filter is not an error
+		}
+		return nil, fmt.Errorf("failed to get default filter: %w", err)
+	}
+	return &filter, nil
+}
+
+// CreateFilter creates a new saved filter for a user
+func (s *EnvironmentService) CreateFilter(ctx context.Context, filter *models.EnvironmentFilter) (*models.EnvironmentFilter, error) {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// If this filter is being set as default, clear any existing default
+		if filter.IsDefault {
+			if err := tx.Model(&models.EnvironmentFilter{}).
+				Where("user_id = ? AND is_default = ?", filter.UserID, true).
+				Update("is_default", false).Error; err != nil {
+				return fmt.Errorf("failed to clear existing default: %w", err)
+			}
+		}
+
+		if err := tx.Create(filter).Error; err != nil {
+			return fmt.Errorf("failed to create filter: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return filter, nil
+}
+
+// UpdateFilter updates an existing saved filter
+func (s *EnvironmentService) UpdateFilter(ctx context.Context, filterID, userID string, updates map[string]interface{}) (*models.EnvironmentFilter, error) {
+	var filter models.EnvironmentFilter
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// First, get the filter and verify ownership
+		if err := tx.Where("id = ?", filterID).First(&filter).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrFilterNotFound
+			}
+			return fmt.Errorf("failed to get filter: %w", err)
+		}
+
+		if filter.UserID != userID {
+			return ErrFilterForbidden
+		}
+
+		// If setting as default, clear any existing default first
+		if isDefault, ok := updates["is_default"]; ok && isDefault == true {
+			if err := tx.Model(&models.EnvironmentFilter{}).
+				Where("user_id = ? AND is_default = ? AND id != ?", userID, true, filterID).
+				Update("is_default", false).Error; err != nil {
+				return fmt.Errorf("failed to clear existing default: %w", err)
+			}
+		}
+
+		// Apply updates
+		if err := tx.Model(&filter).Updates(updates).Error; err != nil {
+			return fmt.Errorf("failed to update filter: %w", err)
+		}
+
+		// Reload to get updated values
+		if err := tx.Where("id = ?", filterID).First(&filter).Error; err != nil {
+			return fmt.Errorf("failed to reload filter: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &filter, nil
+}
+
+// DeleteFilter deletes a saved filter
+func (s *EnvironmentService) DeleteFilter(ctx context.Context, filterID, userID string) error {
+	result := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", filterID, userID).Delete(&models.EnvironmentFilter{})
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete filter: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrFilterNotFound
+	}
+	return nil
+}
+
+// SetFilterDefault sets a filter as the default for a user
+func (s *EnvironmentService) SetFilterDefault(ctx context.Context, filterID, userID string) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// First verify the filter exists and belongs to the user
+		var filter models.EnvironmentFilter
+		if err := tx.Where("id = ? AND user_id = ?", filterID, userID).First(&filter).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrFilterNotFound
+			}
+			return fmt.Errorf("failed to get filter: %w", err)
+		}
+
+		// Clear any existing default
+		if err := tx.Model(&models.EnvironmentFilter{}).
+			Where("user_id = ? AND is_default = ?", userID, true).
+			Update("is_default", false).Error; err != nil {
+			return fmt.Errorf("failed to clear existing default: %w", err)
+		}
+
+		// Set new default
+		if err := tx.Model(&filter).Update("is_default", true).Error; err != nil {
+			return fmt.Errorf("failed to set default: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// ClearFilterDefault clears the default filter for a user
+func (s *EnvironmentService) ClearFilterDefault(ctx context.Context, userID string) error {
+	if err := s.db.WithContext(ctx).Model(&models.EnvironmentFilter{}).
+		Where("user_id = ? AND is_default = ?", userID, true).
+		Update("is_default", false).Error; err != nil {
+		return fmt.Errorf("failed to clear default: %w", err)
+	}
 	return nil
 }

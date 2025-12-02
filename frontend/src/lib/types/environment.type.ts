@@ -24,3 +24,41 @@ export interface UpdateEnvironmentDTO {
 	bootstrapToken?: string;
 	tags?: string[];
 }
+
+export type TagMode = 'any' | 'all';
+export type StatusFilter = 'all' | 'online' | 'offline';
+export type GroupBy = 'none' | 'status' | 'tags';
+
+export interface EnvironmentFilter {
+	id: string;
+	userId: string;
+	name: string;
+	isDefault: boolean;
+	selectedTags: string[];
+	excludedTags: string[];
+	tagMode: TagMode;
+	statusFilter: StatusFilter;
+	groupBy: GroupBy;
+	createdAt?: string;
+	updatedAt?: string;
+}
+
+export interface CreateEnvironmentFilterDTO {
+	name: string;
+	isDefault?: boolean;
+	selectedTags?: string[];
+	excludedTags?: string[];
+	tagMode?: TagMode;
+	statusFilter?: StatusFilter;
+	groupBy?: GroupBy;
+}
+
+export interface UpdateEnvironmentFilterDTO {
+	name?: string;
+	isDefault?: boolean;
+	selectedTags?: string[];
+	excludedTags?: string[];
+	tagMode?: TagMode;
+	statusFilter?: StatusFilter;
+	groupBy?: GroupBy;
+}

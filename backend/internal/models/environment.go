@@ -23,3 +23,41 @@ const (
 	EnvironmentStatusOffline EnvironmentStatus = "offline"
 	EnvironmentStatusError   EnvironmentStatus = "error"
 )
+
+type EnvironmentFilterTagMode string
+type EnvironmentFilterStatusFilter string
+type EnvironmentFilterGroupBy string
+
+type EnvironmentFilter struct {
+	UserID       string                        `json:"userId" gorm:"column:user_id;not null;index"`
+	Name         string                        `json:"name" gorm:"not null"`
+	IsDefault    bool                          `json:"isDefault" gorm:"column:is_default;default:false"`
+	SelectedTags StringSlice                   `json:"selectedTags" gorm:"column:selected_tags;type:jsonb;default:'[]'"`
+	ExcludedTags StringSlice                   `json:"excludedTags" gorm:"column:excluded_tags;type:jsonb;default:'[]'"`
+	TagMode      EnvironmentFilterTagMode      `json:"tagMode" gorm:"column:tag_mode;default:'any'"`
+	StatusFilter EnvironmentFilterStatusFilter `json:"statusFilter" gorm:"column:status_filter;default:'all'"`
+	GroupBy      EnvironmentFilterGroupBy      `json:"groupBy" gorm:"column:group_by;default:'none'"`
+
+	BaseModel
+}
+
+func (EnvironmentFilter) TableName() string {
+	return "environment_filters"
+}
+
+const (
+	TagModeAny EnvironmentFilterTagMode = "any"
+	TagModeAll EnvironmentFilterTagMode = "all"
+)
+
+const (
+	StatusFilterAll     EnvironmentFilterStatusFilter = "all"
+	StatusFilterOnline  EnvironmentFilterStatusFilter = "online"
+	StatusFilterOffline EnvironmentFilterStatusFilter = "offline"
+)
+
+const (
+	GroupByNone   EnvironmentFilterGroupBy = "none"
+	GroupByStatus EnvironmentFilterGroupBy = "status"
+	GroupByTags   EnvironmentFilterGroupBy = "tags"
+)
