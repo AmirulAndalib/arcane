@@ -148,6 +148,7 @@
 	"common_all": "All",
 	"common_none": "None",
 	"common_filter": "Filter",
+	"common_load_more": "Load more",
 	"_comment_common_actions": "=== COMMON - ACTION STATES ===",
 	"common_action_creating": "Creating…",
 	"common_action_deleting": "Deleting…",

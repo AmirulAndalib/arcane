@@ -119,6 +119,46 @@ func (s *EnvironmentService) ListEnvironmentsPaginated(ctx context.Context, para
 		}
 	}
 
+	// Tag filtering: tags (include), excludeTags (exclude), tagMode (any/all)
+	if includeTags := params.Filters["tags"]; includeTags != "" {
+		tagList := strings.Split(includeTags, ",")
+		tagMode := params.Filters["tagMode"]
+		if tagMode == "all" {
+			// ALL mode: environment must have all specified tags
+			for _, tag := range tagList {
+				tag = strings.TrimSpace(tag)
+				if tag != "" {
+					q = q.Where("CAST(tags AS TEXT) LIKE ?", "%\""+tag+"\"%")
+				}
+			}
+		} else {
+			// ANY mode (default): environment must have at least one of the tags
+			var tagConditions []string
+			var tagArgs []interface{}
+			for _, tag := range tagList {
+				tag = strings.TrimSpace(tag)
+				if tag != "" {
+					tagConditions = append(tagConditions, "CAST(tags AS TEXT) LIKE ?")
+					tagArgs = append(tagArgs, "%\""+tag+"\"%")
+				}
+			}
+			if len(tagConditions) > 0 {
+				q = q.Where("("+strings.Join(tagConditions, " OR ")+")", tagArgs...)
+			}
+		}
+	}
+
+	// Exclude tags: environment must NOT have any of these tags
+	if excludeTags := params.Filters["excludeTags"]; excludeTags != "" {
+		tagList := strings.Split(excludeTags, ",")
+		for _, tag := range tagList {
+			tag = strings.TrimSpace(tag)
+			if tag != "" {
+				q = q.Where("CAST(tags AS TEXT) NOT LIKE ? OR tags IS NULL", "%\""+tag+"\"%")
+			}
+		}
+	}
+
 	paginationResp, err := pagination.PaginateAndSortDB(params, q, &envs)
 	if err != nil {
 		return nil, pagination.Response{}, fmt.Errorf("failed to paginate environments: %w", err)
@@ -130,6 +170,37 @@ func (s *EnvironmentService) ListEnvironmentsPaginated(ctx context.Context, para
 	}
 
 	return out, paginationResp, nil
+}
+
+// GetAllTags returns all unique tags used across all environments
+func (s *EnvironmentService) GetAllTags(ctx context.Context) ([]string, error) {
+	var envs []models.Environment
+	if err := s.db.WithContext(ctx).Select("tags").Find(&envs).Error; err != nil {
+		return nil, fmt.Errorf("failed to get environment tags: %w", err)
+	}
+
+	tagSet := make(map[string]struct{})
+	for _, env := range envs {
+		for _, tag := range env.Tags {
+			tagSet[tag] = struct{}{}
+		}
+	}
+
+	tags := make([]string, 0, len(tagSet))
+	for tag := range tagSet {
+		tags = append(tags, tag)
+	}
+
+	// Sort tags alphabetically
+	for i := 0; i < len(tags)-1; i++ {
+		for j := i + 1; j < len(tags); j++ {
+			if tags[i] > tags[j] {
+				tags[i], tags[j] = tags[j], tags[i]
+			}
+		}
+	}
+
+	return tags, nil
 }
 
 func (s *EnvironmentService) UpdateEnvironment(ctx context.Context, id string, updates map[string]interface{}) (*models.Environment, error) {

@@ -54,6 +54,7 @@ func NewEnvironmentHandler(
 		apiGroup.POST("/:id/heartbeat", h.UpdateHeartbeat)
 		apiGroup.POST("/:id/agent/pair", h.PairAgent)
 		apiGroup.POST("/:id/sync-registries", h.SyncRegistries)
+		apiGroup.GET("/tags", h.GetAllTags)
 	}
 }
 
@@ -177,6 +178,20 @@ func (h *EnvironmentHandler) ListEnvironments(c *gin.Context) {
 		"success":    true,
 		"data":       envs,
 		"pagination": paginationResp,
+	})
+}
+
+// GetAllTags returns all unique tags used across environments
+func (h *EnvironmentHandler) GetAllTags(c *gin.Context) {
+	tags, err := h.environmentService.GetAllTags(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tags,
 	})
 }
 

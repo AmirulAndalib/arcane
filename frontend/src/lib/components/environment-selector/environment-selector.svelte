@@ -31,9 +31,10 @@
 	import { toast } from 'svelte-sonner';
 	import { m } from '$lib/paraglide/messages';
 	import { cn } from '$lib/utils';
+	import { debounced } from '$lib/utils/utils';
 	import { goto } from '$app/navigation';
 	import settingsStore from '$lib/stores/config-store';
-	import type { Paginated } from '$lib/types/pagination.type';
+	import type { PaginationResponse } from '$lib/types/pagination.type';
 
 	interface Props {
 		open?: boolean;
@@ -44,18 +45,17 @@
 
 	let { open = $bindable(false), isAdmin = false, onOpenChange, trigger }: Props = $props();
 
-	let environments = $state<Paginated<Environment> | null>(null);
-	let isLoading = $state(false);
+	let environments = $state<Environment[]>([]);
+	let pagination = $state<PaginationResponse | null>(null);
+	let allTags = $state<string[]>([]);
+	let isLoading = $state(true);
 	let inputValue = $state('');
 	let filterPopoverOpen = $state(false);
 	let searchInputRef = $state<HTMLInputElement | null>(null);
 	let selectedSuggestionIndex = $state(0);
 
 	const filters = $derived(envSelectorFilterStore.current);
-	const allTags = $derived(
-		[...new Set(environments?.data?.flatMap((env) => env.tags ?? []) ?? [])].sort()
-	);
-
+	const searchQuery = $derived(inputValue.replace(/-?tag:\S*/gi, '').replace(/is:\S*/gi, '').trim());
 	const inputMatch = $derived.by(() => {
 		const isMatch = inputValue.match(/is:(\S*)$/i);
 		if (isMatch) return { type: 'status' as const, partial: isMatch[1].toLowerCase() };
@@ -68,7 +68,6 @@
 
 		return null;
 	});
-
 	const suggestions = $derived.by(() => {
 		if (!inputMatch) return [];
 
@@ -96,46 +95,13 @@
 		selectedSuggestionIndex = suggestions.length > 0 ? 0 : -1;
 	});
 
-	const searchQuery = $derived(inputValue.replace(/-?tag:\S*/gi, '').replace(/is:\S*/gi, '').trim());
-
-	const filteredEnvironments = $derived.by(() => {
-		if (!environments?.data) return [];
-
-		return environments.data.filter((env) => {
-			// Search filter
-			if (searchQuery) {
-				const q = searchQuery.toLowerCase();
-				const matches =
-					env.name.toLowerCase().includes(q) ||
-					env.apiUrl.toLowerCase().includes(q) ||
-					env.tags?.some((t) => t.toLowerCase().includes(q));
-				if (!matches) return false;
-			}
-
-			// Status filter
-			if (filters.statusFilter !== 'all' && env.status !== filters.statusFilter) return false;
-
-			// Include tags (AND/OR)
-			if (filters.selectedTags.length > 0) {
-				const hasTag = filters.tagMode === 'all'
-					? filters.selectedTags.every((t) => env.tags?.includes(t))
-					: filters.selectedTags.some((t) => env.tags?.includes(t));
-				if (!hasTag) return false;
-			}
-
-			// Exclude tags
-			if (filters.excludedTags.some((t) => env.tags?.includes(t))) return false;
-
-			return true;
-		});
-	});
-
+	// Grouping (client-side, on already-filtered data from backend)
 	const groupedEnvironments = $derived.by(() => {
 		if (filters.groupBy === 'none') return null;
 
 		const groups = new Map<string, Environment[]>();
 
-		for (const env of filteredEnvironments) {
+		for (const env of environments) {
 			const keys =
 				filters.groupBy === 'status'
 					? [env.status]
@@ -163,24 +129,71 @@
 	);
 	const activeFilterCount = $derived((filters.groupBy !== 'none' ? 1 : 0) + (filters.tagMode !== 'any' ? 1 : 0));
 	const hasTagFilters = $derived(filters.selectedTags.length > 0 || filters.excludedTags.length > 0);
+	const hasMorePages = $derived(pagination ? pagination.currentPage < pagination.totalPages : false);
 
-	// Load environments when dialog opens
-	$effect(() => {
+	// Debounced load function
+	const debouncedLoad = debounced(() => {
 		if (open) loadEnvironments();
+	}, 300);
+
+	// Track previous filter values to detect actual changes
+	let prevFilterKey = $state('');
+
+	// Compute a filter key for comparison
+	const filterKey = $derived(
+		JSON.stringify([searchQuery, filters.statusFilter, filters.selectedTags, filters.excludedTags, filters.tagMode])
+	);
+
+	$effect(() => {
+		if (open) {
+			loadEnvironments();
+			loadAllTags();
+		} else {
+			isLoading = true;
+		}
 	});
 
-	async function loadEnvironments() {
-		isLoading = true;
+	$effect(() => {
+		const currentKey = filterKey;
+		if (open && prevFilterKey && prevFilterKey !== currentKey) {
+			debouncedLoad();
+		}
+		prevFilterKey = currentKey;
+	});
+
+	async function loadEnvironments(page = 1) {
 		try {
-			environments = await environmentManagementService.getEnvironments({
-				pagination: { page: 1, limit: 100 },
-				sort: { column: 'name', direction: 'asc' }
+			const result = await environmentManagementService.getEnvironments({
+				search: searchQuery || undefined,
+				pagination: { page, limit: 50 },
+				sort: { column: 'name', direction: 'asc' },
+				tags: filters.selectedTags.length > 0 ? filters.selectedTags : undefined,
+				excludeTags: filters.excludedTags.length > 0 ? filters.excludedTags : undefined,
+				tagMode: filters.tagMode !== 'any' ? filters.tagMode : undefined,
+				status: filters.statusFilter !== 'all' ? filters.statusFilter : undefined
 			});
+
+			environments = page === 1 ? result.data : [...environments, ...result.data];
+			pagination = result.pagination;
 		} catch (error) {
 			console.error('Failed to load environments:', error);
 			toast.error(m.common_refresh_failed({ resource: m.environments_title() }));
 		} finally {
 			isLoading = false;
+		}
+	}
+
+	async function loadAllTags() {
+		try {
+			allTags = await environmentManagementService.getAllTags();
+		} catch (error) {
+			console.error('Failed to load tags:', error);
+		}
+	}
+
+	function loadMore() {
+		if (hasMorePages && !isLoading) {
+			loadEnvironments((pagination?.currentPage ?? 0) + 1);
 		}
 	}
 
@@ -452,18 +465,13 @@
 				</div>
 			{/if}
 
-			<!-- Results count -->
-			<div class="text-muted-foreground text-xs">
-				{m.env_selector_showing_count({ count: filteredEnvironments.length, total: environments?.data?.length ?? 0 })}
-			</div>
-
 			<!-- Environment List -->
 			<ScrollArea class="max-h-[45vh] min-h-[180px]">
 				{#if isLoading}
 					<div class="flex h-40 items-center justify-center">
 						<Spinner class="size-6" />
 					</div>
-				{:else if filteredEnvironments.length === 0}
+				{:else if environments.length === 0}
 					<div class="text-muted-foreground flex h-40 flex-col items-center justify-center text-center">
 						<ServerIcon class="mb-2 size-10 opacity-30" />
 						<p class="text-sm font-medium">{m.env_selector_no_environments()}</p>
@@ -482,9 +490,20 @@
 					</div>
 				{:else}
 					<div class="space-y-1 p-1">
-						{#each filteredEnvironments as env (env.id)}
+						{#each environments as env (env.id)}
 							{@render environmentItem(env)}
 						{/each}
+					</div>
+				{/if}
+
+				{#if hasMorePages}
+					<div class="flex justify-center py-2">
+						<Button variant="ghost" size="sm" onclick={loadMore} disabled={isLoading}>
+							{#if isLoading}
+								<Spinner class="mr-2 size-4" />
+							{/if}
+							{m.common_load_more()}
+						</Button>
 					</div>
 				{/if}
 			</ScrollArea>

@@ -4,16 +4,43 @@ import type { CreateEnvironmentDTO, UpdateEnvironmentDTO } from '$lib/types/envi
 import type { Paginated, SearchPaginationSortRequest } from '$lib/types/pagination.type';
 import { transformPaginationParams } from '$lib/utils/params.util';
 
+export interface EnvironmentFilterOptions extends SearchPaginationSortRequest {
+	tags?: string[];
+	excludeTags?: string[];
+	tagMode?: 'any' | 'all';
+	status?: 'online' | 'offline';
+}
+
 export default class EnvironmentManagementService extends BaseAPIService {
 	async create(dto: CreateEnvironmentDTO): Promise<Environment> {
 		const res = await this.api.post('/environments', dto);
 		return res.data.data as Environment;
 	}
 
-	async getEnvironments(options: SearchPaginationSortRequest): Promise<Paginated<Environment>> {
+	async getEnvironments(options: EnvironmentFilterOptions = {}): Promise<Paginated<Environment>> {
 		const params = transformPaginationParams(options);
+
+		// Add tag-specific filters
+		if (options.tags?.length) {
+			params.tags = options.tags.join(',');
+		}
+		if (options.excludeTags?.length) {
+			params.excludeTags = options.excludeTags.join(',');
+		}
+		if (options.tagMode) {
+			params.tagMode = options.tagMode;
+		}
+		if (options.status) {
+			params.status = options.status;
+		}
+
 		const res = await this.api.get('/environments', { params });
 		return res.data;
+	}
+
+	async getAllTags(): Promise<string[]> {
+		const res = await this.api.get('/environments/tags');
+		return res.data.data as string[];
 	}
 
 	async get(environmentId: string): Promise<Environment> {
