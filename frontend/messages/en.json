@@ -148,7 +148,6 @@
 	"common_all": "All",
 	"common_none": "None",
 	"common_filter": "Filter",
-
 	"_comment_common_actions": "=== COMMON - ACTION STATES ===",
 	"common_action_creating": "Creating…",
 	"common_action_deleting": "Deleting…",
@@ -1085,7 +1084,6 @@
 	"sidebar_environments": "Environments",
 	"sidebar_administration": "Administration",
 	"sidebar_settings": "Settings",
-
 	"_comment_env_selector": "=== ENVIRONMENT SELECTOR ===",
 	"env_selector_title": "Select Environment",
 	"env_selector_description": "Choose an environment to connect to",
