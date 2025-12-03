@@ -632,7 +632,7 @@
 							<p class="mt-1 text-xs">{m.env_selector_save_filter_hint()}</p>
 						</div>
 					{:else}
-						<div class="space-y-1">
+						<div class="space-y-1 p-1">
 							{#each savedFilters as filter (filter.id)}
 								{@const isActive = activeFilterId === filter.id}
 								{@const isEditing = editingFilterId === filter.id}
@@ -666,8 +666,8 @@
 										<button class="flex min-w-0 flex-1 items-center gap-3 text-left" onclick={() => applyFilter(filter)}>
 											<div
 												class={cn(
-													'flex size-8 items-center justify-center rounded-md',
-													isActive ? 'bg-primary text-primary-foreground' : 'bg-muted'
+													'flex size-9 items-center justify-center rounded-md',
+													isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
 												)}
 											>
 												<FilterIcon class="size-4" />
@@ -682,9 +682,16 @@
 														<CheckIcon class="text-primary size-4 shrink-0" />
 													{/if}
 												</div>
-												<div class="text-muted-foreground flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
+												<div class="mt-1 flex flex-wrap items-center gap-1">
 													{#if filter.statusFilter !== 'all'}
-														<span class="flex items-center gap-1">
+														<span
+															class={cn(
+																'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium',
+																filter.statusFilter === 'online'
+																	? 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+																	: 'bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-300'
+															)}
+														>
 															<span
 																class={cn(
 																	'size-1.5 rounded-full',
@@ -695,45 +702,58 @@
 														</span>
 													{/if}
 													{#if filter.selectedTags.length > 0}
-														{#if filter.statusFilter !== 'all'}<span class="text-muted-foreground/40">|</span>{/if}
-														<Tooltip.Provider>
-															<Tooltip.Root>
-																<Tooltip.Trigger class="max-w-[100px] truncate">
-																	+ {filter.selectedTags.slice(0, 2).join(', ')}{filter.selectedTags.length > 2
-																		? `… +${filter.selectedTags.length - 2}`
-																		: ''}
-																</Tooltip.Trigger>
-																<Tooltip.Content>
-																	<p class="text-xs">{filter.selectedTags.join(', ')}</p>
-																</Tooltip.Content>
-															</Tooltip.Root>
-														</Tooltip.Provider>
+														{#each filter.selectedTags.slice(0, 2) as tag}
+															<span
+																class="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"
+																>{tag}</span
+															>
+														{/each}
+														{#if filter.selectedTags.length > 2}
+															<Tooltip.Provider>
+																<Tooltip.Root>
+																	<Tooltip.Trigger>
+																		<span
+																			class="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"
+																			>+{filter.selectedTags.length - 2}</span
+																		>
+																	</Tooltip.Trigger>
+																	<Tooltip.Content>
+																		<p class="text-xs">{filter.selectedTags.slice(2).join(', ')}</p>
+																	</Tooltip.Content>
+																</Tooltip.Root>
+															</Tooltip.Provider>
+														{/if}
 													{/if}
 													{#if filter.excludedTags.length > 0}
-														{#if filter.statusFilter !== 'all' || filter.selectedTags.length > 0}<span
-																class="text-muted-foreground/40">|</span
-															>{/if}
-														<Tooltip.Provider>
-															<Tooltip.Root>
-																<Tooltip.Trigger class="max-w-[100px] truncate text-red-500/70">
-																	- {filter.excludedTags.slice(0, 2).join(', ')}{filter.excludedTags.length > 2
-																		? `… +${filter.excludedTags.length - 2}`
-																		: ''}
-																</Tooltip.Trigger>
-																<Tooltip.Content>
-																	<p class="text-xs">{filter.excludedTags.join(', ')}</p>
-																</Tooltip.Content>
-															</Tooltip.Root>
-														</Tooltip.Provider>
+														{#each filter.excludedTags.slice(0, 2) as tag}
+															<span
+																class="rounded bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
+																>{tag}</span
+															>
+														{/each}
+														{#if filter.excludedTags.length > 2}
+															<Tooltip.Provider>
+																<Tooltip.Root>
+																	<Tooltip.Trigger>
+																		<span
+																			class="rounded bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
+																			>+{filter.excludedTags.length - 2}</span
+																		>
+																	</Tooltip.Trigger>
+																	<Tooltip.Content>
+																		<p class="text-xs">{filter.excludedTags.slice(2).join(', ')}</p>
+																	</Tooltip.Content>
+																</Tooltip.Root>
+															</Tooltip.Provider>
+														{/if}
 													{/if}
 													{#if filter.groupBy !== 'none'}
-														{#if filter.statusFilter !== 'all' || filter.selectedTags.length > 0 || filter.excludedTags.length > 0}<span
-																class="text-muted-foreground/40">|</span
-															>{/if}
-														<span>{filter.groupBy === 'status' ? m.common_status() : m.common_tags()}</span>
+														<span class="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">
+															{filter.groupBy === 'status' ? m.common_status() : m.common_tags()}
+														</span>
 													{/if}
 													{#if filter.statusFilter === 'all' && filter.selectedTags.length === 0 && filter.excludedTags.length === 0 && filter.groupBy === 'none'}
-														<span>{m.common_all()}</span>
+														<span class="text-muted-foreground text-xs">{m.common_all()}</span>
 													{/if}
 												</div>
 											</div>
