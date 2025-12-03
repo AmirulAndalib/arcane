@@ -5,8 +5,14 @@ cd backend
 mkdir -p .bin
 
 HOST_OS="$(go env GOHOSTOS)"
-VERSION=${VERSION:-$(sed 's/^\s*\|\s*$//g' ../.version)}
-REVISION=${REVISION:-$(cat ../.revision 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown")}
+
+# Read version and revision from .arcane.json
+if [ -f ../.arcane.json ]; then
+  VERSION=${VERSION:-$(jq -r '.version' ../.arcane.json)}
+  REVISION=${REVISION:-$(jq -r '.revision // empty' ../.arcane.json)}
+fi
+VERSION=${VERSION:-"dev"}
+REVISION=${REVISION:-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}
 
 LDFLAGS="-w -s -buildid=${VERSION} \
   -X github.com/getarcaneapp/arcane/backend/internal/config.Version=${VERSION} \
@@ -14,11 +20,13 @@ LDFLAGS="-w -s -buildid=${VERSION} \
 
 DOCKER_ONLY=false
 AGENT_BUILD=false
+NEXT_BUILDS=false
 
 for arg in "${@:-}"; do
   case "$arg" in
     --docker) DOCKER_ONLY=true ;;
     --agent)  AGENT_BUILD=true ;;
+    --next-builds) NEXT_BUILDS=true ;;
     *) ;;
   esac
 done
@@ -68,7 +76,21 @@ build_platform() {
 }
 
 echo "Version: ${VERSION}"
-if [ "$DOCKER_ONLY" = true ] ; then
+if [ "$NEXT_BUILDS" = true ]; then
+  echo "Building next images binaries (manager + agent for linux targets)..."
+  # Build manager binaries
+  BINARY_BASENAME="arcane"
+  BUILD_TAGS=""
+  build_platform "linux-amd64" "linux" "amd64"
+  build_platform "linux-arm64" "linux" "arm64"
+  build_platform "linux-armv7" "linux" "arm" "7"
+  # Build agent binaries
+  BINARY_BASENAME="arcane-agent"
+  BUILD_TAGS="exclude_frontend"
+  build_platform "linux-amd64" "linux" "amd64"
+  build_platform "linux-arm64" "linux" "arm64"
+  build_platform "linux-armv7" "linux" "arm" "7"
+elif [ "$DOCKER_ONLY" = true ]; then
   if [ "$AGENT_BUILD" = true ]; then
     echo "Building agent binaries (docker-only linux targets)..."
   else
