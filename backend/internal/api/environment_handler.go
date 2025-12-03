@@ -454,13 +454,13 @@ func (h *EnvironmentHandler) SyncRegistries(c *gin.Context) {
 func (h *EnvironmentHandler) ListFilters(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
 		return
 	}
 
 	filters, err := h.environmentService.ListFilters(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterListError{Err: err}).Error()}})
 		return
 	}
 
@@ -475,7 +475,7 @@ func (h *EnvironmentHandler) ListFilters(c *gin.Context) {
 func (h *EnvironmentHandler) GetFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
 		return
 	}
 
@@ -483,11 +483,11 @@ func (h *EnvironmentHandler) GetFilter(c *gin.Context) {
 	filter, err := h.environmentService.GetFilter(c.Request.Context(), filterID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrFilterNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": "filter not found"}})
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": (&common.FilterNotFoundError{}).Error()}})
 			return
 		}
 		if errors.Is(err, services.ErrFilterForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"success": false, "data": gin.H{"error": "not authorized"}})
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "data": gin.H{"error": (&common.FilterForbiddenError{}).Error()}})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
@@ -500,13 +500,13 @@ func (h *EnvironmentHandler) GetFilter(c *gin.Context) {
 func (h *EnvironmentHandler) GetDefaultFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
 		return
 	}
 
 	filter, err := h.environmentService.GetDefaultFilter(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterListError{Err: err}).Error()}})
 		return
 	}
 
@@ -521,13 +521,13 @@ func (h *EnvironmentHandler) GetDefaultFilter(c *gin.Context) {
 func (h *EnvironmentHandler) CreateFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
 		return
 	}
 
 	var req dto.CreateEnvironmentFilterDto
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": (&common.InvalidRequestFormatError{Err: err}).Error()}})
 		return
 	}
 
@@ -537,14 +537,14 @@ func (h *EnvironmentHandler) CreateFilter(c *gin.Context) {
 		IsDefault:    req.IsDefault,
 		SelectedTags: req.SelectedTags,
 		ExcludedTags: req.ExcludedTags,
-		TagMode:      defaultTagMode(req.TagMode),
-		StatusFilter: defaultStatusFilter(req.StatusFilter),
-		GroupBy:      defaultGroupBy(req.GroupBy),
+		TagMode:      models.EnvironmentFilterTagMode(defaultString(req.TagMode, string(models.TagModeAny))),
+		StatusFilter: models.EnvironmentFilterStatusFilter(defaultString(req.StatusFilter, string(models.StatusFilterAll))),
+		GroupBy:      models.EnvironmentFilterGroupBy(defaultString(req.GroupBy, string(models.GroupByNone))),
 	}
 
 	created, err := h.environmentService.CreateFilter(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterCreationError{Err: err}).Error()}})
 		return
 	}
 
@@ -554,7 +554,7 @@ func (h *EnvironmentHandler) CreateFilter(c *gin.Context) {
 func (h *EnvironmentHandler) UpdateFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
 		return
 	}
 
@@ -562,27 +562,27 @@ func (h *EnvironmentHandler) UpdateFilter(c *gin.Context) {
 
 	var req dto.UpdateEnvironmentFilterDto
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": (&common.InvalidRequestFormatError{Err: err}).Error()}})
 		return
 	}
 
 	updates := buildFilterUpdates(&req)
 	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": "no updates provided"}})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": gin.H{"error": (&common.InvalidRequestFormatError{}).Error()}})
 		return
 	}
 
 	updated, err := h.environmentService.UpdateFilter(c.Request.Context(), filterID, userID, updates)
 	if err != nil {
 		if errors.Is(err, services.ErrFilterNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": "filter not found"}})
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": (&common.FilterNotFoundError{}).Error()}})
 			return
 		}
 		if errors.Is(err, services.ErrFilterForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"success": false, "data": gin.H{"error": "not authorized"}})
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "data": gin.H{"error": (&common.FilterForbiddenError{}).Error()}})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterUpdateError{Err: err}).Error()}})
 		return
 	}
 
@@ -592,74 +592,68 @@ func (h *EnvironmentHandler) UpdateFilter(c *gin.Context) {
 func (h *EnvironmentHandler) DeleteFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
 		return
 	}
 
 	filterID := c.Param("filterId")
 	if err := h.environmentService.DeleteFilter(c.Request.Context(), filterID, userID); err != nil {
 		if errors.Is(err, services.ErrFilterNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": "filter not found"}})
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": (&common.FilterNotFoundError{}).Error()}})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterDeleteError{Err: err}).Error()}})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"message": "filter deleted"}})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
 }
 
 func (h *EnvironmentHandler) SetFilterDefault(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
 		return
 	}
 
 	filterID := c.Param("filterId")
 	if err := h.environmentService.SetFilterDefault(c.Request.Context(), filterID, userID); err != nil {
 		if errors.Is(err, services.ErrFilterNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": "filter not found"}})
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": (&common.FilterNotFoundError{}).Error()}})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterUpdateError{Err: err}).Error()}})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"message": "default set"}})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
 }
 
 func (h *EnvironmentHandler) ClearFilterDefault(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": "authentication required"}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
 		return
 	}
 
 	if err := h.environmentService.ClearFilterDefault(c.Request.Context(), userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterUpdateError{Err: err}).Error()}})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"message": "default cleared"}})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
 }
 
 func toFilterDto(f *models.EnvironmentFilter) dto.EnvironmentFilterDto {
-	d := dto.EnvironmentFilterDto{
-		ID:           f.ID,
-		UserID:       f.UserID,
-		Name:         f.Name,
-		IsDefault:    f.IsDefault,
-		SelectedTags: f.SelectedTags,
-		ExcludedTags: f.ExcludedTags,
-		TagMode:      string(f.TagMode),
-		StatusFilter: string(f.StatusFilter),
-		GroupBy:      string(f.GroupBy),
-		CreatedAt:    f.CreatedAt.Format(time.RFC3339),
-	}
+	var d dto.EnvironmentFilterDto
+	_ = dto.MapStruct(f, &d)
+
+	// Format timestamps as RFC3339
+	d.CreatedAt = f.CreatedAt.Format(time.RFC3339)
 	if f.UpdatedAt != nil {
 		d.UpdatedAt = f.UpdatedAt.Format(time.RFC3339)
 	}
+
 	// Ensure slices are not nil for JSON serialization
 	if d.SelectedTags == nil {
 		d.SelectedTags = []string{}
@@ -696,23 +690,9 @@ func buildFilterUpdates(req *dto.UpdateEnvironmentFilterDto) map[string]interfac
 	return updates
 }
 
-func defaultTagMode(val string) models.EnvironmentFilterTagMode {
+func defaultString(val, fallback string) string {
 	if val == "" {
-		return models.TagModeAny
+		return fallback
 	}
-	return models.EnvironmentFilterTagMode(val)
-}
-
-func defaultStatusFilter(val string) models.EnvironmentFilterStatusFilter {
-	if val == "" {
-		return models.StatusFilterAll
-	}
-	return models.EnvironmentFilterStatusFilter(val)
-}
-
-func defaultGroupBy(val string) models.EnvironmentFilterGroupBy {
-	if val == "" {
-		return models.GroupByNone
-	}
-	return models.EnvironmentFilterGroupBy(val)
+	return val
 }
