@@ -16,6 +16,7 @@ import (
 	"github.com/getarcaneapp/arcane/backend/internal/utils"
 	"github.com/getarcaneapp/arcane/backend/internal/utils/mapper"
 	"github.com/getarcaneapp/arcane/backend/internal/utils/pagination"
+	"github.com/getarcaneapp/arcane/backend/internal/utils/search"
 	"github.com/google/uuid"
 	"go.getarcane.app/types/containerregistry"
 	"go.getarcane.app/types/environment"
@@ -127,11 +128,9 @@ func (s *EnvironmentService) ListEnvironmentsPaginated(ctx context.Context, para
 	q := s.db.WithContext(ctx).Model(&models.Environment{})
 
 	if term := strings.TrimSpace(params.Search); term != "" {
-		searchPattern := "%" + term + "%"
-		q = q.Where(
-			"name LIKE ? OR api_url LIKE ?",
-			searchPattern, searchPattern,
-		)
+		// Fuzzy search (case-insensitive) or exact match with quotes (case-sensitive)
+		sq := search.BuildSearch(term, s.db.Name(), "name", "api_url")
+		q = q.Where(sq.Clause, sq.Args...)
 	}
 
 	if status := params.Filters["status"]; status != "" {
