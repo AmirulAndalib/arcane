@@ -73,19 +73,21 @@
 	</div>
 
 	<!-- Save new filter -->
-	<div class="flex gap-2">
-		<Input
-			type="text"
-			placeholder={m.env_selector_filter_name_placeholder()}
-			class="h-9 flex-1 text-sm"
-			bind:value={saveFilterName}
-			onkeydown={(e) => e.key === 'Enter' && ctx.hasSaveableFilters && handleSaveNew()}
-		/>
-		<Button size="sm" class="h-9" onclick={handleSaveNew} disabled={!saveFilterName.trim() || !ctx.hasSaveableFilters}>
-			<PlusIcon class="mr-1 size-4" />
-			{m.common_save()}
-		</Button>
-	</div>
+	{#if ctx.hasSaveableFilters}
+		<div class="flex gap-2">
+			<Input
+				type="text"
+				placeholder={m.env_selector_filter_name_placeholder()}
+				class="h-9 flex-1 text-sm"
+				bind:value={saveFilterName}
+				onkeydown={(e) => e.key === 'Enter' && handleSaveNew()}
+			/>
+			<Button size="sm" class="h-9" onclick={handleSaveNew} disabled={!saveFilterName.trim()}>
+				<PlusIcon class="mr-1 size-4" />
+				{m.common_save()}
+			</Button>
+		</div>
+	{/if}
 
 	<!-- Filters list -->
 	<ScrollArea class="max-h-[40vh] min-h-[120px]">
