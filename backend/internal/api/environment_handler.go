@@ -545,6 +545,17 @@ func (h *EnvironmentHandler) SyncRegistries(c *gin.Context) {
 	})
 }
 
+// ListFilters godoc
+//
+//	@Summary		List filters
+//	@Description	List all filters for the current user
+//	@Tags			Filters
+//	@Security		BearerAuth
+//	@Security		ApiKeyAuth
+//	@Success		200	{object}	base.ApiResponse[[]environment.FilterResponse]
+//	@Failure		401	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		500	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Router			/api/environments/filters [get]
 func (h *EnvironmentHandler) ListFilters(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
@@ -566,6 +577,19 @@ func (h *EnvironmentHandler) ListFilters(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
 }
 
+// GetFilter godoc
+//
+//	@Summary		Get a filter
+//	@Description	Get a filter by ID
+//	@Tags			Filters
+//	@Security		BearerAuth
+//	@Security		ApiKeyAuth
+//	@Param			filterId		path		string	true	"Filter ID"
+//	@Success		200	{object}	base.ApiResponse[environment.FilterResponse]
+//	@Failure		401	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		404	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		500	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Router			/api/environments/filters/{filterId} [get]
 func (h *EnvironmentHandler) GetFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
@@ -591,6 +615,19 @@ func (h *EnvironmentHandler) GetFilter(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterResponse(filter)})
 }
 
+// CreateFilter godoc
+//
+//	@Summary		Create a filter
+//	@Description	Create a new filter
+//	@Tags			Filters
+//	@Security		BearerAuth
+//	@Security		ApiKeyAuth
+//	@Param			request	body	environment.FilterCreate	true	"Filter creation data"
+//	@Success		201	{object}	base.ApiResponse[environment.FilterResponse]
+//	@Failure		400	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		401	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		500	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Router			/api/environments/filters [post]
 func (h *EnvironmentHandler) CreateFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
@@ -625,6 +662,21 @@ func (h *EnvironmentHandler) CreateFilter(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"success": true, "data": toFilterResponse(created)})
 }
 
+// UpdateFilter godoc
+//
+//	@Summary		Update a filter
+//	@Description	Update an existing filter
+//	@Tags			Filters
+//	@Security		BearerAuth
+//	@Security		ApiKeyAuth
+//	@Param			filterId		path		string	true	"Filter ID"
+//	@Param			request	body	environment.FilterUpdate	true	"Filter update data"
+//	@Success		200	{object}	base.ApiResponse[environment.FilterResponse]
+//	@Failure		400	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		401	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		404	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		500	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Router			/api/environments/filters/{filterId} [put]
 func (h *EnvironmentHandler) UpdateFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
@@ -663,6 +715,19 @@ func (h *EnvironmentHandler) UpdateFilter(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterResponse(updated)})
 }
 
+// DeleteFilter godoc
+//
+//	@Summary		Delete a filter
+//	@Description	Delete an existing filter
+//	@Tags			Filters
+//	@Security		BearerAuth
+//	@Security		ApiKeyAuth
+//	@Param			filterId		path		string	true	"Filter ID"
+//	@Success		200	{object}	base.ApiResponse[base.MessageResponse]
+//	@Failure		401	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		404	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Failure		500	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Router			/api/environments/filters/{filterId} [delete]
 func (h *EnvironmentHandler) DeleteFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
