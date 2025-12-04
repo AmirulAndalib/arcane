@@ -27,27 +27,36 @@
 
 	let { open = $bindable(false), isAdmin = false, onOpenChange, trigger }: Props = $props();
 
+	// Core state
 	let environments = $state.raw<Environment[]>([]);
 	let pagination = $state<PaginationResponse | null>(null);
 	let allTags = $state.raw<string[]>([]);
+	let savedFilters = $state.raw<EnvironmentFilter[]>([]);
+	let filters = $state<EnvironmentFilterState>({ ...defaultFilterState });
+	let activeFilterId = $state<string | null>(null);
+
+	// UI state
 	let isLoading = $state(true);
 	let inputValue = $state('');
-	let filters = $state<EnvironmentFilterState>({ ...defaultFilterState });
-	let savedFilters = $state.raw<EnvironmentFilter[]>([]);
-	let activeFilterId = $state<string | null>(null);
 	let defaultFilterDisabled = $state(false);
 	let selectedSuggestionIndex = $state(0);
 	let showSavedFiltersView = $state(false);
 
+	// Context for child components
 	setEnvSelectorContext({
 		filters: () => filters,
 		allTags: () => allTags,
 		savedFilters: () => savedFilters,
 		activeFilterId: () => activeFilterId,
-		updateFilters,
-		clearFilters
+		updateFilters: (partial) => (filters = { ...filters, ...partial }),
+		clearFilters: () => {
+			filters = { ...defaultFilterState };
+			activeFilterId = null;
+			defaultFilterDisabled = true;
+		}
 	});
 
+	// Extract search query from input (removes tag: and is: commands)
 	const searchQuery = $derived(
 		inputValue
 			.replace(/-?tag:\S*/gi, '')
@@ -55,6 +64,7 @@
 			.trim()
 	);
 
+	// Parse input for autocomplete
 	const inputMatch = $derived.by((): InputMatch | null => {
 		const patterns = [
 			{ regex: /is:(\S*)$/i, type: 'status' as const },
@@ -68,6 +78,7 @@
 		return null;
 	});
 
+	// Generate autocomplete suggestions
 	const suggestions = $derived.by((): Suggestion[] => {
 		if (!inputMatch) return [];
 		if (inputMatch.type === 'status') {
@@ -86,6 +97,7 @@
 			.map((tag) => ({ value: tag, label: tag }));
 	});
 
+	// Group environments for display
 	const groupedEnvironments = $derived.by(() => {
 		if (filters.groupBy === 'none') return null;
 		const groups = new Map<string, Environment[]>();
@@ -102,6 +114,7 @@
 			.sort((a, b) => (a.name === 'online' ? -1 : b.name === 'online' ? 1 : a.name.localeCompare(b.name)));
 	});
 
+	// Derived state
 	const hasActiveFilters = $derived(
 		filters.selectedTags.length > 0 ||
 			filters.excludedTags.length > 0 ||
@@ -113,6 +126,7 @@
 		JSON.stringify([searchQuery, filters.statusFilter, filters.selectedTags, filters.excludedTags, filters.tagMode])
 	);
 
+	// Effects
 	$effect(() => {
 		selectedSuggestionIndex = suggestions.length > 0 ? 0 : -1;
 	});
@@ -137,6 +151,7 @@
 		}
 	});
 
+	// Debounced reload on filter changes
 	const debouncedLoad = debounced(() => open && loadEnvironments(), 300);
 	let lastFilterKey = '';
 	$effect(() => {
@@ -189,6 +204,7 @@
 		}
 	}
 
+	// Filter operations
 	function applyFilter(filter: EnvironmentFilter) {
 		filters = {
 			searchQuery: filter.searchQuery ?? '',
@@ -198,14 +214,9 @@
 			statusFilter: filter.statusFilter,
 			groupBy: filter.groupBy
 		};
-		// Apply saved search query to input
 		inputValue = filter.searchQuery ?? '';
 		activeFilterId = filter.id;
 		showSavedFiltersView = false;
-	}
-
-	function updateFilters(partial: Partial<EnvironmentFilterState>) {
-		filters = { ...filters, ...partial };
 	}
 
 	function clearFilters() {
@@ -222,6 +233,7 @@
 		defaultFilterDisabled = !defaultFilter;
 	}
 
+	// Input handling
 	function handleKeydown(event: KeyboardEvent) {
 		if (!suggestions.length) return;
 		const actions: Record<string, () => void> = {
@@ -242,17 +254,18 @@
 		if (!suggestion || !inputMatch) return;
 
 		if (inputMatch.type === 'status') {
-			updateFilters({ statusFilter: suggestion.value as 'online' | 'offline' });
+			filters = { ...filters, statusFilter: suggestion.value as 'online' | 'offline' };
 		} else {
 			const key = inputMatch.type === 'exclude' ? 'excludedTags' : 'selectedTags';
 			const other = inputMatch.type === 'exclude' ? 'selectedTags' : 'excludedTags';
 			if (!filters[key].includes(suggestion.value) && !filters[other].includes(suggestion.value)) {
-				updateFilters({ [key]: [...filters[key], suggestion.value] });
+				filters = { ...filters, [key]: [...filters[key], suggestion.value] };
 			}
 		}
 		inputValue = searchQuery;
 	}
 
+	// Environment selection
 	async function handleSelectEnvironment(env: Environment) {
 		if (!env.enabled) return toast.error(m.environments_cannot_switch_disabled());
 		try {
@@ -265,6 +278,7 @@
 		}
 	}
 
+	// Saved filter CRUD helpers
 	async function withToast<T>(fn: () => Promise<T>, successMsg: string, errorMsg: string): Promise<T | null> {
 		try {
 			const result = await fn();
@@ -327,7 +341,6 @@
 	async function handleClearFilterDefault() {
 		const currentDefault = savedFilters.find((f) => f.isDefault);
 		if (!currentDefault) return;
-
 		const updated = await withToast(
 			() => environmentManagementService.updateSavedFilter(currentDefault.id, { isDefault: false }),
 			m.common_update_success({ resource: m.common_filter() }),

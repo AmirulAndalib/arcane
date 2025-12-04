@@ -41,13 +41,12 @@
 
 	const ctx = useEnvSelector();
 
-	// Compute available grouping options using context
+	// Grouping options
 	const canGroupByStatus = $derived(ctx.filters.statusFilter === 'all');
 	const canGroupByTags = $derived(
 		ctx.allTags.length > 0 && ctx.filters.selectedTags.length === 0 && ctx.filters.excludedTags.length === 0
 	);
 	const hasGroupingOptions = $derived(canGroupByStatus || canGroupByTags);
-
 	const groupByOptions = $derived([
 		{ value: 'none' as const, label: m.common_none() },
 		...(canGroupByStatus ? [{ value: 'status' as const, label: m.common_status() }] : []),
@@ -74,15 +73,15 @@
 			</Popover.Trigger>
 			<Popover.Content class="w-48 p-2" align="start">
 				<div class="space-y-1">
-					{#each groupByOptions as option (option.value)}
+					{#each groupByOptions as opt (opt.value)}
 						<button
 							class={cn(
 								'flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors',
-								ctx.filters.groupBy === option.value ? 'bg-accent text-accent-foreground' : 'hover:bg-muted'
+								ctx.filters.groupBy === opt.value ? 'bg-accent text-accent-foreground' : 'hover:bg-muted'
 							)}
-							onclick={() => ctx.setGroupBy(option.value)}
+							onclick={() => ctx.setGroupBy(opt.value)}
 						>
-							{option.label}
+							{opt.label}
 						</button>
 					{/each}
 				</div>
@@ -100,54 +99,40 @@
 		</Popover.Trigger>
 		<Popover.Content class="w-64 p-3" align="end">
 			<div class="space-y-3">
-				<!-- Saved Filters button -->
+				<!-- Saved Filters -->
 				<Button variant="outline" size="sm" class="h-8 w-full gap-1.5" onclick={onShowSavedFilters}>
 					<BookmarkIcon class="size-4" />
 					{m.env_selector_saved_filters()}
 				</Button>
 
-				<!-- Tag matching mode -->
+				<!-- Tag mode (only when multiple tags selected) -->
 				{#if ctx.filters.selectedTags.length > 1}
 					<div class="space-y-1.5">
 						<span class="text-muted-foreground text-xs font-medium">{m.env_selector_tag_mode()}</span>
 						<div class="flex gap-1">
-							<Tooltip.Provider>
-								<Tooltip.Root>
-									<Tooltip.Trigger class="flex-1">
-										<button
-											class={cn(
-												'w-full rounded-md px-2 py-1.5 text-xs transition-colors',
-												ctx.filters.tagMode === 'any' ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
-											)}
-											onclick={() => ctx.setTagMode('any')}
-										>
-											{m.env_selector_tag_mode_any()}
-										</button>
-									</Tooltip.Trigger>
-									<Tooltip.Content>{m.env_selector_tag_mode_any_desc()}</Tooltip.Content>
-								</Tooltip.Root>
-							</Tooltip.Provider>
-							<Tooltip.Provider>
-								<Tooltip.Root>
-									<Tooltip.Trigger class="flex-1">
-										<button
-											class={cn(
-												'w-full rounded-md px-2 py-1.5 text-xs transition-colors',
-												ctx.filters.tagMode === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
-											)}
-											onclick={() => ctx.setTagMode('all')}
-										>
-											{m.env_selector_tag_mode_all()}
-										</button>
-									</Tooltip.Trigger>
-									<Tooltip.Content>{m.env_selector_tag_mode_all_desc()}</Tooltip.Content>
-								</Tooltip.Root>
-							</Tooltip.Provider>
+							{#each [{ value: 'any', label: m.env_selector_tag_mode_any(), desc: m.env_selector_tag_mode_any_desc() }, { value: 'all', label: m.env_selector_tag_mode_all(), desc: m.env_selector_tag_mode_all_desc() }] as mode (mode.value)}
+								<Tooltip.Provider>
+									<Tooltip.Root>
+										<Tooltip.Trigger class="flex-1">
+											<button
+												class={cn(
+													'w-full rounded-md px-2 py-1.5 text-xs transition-colors',
+													ctx.filters.tagMode === mode.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+												)}
+												onclick={() => ctx.setTagMode(mode.value as 'any' | 'all')}
+											>
+												{mode.label}
+											</button>
+										</Tooltip.Trigger>
+										<Tooltip.Content>{mode.desc}</Tooltip.Content>
+									</Tooltip.Root>
+								</Tooltip.Provider>
+							{/each}
 						</div>
 					</div>
 				{/if}
 
-				<!-- Clear / Reset buttons -->
+				<!-- Clear / Reset -->
 				<div class="flex gap-2 border-t pt-3">
 					<Button
 						variant="ghost"

@@ -1,164 +1,93 @@
 import { getContext, setContext } from 'svelte';
-import type { EnvironmentFilter, EnvironmentFilterState, EnvSelectorStateProps, GroupBy, StatusFilter, TagMode } from './types';
+import type { EnvironmentFilter } from '$lib/types/environment.type';
+import type { EnvironmentFilterState } from './types';
 
-/**
- * State class for the environment selector context.
- * Provides reactive access to filters and helper methods.
- */
+interface EnvSelectorProps {
+	filters: () => EnvironmentFilterState;
+	allTags: () => string[];
+	savedFilters: () => EnvironmentFilter[];
+	activeFilterId: () => string | null;
+	updateFilters: (partial: Partial<EnvironmentFilterState>) => void;
+	clearFilters: () => void;
+}
+
 class EnvSelectorState {
-	readonly #props: EnvSelectorStateProps;
+	readonly #props: EnvSelectorProps;
 
-	constructor(props: EnvSelectorStateProps) {
+	constructor(props: EnvSelectorProps) {
 		this.#props = props;
 	}
 
-	// Reactive getters
 	get filters() {
 		return this.#props.filters();
 	}
-
 	get allTags() {
 		return this.#props.allTags();
 	}
-
 	get savedFilters() {
 		return this.#props.savedFilters();
 	}
-
 	get activeFilterId() {
 		return this.#props.activeFilterId();
 	}
-
 	get activeSavedFilter(): EnvironmentFilter | null {
 		return this.savedFilters.find((f) => f.id === this.activeFilterId) ?? null;
 	}
-
-	get hasActiveFilters(): boolean {
+	get hasDefaultFilter() {
+		return this.savedFilters.some((f) => f.isDefault);
+	}
+	get hasActiveFilters() {
 		const f = this.filters;
 		return f.selectedTags.length > 0 || f.excludedTags.length > 0 || f.statusFilter !== 'all' || f.groupBy !== 'none';
 	}
-
-	get hasSaveableFilters(): boolean {
+	get hasSaveableFilters() {
 		const f = this.filters;
 		return f.selectedTags.length > 0 || f.excludedTags.length > 0 || f.statusFilter !== 'all';
 	}
 
-	get hasDefaultFilter(): boolean {
-		return this.savedFilters.some((f) => f.isDefault);
-	}
+	updateFilters = (partial: Partial<EnvironmentFilterState>) => this.#props.updateFilters(partial);
+	clearFilters = () => this.#props.clearFilters();
 
-	// Methods
-	updateFilters = (partial: Partial<EnvironmentFilterState>) => {
-		this.#props.updateFilters(partial);
-	};
-
-	clearFilters = () => {
-		this.#props.clearFilters();
-	};
-
+	// Tag operations
 	addTag = (tag: string) => {
-		if (!this.filters.selectedTags.includes(tag) && !this.filters.excludedTags.includes(tag)) {
-			this.updateFilters({ selectedTags: [...this.filters.selectedTags, tag] });
+		const { selectedTags, excludedTags } = this.filters;
+		if (!selectedTags.includes(tag) && !excludedTags.includes(tag)) {
+			this.updateFilters({ selectedTags: [...selectedTags, tag] });
 		}
 	};
-
-	removeTag = (tag: string) => {
-		this.updateFilters({ selectedTags: this.filters.selectedTags.filter((t) => t !== tag) });
-	};
-
+	removeTag = (tag: string) => this.updateFilters({ selectedTags: this.filters.selectedTags.filter((t) => t !== tag) });
 	addExcludedTag = (tag: string) => {
-		if (!this.filters.selectedTags.includes(tag) && !this.filters.excludedTags.includes(tag)) {
-			this.updateFilters({ excludedTags: [...this.filters.excludedTags, tag] });
+		const { selectedTags, excludedTags } = this.filters;
+		if (!selectedTags.includes(tag) && !excludedTags.includes(tag)) {
+			this.updateFilters({ excludedTags: [...excludedTags, tag] });
 		}
 	};
+	removeExcludedTag = (tag: string) => this.updateFilters({ excludedTags: this.filters.excludedTags.filter((t) => t !== tag) });
 
-	removeExcludedTag = (tag: string) => {
-		this.updateFilters({ excludedTags: this.filters.excludedTags.filter((t) => t !== tag) });
-	};
+	// Filter operations
+	setStatus = (status: 'all' | 'online' | 'offline') => this.updateFilters({ statusFilter: status });
+	setGroupBy = (groupBy: 'none' | 'status' | 'tags') => this.updateFilters({ groupBy });
+	setTagMode = (tagMode: 'any' | 'all') => this.updateFilters({ tagMode });
 
-	setStatus = (status: StatusFilter) => {
-		this.updateFilters({ statusFilter: status });
-	};
-
-	clearStatus = () => {
-		this.updateFilters({ statusFilter: this.activeSavedFilter?.statusFilter ?? 'all' });
-	};
-
-	setGroupBy = (groupBy: GroupBy) => {
-		this.updateFilters({ groupBy });
-	};
-
-	setTagMode = (tagMode: TagMode) => {
-		this.updateFilters({ tagMode });
-	};
-
-	/**
-	 * Check if current filters differ from a saved filter
-	 */
-	isFilterDifferent(savedFilter: EnvironmentFilter): boolean {
-		const current = this.filters;
+	// Check if current filters differ from a saved filter
+	isFilterDifferent(filter: EnvironmentFilter): boolean {
+		const c = this.filters;
 		return (
-			JSON.stringify([...current.selectedTags].sort()) !== JSON.stringify([...savedFilter.selectedTags].sort()) ||
-			JSON.stringify([...current.excludedTags].sort()) !== JSON.stringify([...savedFilter.excludedTags].sort()) ||
-			current.tagMode !== savedFilter.tagMode ||
-			current.statusFilter !== savedFilter.statusFilter ||
-			current.groupBy !== savedFilter.groupBy
+			JSON.stringify([...c.selectedTags].sort()) !== JSON.stringify([...filter.selectedTags].sort()) ||
+			JSON.stringify([...c.excludedTags].sort()) !== JSON.stringify([...filter.excludedTags].sort()) ||
+			c.tagMode !== filter.tagMode ||
+			c.statusFilter !== filter.statusFilter ||
+			c.groupBy !== filter.groupBy
 		);
 	}
-
-	/**
-	 * Get tags that are additional to the active saved filter
-	 */
-	getAdditionalSelectedTags(): string[] {
-		const filter = this.activeSavedFilter;
-		return filter ? this.filters.selectedTags.filter((t) => !filter.selectedTags.includes(t)) : this.filters.selectedTags;
-	}
-
-	getAdditionalExcludedTags(): string[] {
-		const filter = this.activeSavedFilter;
-		return filter ? this.filters.excludedTags.filter((t) => !filter.excludedTags.includes(t)) : this.filters.excludedTags;
-	}
-
-	isStatusAdditional(): boolean {
-		const filter = this.activeSavedFilter;
-		return filter ? this.filters.statusFilter !== filter.statusFilter : this.filters.statusFilter !== 'all';
-	}
-
-	isTagModeAdditional(): boolean {
-		const filter = this.activeSavedFilter;
-		const hasMultipleTags = this.filters.selectedTags.length > 1;
-		return filter
-			? this.filters.tagMode !== filter.tagMode && hasMultipleTags
-			: this.filters.tagMode !== 'any' && hasMultipleTags;
-	}
-
-	/**
-	 * Reset tags to the active saved filter's tags or clear them
-	 */
-	resetTags = () => {
-		const filter = this.activeSavedFilter;
-		this.updateFilters(
-			filter
-				? { selectedTags: [...filter.selectedTags], excludedTags: [...filter.excludedTags] }
-				: { selectedTags: [], excludedTags: [] }
-		);
-	};
 }
 
-const SYMBOL_KEY = 'env-selector';
+const KEY = Symbol.for('env-selector');
 
-/**
- * Create and set the environment selector context.
- * Call this in the root environment-selector component.
- */
-export function setEnvSelectorContext(props: EnvSelectorStateProps): EnvSelectorState {
-	return setContext(Symbol.for(SYMBOL_KEY), new EnvSelectorState(props));
+export function setEnvSelectorContext(props: EnvSelectorProps): EnvSelectorState {
+	return setContext(KEY, new EnvSelectorState(props));
 }
 
-/**
- * Get the environment selector context.
- * Call this in child components to access shared state.
- */
 export function useEnvSelector(): EnvSelectorState {
-	return getContext(Symbol.for(SYMBOL_KEY));
+	return getContext(KEY);
 }

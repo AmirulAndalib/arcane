@@ -1,6 +1,5 @@
 import type { Environment, EnvironmentFilter, GroupBy, StatusFilter, TagMode } from '$lib/types/environment.type';
 
-// Re-export types for convenience
 export type { Environment, EnvironmentFilter, TagMode, StatusFilter, GroupBy };
 
 export interface EnvironmentFilterState {
@@ -21,6 +20,11 @@ export const defaultFilterState: EnvironmentFilterState = {
 	groupBy: 'none'
 };
 
+export interface EnvironmentGroup {
+	name: string;
+	items: Environment[];
+}
+
 export interface InputMatch {
 	type: 'status' | 'include' | 'exclude';
 	partial: string;
@@ -29,20 +33,4 @@ export interface InputMatch {
 export interface Suggestion {
 	value: string;
 	label: string;
-}
-
-export interface EnvironmentGroup {
-	name: string;
-	items: Environment[];
-}
-
-type Getter<T> = () => T;
-
-export interface EnvSelectorStateProps {
-	filters: Getter<EnvironmentFilterState>;
-	allTags: Getter<string[]>;
-	savedFilters: Getter<EnvironmentFilter[]>;
-	activeFilterId: Getter<string | null>;
-	updateFilters: (partial: Partial<EnvironmentFilterState>) => void;
-	clearFilters: () => void;
 }
