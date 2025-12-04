@@ -569,9 +569,10 @@ func (h *EnvironmentHandler) ListFilters(c *gin.Context) {
 		return
 	}
 
-	out := make([]environment.FilterResponse, len(filters))
-	for i, f := range filters {
-		out[i] = toFilterResponse(&f)
+	out, mapErr := mapper.MapSlice[models.EnvironmentFilter, environment.FilterResponse](filters)
+	if mapErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterMappingError{Err: mapErr}).Error()}})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
@@ -612,7 +613,13 @@ func (h *EnvironmentHandler) GetFilter(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterResponse(filter)})
+	out, mapErr := mapper.MapOne[*models.EnvironmentFilter, environment.FilterResponse](filter)
+	if mapErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterMappingError{Err: mapErr}).Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
 }
 
 // CreateFilter godoc
@@ -659,7 +666,13 @@ func (h *EnvironmentHandler) CreateFilter(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"success": true, "data": toFilterResponse(created)})
+	out, mapErr := mapper.MapOne[*models.EnvironmentFilter, environment.FilterResponse](created)
+	if mapErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterMappingError{Err: mapErr}).Error()}})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"success": true, "data": out})
 }
 
 // UpdateFilter godoc
@@ -712,7 +725,13 @@ func (h *EnvironmentHandler) UpdateFilter(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterResponse(updated)})
+	out, mapErr := mapper.MapOne[*models.EnvironmentFilter, environment.FilterResponse](updated)
+	if mapErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterMappingError{Err: mapErr}).Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
 }
 
 // DeleteFilter godoc
@@ -746,35 +765,6 @@ func (h *EnvironmentHandler) DeleteFilter(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
-}
-
-func toFilterResponse(f *models.EnvironmentFilter) environment.FilterResponse {
-	resp := environment.FilterResponse{
-		ID:           f.ID,
-		UserID:       f.UserID,
-		Name:         f.Name,
-		IsDefault:    f.IsDefault,
-		SearchQuery:  f.SearchQuery,
-		SelectedTags: f.SelectedTags,
-		ExcludedTags: f.ExcludedTags,
-		TagMode:      string(f.TagMode),
-		StatusFilter: string(f.StatusFilter),
-		GroupBy:      string(f.GroupBy),
-		CreatedAt:    f.CreatedAt.Format(time.RFC3339),
-	}
-
-	if f.UpdatedAt != nil {
-		resp.UpdatedAt = f.UpdatedAt.Format(time.RFC3339)
-	}
-
-	// Ensure slices are not nil for JSON serialization
-	if resp.SelectedTags == nil {
-		resp.SelectedTags = []string{}
-	}
-	if resp.ExcludedTags == nil {
-		resp.ExcludedTags = []string{}
-	}
-	return resp
 }
 
 func buildFilterUpdates(req *environment.FilterUpdate) map[string]interface{} {

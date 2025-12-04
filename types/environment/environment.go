@@ -1,5 +1,7 @@
 package environment
 
+import "time"
+
 type Create struct {
 	// ApiUrl is the URL of the environment API.
 	//
@@ -110,7 +112,7 @@ type Response struct {
 	// LastSeen is the last time the environment was seen.
 	//
 	// Required: false
-	LastSeen *string `json:"lastSeen,omitempty"`
+	LastSeen *time.Time `json:"lastSeen,omitempty"`
 }
 
 // FilterCreate is the request body for creating a new environment filter.
@@ -254,10 +256,10 @@ type FilterResponse struct {
 	// CreatedAt is the creation timestamp.
 	//
 	// Required: false
-	CreatedAt string `json:"createdAt,omitempty"`
+	CreatedAt time.Time `json:"createdAt,omitempty"`
 
 	// UpdatedAt is the last update timestamp.
 	//
 	// Required: false
-	UpdatedAt string `json:"updatedAt,omitempty"`
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }

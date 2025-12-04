@@ -1247,6 +1247,14 @@ func (e *FilterListError) Error() string {
 	return fmt.Sprintf("Failed to list filters: %v", e.Err)
 }
 
+type FilterMappingError struct {
+	Err error
+}
+
+func (e *FilterMappingError) Error() string {
+	return fmt.Sprintf("Failed to map filter: %v", e.Err)
+}
+
 type ApiKeyListError struct {
 	Err error
 }
