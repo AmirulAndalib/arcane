@@ -52,12 +52,9 @@ func NewEnvironmentHandler(
 		apiGroup.GET("/tags", h.GetAllTags)
 		apiGroup.GET("/filters", h.ListFilters)
 		apiGroup.POST("/filters", h.CreateFilter)
-		apiGroup.GET("/filters/default", h.GetDefaultFilter)
-		apiGroup.DELETE("/filters/default", h.ClearFilterDefault)
 		apiGroup.GET("/filters/:filterId", h.GetFilter)
 		apiGroup.PUT("/filters/:filterId", h.UpdateFilter)
 		apiGroup.DELETE("/filters/:filterId", h.DeleteFilter)
-		apiGroup.POST("/filters/:filterId/default", h.SetFilterDefault)
 		apiGroup.GET("/:id", h.GetEnvironment)
 		apiGroup.PUT("/:id", h.UpdateEnvironment)
 		apiGroup.DELETE("/:id", h.DeleteEnvironment)
@@ -498,27 +495,6 @@ func (h *EnvironmentHandler) GetFilter(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterResponse(filter)})
 }
 
-func (h *EnvironmentHandler) GetDefaultFilter(c *gin.Context) {
-	userID, ok := middleware.GetCurrentUserID(c)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
-		return
-	}
-
-	filter, err := h.environmentService.GetDefaultFilter(c.Request.Context(), userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterListError{Err: err}).Error()}})
-		return
-	}
-
-	if filter == nil {
-		c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": toFilterResponse(filter)})
-}
-
 func (h *EnvironmentHandler) CreateFilter(c *gin.Context) {
 	userID, ok := middleware.GetCurrentUserID(c)
 	if !ok {
@@ -604,41 +580,6 @@ func (h *EnvironmentHandler) DeleteFilter(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterDeleteError{Err: err}).Error()}})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
-}
-
-func (h *EnvironmentHandler) SetFilterDefault(c *gin.Context) {
-	userID, ok := middleware.GetCurrentUserID(c)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
-		return
-	}
-
-	filterID := c.Param("filterId")
-	if err := h.environmentService.SetFilterDefault(c.Request.Context(), filterID, userID); err != nil {
-		if errors.Is(err, services.ErrFilterNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"success": false, "data": gin.H{"error": (&common.FilterNotFoundError{}).Error()}})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterUpdateError{Err: err}).Error()}})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
-}
-
-func (h *EnvironmentHandler) ClearFilterDefault(c *gin.Context) {
-	userID, ok := middleware.GetCurrentUserID(c)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "data": gin.H{"error": (&common.NotAuthenticatedError{}).Error()}})
-		return
-	}
-
-	if err := h.environmentService.ClearFilterDefault(c.Request.Context(), userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": (&common.FilterUpdateError{Err: err}).Error()}})
 		return
 	}
 

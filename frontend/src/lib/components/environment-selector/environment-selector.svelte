@@ -308,24 +308,27 @@
 	}
 
 	async function handleSetFilterDefault(filterId: string) {
-		const success = await withToast(
-			() => environmentManagementService.setSavedFilterDefault(filterId),
+		const updated = await withToast(
+			() => environmentManagementService.updateSavedFilter(filterId, { isDefault: true }),
 			m.common_update_success({ resource: m.common_filter() }),
 			m.common_update_failed({ resource: m.common_filter() })
 		);
-		if (success !== null) {
+		if (updated) {
 			savedFilters = savedFilters.map((f) => ({ ...f, isDefault: f.id === filterId }));
 			defaultFilterDisabled = false;
 		}
 	}
 
 	async function handleClearFilterDefault() {
-		const success = await withToast(
-			() => environmentManagementService.clearSavedFilterDefault(),
+		const currentDefault = savedFilters.find((f) => f.isDefault);
+		if (!currentDefault) return;
+
+		const updated = await withToast(
+			() => environmentManagementService.updateSavedFilter(currentDefault.id, { isDefault: false }),
 			m.common_update_success({ resource: m.common_filter() }),
 			m.common_update_failed({ resource: m.common_filter() })
 		);
-		if (success !== null) savedFilters = savedFilters.map((f) => ({ ...f, isDefault: false }));
+		if (updated) savedFilters = savedFilters.map((f) => ({ ...f, isDefault: false }));
 	}
 
 	async function handleRenameFilter(filterId: string, name: string) {

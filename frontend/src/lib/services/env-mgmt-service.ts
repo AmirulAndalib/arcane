@@ -82,11 +82,6 @@ export default class EnvironmentManagementService extends BaseAPIService {
 		return res.data.data as EnvironmentFilter;
 	}
 
-	async getDefaultSavedFilter(): Promise<EnvironmentFilter | null> {
-		const res = await this.api.get('/environments/filters/default');
-		return res.data.data as EnvironmentFilter | null;
-	}
-
 	async createSavedFilter(dto: CreateEnvironmentFilterDTO): Promise<EnvironmentFilter> {
 		const res = await this.api.post('/environments/filters', dto);
 		return res.data.data as EnvironmentFilter;
@@ -99,14 +94,6 @@ export default class EnvironmentManagementService extends BaseAPIService {
 
 	async deleteSavedFilter(filterId: string): Promise<void> {
 		await this.api.delete(`/environments/filters/${filterId}`);
-	}
-
-	async setSavedFilterDefault(filterId: string): Promise<void> {
-		await this.api.post(`/environments/filters/${filterId}/default`);
-	}
-
-	async clearSavedFilterDefault(): Promise<void> {
-		await this.api.delete('/environments/filters/default');
 	}
 }
 

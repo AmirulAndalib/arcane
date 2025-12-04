@@ -578,18 +578,6 @@ func (s *EnvironmentService) GetFilter(ctx context.Context, filterID, userID str
 	return &filter, nil
 }
 
-// GetDefaultFilter returns the default filter for a user, if one exists
-func (s *EnvironmentService) GetDefaultFilter(ctx context.Context, userID string) (*models.EnvironmentFilter, error) {
-	var filter models.EnvironmentFilter
-	if err := s.db.WithContext(ctx).Where("user_id = ? AND is_default = ?", userID, true).First(&filter).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // No default filter is not an error
-		}
-		return nil, fmt.Errorf("failed to get default filter: %w", err)
-	}
-	return &filter, nil
-}
-
 // CreateFilter creates a new saved filter for a user
 func (s *EnvironmentService) CreateFilter(ctx context.Context, filter *models.EnvironmentFilter) (*models.EnvironmentFilter, error) {
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -667,44 +655,6 @@ func (s *EnvironmentService) DeleteFilter(ctx context.Context, filterID, userID 
 	}
 	if result.RowsAffected == 0 {
 		return ErrFilterNotFound
-	}
-	return nil
-}
-
-// SetFilterDefault sets a filter as the default for a user
-func (s *EnvironmentService) SetFilterDefault(ctx context.Context, filterID, userID string) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// First verify the filter exists and belongs to the user
-		var filter models.EnvironmentFilter
-		if err := tx.Where("id = ? AND user_id = ?", filterID, userID).First(&filter).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrFilterNotFound
-			}
-			return fmt.Errorf("failed to get filter: %w", err)
-		}
-
-		// Clear any existing default
-		if err := tx.Model(&models.EnvironmentFilter{}).
-			Where("user_id = ? AND is_default = ?", userID, true).
-			Update("is_default", false).Error; err != nil {
-			return fmt.Errorf("failed to clear existing default: %w", err)
-		}
-
-		// Set new default
-		if err := tx.Model(&filter).Update("is_default", true).Error; err != nil {
-			return fmt.Errorf("failed to set default: %w", err)
-		}
-
-		return nil
-	})
-}
-
-// ClearFilterDefault clears the default filter for a user
-func (s *EnvironmentService) ClearFilterDefault(ctx context.Context, userID string) error {
-	if err := s.db.WithContext(ctx).Model(&models.EnvironmentFilter{}).
-		Where("user_id = ? AND is_default = ?", userID, true).
-		Update("is_default", false).Error; err != nil {
-		return fmt.Errorf("failed to clear default: %w", err)
 	}
 	return nil
 }
