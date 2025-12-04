@@ -50,7 +50,7 @@ func NewEnvironmentHandler(
 	{
 		apiGroup.GET("", h.ListEnvironments)
 		apiGroup.POST("", h.CreateEnvironment)
-		apiGroup.GET("/tags", h.GetAllTags)
+		apiGroup.GET("/tags", h.ListTags)
 		apiGroup.GET("/filters", h.ListFilters)
 		apiGroup.POST("/filters", h.CreateFilter)
 		apiGroup.GET("/filters/:filterId", h.GetFilter)
@@ -120,8 +120,6 @@ func (h *EnvironmentHandler) PairAgent(c *gin.Context) {
 //	@Param			environment	body		environment.Create	true	"Environment creation data"
 //	@Success		201			{object}	base.ApiResponse[environment.Response]
 //	@Router			/api/environments [post]
-//
-// Create
 func (h *EnvironmentHandler) CreateEnvironment(c *gin.Context) {
 	var req environment.Create
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -226,21 +224,14 @@ func (h *EnvironmentHandler) ListEnvironments(c *gin.Context) {
 	})
 }
 
-// GetAllTags returns all unique tags used across environments
-func (h *EnvironmentHandler) GetAllTags(c *gin.Context) {
-	tags, err := h.environmentService.GetAllTags(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    tags,
-	})
-}
-
-// Get by ID
+// GetEnvironment godoc
+//
+//	@Summary		Get an environment
+//	@Description	Get a Docker environment by ID
+//	@Tags			Environments
+//	@Param			id	path		string	true	"Environment ID"
+//	@Success		200	{object}	base.ApiResponse[environment.Response]
+//	@Router			/api/environments/{id} [get]
 func (h *EnvironmentHandler) GetEnvironment(c *gin.Context) {
 	environmentID := c.Param("id")
 
@@ -273,8 +264,6 @@ func (h *EnvironmentHandler) GetEnvironment(c *gin.Context) {
 //	@Param			environment	body		environment.Update		true	"Environment update data"
 //	@Success		200			{object}	base.ApiResponse[environment.Response]
 //	@Router			/api/environments/{id} [put]
-//
-// Update
 func (h *EnvironmentHandler) UpdateEnvironment(c *gin.Context) {
 	environmentID := c.Param("id")
 	isLocalEnv := environmentID == LOCAL_DOCKER_ENVIRONMENT_ID
@@ -425,8 +414,6 @@ func (h *EnvironmentHandler) triggerPostUpdateTasksInternal(environmentID string
 //	@Failure		400	{object}	base.ApiResponse[base.ErrorResponse]
 //	@Failure		500	{object}	base.ApiResponse[base.ErrorResponse]
 //	@Router			/api/environments/{id} [delete]
-//
-// Delete
 func (h *EnvironmentHandler) DeleteEnvironment(c *gin.Context) {
 	environmentID := c.Param("id")
 
@@ -459,8 +446,6 @@ func (h *EnvironmentHandler) DeleteEnvironment(c *gin.Context) {
 //	@Param			request	body		object	false	"Optional API URL to test"
 //	@Success		200		{object}	base.ApiResponse[environment.Test]
 //	@Router			/api/environments/{id}/test [post]
-//
-// TestConnection
 func (h *EnvironmentHandler) TestConnection(c *gin.Context) {
 	environmentID := c.Param("id")
 
@@ -543,6 +528,29 @@ func (h *EnvironmentHandler) SyncRegistries(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    gin.H{"message": "Registries synced successfully"},
+	})
+}
+
+// ListTags godoc
+//
+//	@Summary		List tags
+//	@Description	List all unique tags used across environments
+//	@Tags			Environments
+//	@Security		BearerAuth
+//	@Security		ApiKeyAuth
+//	@Success		200	{object}	base.ApiResponse[[]string]
+//	@Failure		500	{object}	base.ApiResponse[base.ErrorResponse]
+//	@Router			/api/environments/tags [get]
+func (h *EnvironmentHandler) ListTags(c *gin.Context) {
+	tags, err := h.environmentService.GetAllTags(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "data": gin.H{"error": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tags,
 	})
 }
 
