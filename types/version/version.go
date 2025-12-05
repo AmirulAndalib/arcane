@@ -1,5 +1,6 @@
 package version
 
+// Info contains detailed version information about the application.
 type Info struct {
 	// CurrentVersion is the current version string.
 	//
@@ -16,10 +17,25 @@ type Info struct {
 	// Required: false
 	CurrentDigest string `json:"currentDigest,omitempty"`
 
-	// Revision is the revision identifier (e.g., commit hash).
+	// Revision is the full revision identifier (e.g., commit hash).
 	//
 	// Required: true
 	Revision string `json:"revision"`
+
+	// ShortRevision is the short revision identifier (first 8 chars of commit hash).
+	//
+	// Required: true
+	ShortRevision string `json:"shortRevision"`
+
+	// GoVersion is the Go runtime version used to build the application.
+	//
+	// Required: true
+	GoVersion string `json:"goVersion"`
+
+	// BuildTime is the timestamp when the application was built.
+	//
+	// Required: false
+	BuildTime string `json:"buildTime,omitempty"`
 
 	// DisplayVersion is the version string formatted for display.
 	//
@@ -40,6 +56,29 @@ type Info struct {
 	//
 	// Required: false
 	NewestDigest string `json:"newestDigest,omitempty"`
+
+	// UpdateAvailable indicates if an update is available.
+	//
+	// Required: true
+	UpdateAvailable bool `json:"updateAvailable"`
+
+	// ReleaseURL is the URL to the release page.
+	//
+	// Required: false
+	ReleaseURL string `json:"releaseUrl,omitempty"`
+}
+
+// Check contains simplified version check information.
+type Check struct {
+	// CurrentVersion is the current version string.
+	//
+	// Required: true
+	CurrentVersion string `json:"currentVersion"`
+
+	// NewestVersion is the newest available version string.
+	//
+	// Required: false
+	NewestVersion string `json:"newestVersion,omitempty"`
 
 	// UpdateAvailable indicates if an update is available.
 	//

@@ -7,7 +7,8 @@ function extractServerMessage(data: any, includeErrors = false): string | undefi
 		return inner;
 	}
 	if (inner) {
-		const msg = inner.error || inner.message || inner.error_description;
+		// Support both old format (error/message) and Huma RFC 7807 format (detail)
+		const msg = inner.error || inner.message || inner.detail || inner.error_description;
 		if (msg) return msg;
 		if (includeErrors && Array.isArray(inner.errors) && inner.errors.length) {
 			return inner.errors[0]?.message || inner.errors[0];
@@ -76,7 +77,11 @@ abstract class BaseAPIService {
 					const isAuthApi = skipAuthPaths.some((p) => reqUrl.startsWith(p));
 
 					const pathname = window.location.pathname || '/';
-					const isOnAuthPage = pathname.startsWith('/login') || pathname.startsWith('/logout') || pathname.startsWith('/oidc');
+					const isOnAuthPage =
+						pathname.startsWith('/login') ||
+						pathname.startsWith('/logout') ||
+						pathname.startsWith('/oidc') ||
+						pathname.startsWith('/auth/oidc');
 
 					if (!isAuthApi && !isOnAuthPage && !isVersionMismatch && BaseAPIService.tokenRefreshHandler) {
 						try {

@@ -10,23 +10,24 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates tzdata curl jq \
 && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY ./.arcane.json ./arcane.json
-COPY ./go.work ./go.work
-COPY ./types ./types
-COPY ./cli ./cli
-COPY ./backend/go.mod ./backend/go.sum ./backend/
+COPY go.work ./
+COPY types ./types
+COPY cli ./cli
+COPY backend/go.mod backend/go.sum ./backend/
 WORKDIR /build/backend
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-COPY ./backend ./
+COPY backend ./
+COPY .arcane.json ../arcane.json
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     VERSION=$(jq -r '.version // "dev"' ../arcane.json) && \
     REVISION=$(jq -r '.revision // "unknown"' ../arcane.json) && \
+    BUILD_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ') && \
     CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH \
     go build \
     -tags "${BUILD_TAGS}" \
-    -ldflags "-w -s -X github.com/getarcaneapp/arcane/backend/internal/config.Version=${VERSION} -X github.com/getarcaneapp/arcane/backend/internal/config.Revision=${REVISION}" \
+    -ldflags "-w -s -X github.com/getarcaneapp/arcane/backend/internal/config.Version=${VERSION} -X github.com/getarcaneapp/arcane/backend/internal/config.Revision=${REVISION} -X github.com/getarcaneapp/arcane/backend/internal/config.BuildTime=${BUILD_TIME}" \
     -trimpath \
     -o /out/arcane-agent \
     ./cmd/main.go

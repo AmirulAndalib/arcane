@@ -2,17 +2,6 @@ package common
 
 import "fmt"
 
-type InvalidRequestFormatError struct {
-	Err error
-}
-
-func (e *InvalidRequestFormatError) Error() string {
-	if e.Err != nil {
-		return fmt.Sprintf("Invalid request format: %v", e.Err)
-	}
-	return "Invalid request format"
-}
-
 type AuthSettingsCheckError struct {
 	Err error
 }
@@ -109,14 +98,6 @@ type ContainerIDRequiredError struct{}
 
 func (e *ContainerIDRequiredError) Error() string {
 	return "Container ID is required"
-}
-
-type WebSocketUpgradeError struct {
-	Err error
-}
-
-func (e *WebSocketUpgradeError) Error() string {
-	return fmt.Sprintf("Failed to upgrade connection: %v", e.Err)
 }
 
 type ExecCreationError struct {
@@ -421,15 +402,6 @@ func (e *ImageRemovalError) Error() string {
 	return fmt.Sprintf("Failed to remove image: %v", e.Err)
 }
 
-type ImagePullError struct {
-	ImageName string
-	Err       error
-}
-
-func (e *ImagePullError) Error() string {
-	return fmt.Sprintf("Failed to pull image '%s': %v", e.ImageName, e.Err)
-}
-
 type ImagePruneError struct {
 	Err error
 }
@@ -444,14 +416,6 @@ type ImageUsageCountsError struct {
 
 func (e *ImageUsageCountsError) Error() string {
 	return fmt.Sprintf("Failed to get image usage counts: %v", e.Err)
-}
-
-type InvalidMultipartFormError struct {
-	Err error
-}
-
-func (e *InvalidMultipartFormError) Error() string {
-	return fmt.Sprintf("Invalid multipart form: %v", e.Err)
 }
 
 type FileUploadReadError struct {
@@ -500,12 +464,6 @@ type ImageIDRequiredError struct{}
 
 func (e *ImageIDRequiredError) Error() string {
 	return "imageId parameter is required"
-}
-
-type ImageRefListRequiredError struct{}
-
-func (e *ImageRefListRequiredError) Error() string {
-	return "At least one imageRef is required"
 }
 
 type BatchImageUpdateCheckError struct {
@@ -858,22 +816,6 @@ func (e *DockerInfoError) Error() string {
 	return fmt.Sprintf("Failed to get Docker info: %v", e.Err)
 }
 
-type DockerContainerListError struct {
-	Err error
-}
-
-func (e *DockerContainerListError) Error() string {
-	return fmt.Sprintf("Failed to list containers: %v", e.Err)
-}
-
-type DockerImageListError struct {
-	Err error
-}
-
-func (e *DockerImageListError) Error() string {
-	return fmt.Sprintf("Failed to list images: %v", e.Err)
-}
-
 type SystemPruneError struct {
 	Err error
 }
@@ -1201,4 +1143,42 @@ type VolumeCountsError struct {
 
 func (e *VolumeCountsError) Error() string {
 	return fmt.Sprintf("Failed to get volume counts: %v", e.Err)
+}
+
+type ApiKeyListError struct {
+	Err error
+}
+
+func (e *ApiKeyListError) Error() string {
+	return fmt.Sprintf("Failed to list API keys: %v", e.Err)
+}
+
+type ApiKeyCreationError struct {
+	Err error
+}
+
+func (e *ApiKeyCreationError) Error() string {
+	return "Failed to create API key"
+}
+
+type ApiKeyNotFoundError struct{}
+
+func (e *ApiKeyNotFoundError) Error() string {
+	return "API key not found"
+}
+
+type ApiKeyUpdateError struct {
+	Err error
+}
+
+func (e *ApiKeyUpdateError) Error() string {
+	return "Failed to update API key"
+}
+
+type ApiKeyDeletionError struct {
+	Err error
+}
+
+func (e *ApiKeyDeletionError) Error() string {
+	return "Failed to delete API key"
 }

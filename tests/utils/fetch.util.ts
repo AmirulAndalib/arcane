@@ -4,6 +4,7 @@ import { ImageUsageCounts } from 'types/image.type';
 import { NetworkSummary, NetworkUsageCounts } from 'types/networks.type';
 import { Project, ProjectStatusCounts } from 'types/project.type';
 import { VolumeUsageCounts } from 'types/volumes.type';
+import { ApiKey } from 'types/api-key.type';
 
 export type Paginated<T> = { data: T[]; pagination?: { totalItems?: number } };
 
@@ -33,8 +34,9 @@ export async function fetchVolumeCountsWithRetry(page: Page, maxRetries = 3): Pr
     async () => {
       const res = await page.request.get('/api/environments/0/volumes/counts');
       const json = await res.json().catch(() => null);
-      const data = Array.isArray(json) ? json : json?.data?.data ?? json?.data ?? [];
-      return (data ?? []) as VolumeUsageCounts;
+      // API returns { success: true, data: { inuse, unused, total } }
+      const data = json?.data ?? { inuse: 0, unused: 0, total: 0 };
+      return data as VolumeUsageCounts;
     },
     maxRetries,
     800
@@ -84,8 +86,9 @@ export async function fetchNetworksCountsWithRetry(page: Page, maxRetries = 3): 
     async () => {
       const res = await page.request.get('/api/environments/0/networks/counts');
       const json = await res.json().catch(() => null);
-      const data = Array.isArray(json) ? json : json?.data?.data ?? json?.data ?? [];
-      return (data ?? []) as NetworkUsageCounts;
+      // API returns { success: true, data: { inuse, unused, total } }
+      const data = json?.data ?? { inuse: 0, unused: 0, total: 0 };
+      return data as NetworkUsageCounts;
     },
     maxRetries,
     800
@@ -120,6 +123,17 @@ export async function fetchContainersWithRetry(page: Page, maxRetries = 3): Prom
     if (!res.ok()) throw new Error(`HTTP ${res.status()}`);
     const body = await res.json().catch(() => null as any);
     const data = Array.isArray(body?.data) ? (body.data as ContainerSummary[]) : [];
+    const pagination = body?.pagination || { totalItems: data.length };
+    return { data, pagination };
+  }, maxRetries);
+}
+
+export async function fetchApiKeysWithRetry(page: Page, maxRetries = 3): Promise<Paginated<ApiKey>> {
+  return retry(async () => {
+    const res = await page.request.get('/api/api-keys');
+    if (!res.ok()) throw new Error(`HTTP ${res.status()}`);
+    const body = await res.json().catch(() => null as any);
+    const data = Array.isArray(body?.data) ? (body.data as ApiKey[]) : [];
     const pagination = body?.pagination || { totalItems: data.length };
     return { data, pagination };
   }, maxRetries);

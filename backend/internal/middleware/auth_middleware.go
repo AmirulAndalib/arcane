@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 const (
 	headerAgentBootstrap = "X-Arcane-Agent-Bootstrap"
 	headerAgentToken     = "X-Arcane-Agent-Token" // #nosec G101: header name, not a credential
+	headerApiToken       = "X-API-TOKEN"          // #nosec G101: header name, not a credential
 	agentPairingPrefix   = "/api/environments/0/agent/pair"
 )
 
@@ -24,10 +26,15 @@ type AuthOptions struct {
 	SuccessOptional bool
 }
 
+type ApiKeyValidator interface {
+	ValidateApiKey(ctx context.Context, rawKey string) (*models.User, error)
+}
+
 type AuthMiddleware struct {
-	authService *services.AuthService
-	cfg         *config.Config
-	options     AuthOptions
+	authService     *services.AuthService
+	apiKeyValidator ApiKeyValidator
+	cfg             *config.Config
+	options         AuthOptions
 }
 
 func NewAuthMiddleware(authService *services.AuthService, cfg *config.Config) *AuthMiddleware {
@@ -38,19 +45,15 @@ func NewAuthMiddleware(authService *services.AuthService, cfg *config.Config) *A
 	}
 }
 
-func (m *AuthMiddleware) WithAdminRequired() *AuthMiddleware {
+func (m *AuthMiddleware) WithApiKeyValidator(validator ApiKeyValidator) *AuthMiddleware {
 	clone := *m
-	clone.options.AdminRequired = true
+	clone.apiKeyValidator = validator
 	return &clone
 }
+
 func (m *AuthMiddleware) WithAdminNotRequired() *AuthMiddleware {
 	clone := *m
 	clone.options.AdminRequired = false
-	return &clone
-}
-func (m *AuthMiddleware) WithSuccessOptional() *AuthMiddleware {
-	clone := *m
-	clone.options.SuccessOptional = true
 	return &clone
 }
 
@@ -97,6 +100,35 @@ func (m *AuthMiddleware) agentAuth(c *gin.Context) {
 }
 
 func (m *AuthMiddleware) managerAuth(c *gin.Context) {
+	// First, check for API token in X-API-TOKEN header
+	if apiToken := c.GetHeader(headerApiToken); apiToken != "" && m.apiKeyValidator != nil {
+		user, err := m.apiKeyValidator.ValidateApiKey(c.Request.Context(), apiToken)
+		if err == nil && user != nil {
+			isAdmin := userHasRole(user, "admin")
+			if m.options.AdminRequired && !isAdmin {
+				c.JSON(http.StatusForbidden, models.APIError{
+					Code:    "FORBIDDEN",
+					Message: "You don't have permission to access this resource",
+				})
+				c.Abort()
+				return
+			}
+			c.Set("userID", user.ID)
+			c.Set("currentUser", user)
+			c.Set("userIsAdmin", isAdmin)
+			c.Set("authMethod", "api_key")
+			c.Next()
+			return
+		}
+		// If API key validation fails, return unauthorized
+		c.JSON(http.StatusUnauthorized, models.APIError{
+			Code:    models.APIErrorCodeUnauthorized,
+			Message: "Invalid or expired API key",
+		})
+		c.Abort()
+		return
+	}
+
 	token := extractBearerOrCookieToken(c)
 	if token == "" {
 		if m.options.SuccessOptional {
@@ -186,35 +218,4 @@ func userHasRole(user *models.User, role string) bool {
 		}
 	}
 	return false
-}
-
-func GetCurrentUserID(c *gin.Context) (string, bool) {
-	userID, exists := c.Get("userID")
-	if !exists {
-		return "", false
-	}
-	userIDStr, ok := userID.(string)
-	return userIDStr, ok
-}
-
-func GetCurrentUser(c *gin.Context) (*models.User, bool) {
-	user, exists := c.Get("currentUser")
-	if !exists {
-		return nil, false
-	}
-	u, ok := user.(*models.User)
-	return u, ok
-}
-
-func RequireAuthentication(c *gin.Context) (*models.User, bool) {
-	user, exists := GetCurrentUser(c)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, models.APIError{
-			Code:    models.APIErrorCodeUnauthorized,
-			Message: "Authentication required",
-		})
-		c.Abort()
-		return nil, false
-	}
-	return user, true
 }
