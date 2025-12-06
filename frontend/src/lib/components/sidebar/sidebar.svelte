@@ -78,6 +78,7 @@
 	</Sidebar.Header>
 	<Sidebar.Content class={!isCollapsed ? '-mt-2' : ''}>
 		<SidebarItemGroup label={m.sidebar_management()} items={navigationItems.managementItems} />
+		<SidebarItemGroup label={m.automation_title()} items={navigationItems.automationItems} />
 		<SidebarItemGroup label={m.sidebar_customization()} items={navigationItems.customizationItems} />
 		{#if isAdmin}
 			<SidebarItemGroup label={m.sidebar_environments()} items={navigationItems.environmentItems} />

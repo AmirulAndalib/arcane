@@ -1,4 +1,4 @@
-import { KeyIcon, type Icon as IconType } from '@lucide/svelte';
+import { type Icon as IconType } from '@lucide/svelte';
 import PaletteIcon from '@lucide/svelte/icons/palette';
 import FileStackIcon from '@lucide/svelte/icons/file-stack';
 import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
@@ -18,7 +18,8 @@ import NavigationIcon from '@lucide/svelte/icons/navigation';
 import FileTextIcon from '@lucide/svelte/icons/file-text';
 import BellIcon from '@lucide/svelte/icons/bell';
 import GitBranchIcon from '@lucide/svelte/icons/git-branch';
-import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+import KeyIcon from '@lucide/svelte/icons/key';
+import WorkflowIcon from '@lucide/svelte/icons/workflow';
 import { m } from '$lib/paraglide/messages';
 
 export type NavigationItem = {
@@ -45,10 +46,16 @@ export const navigationItems: Record<string, NavigationItem[]> = {
 			items: [
 				{ title: m.templates_title(), url: '/customize/templates', icon: LayoutTemplateIcon },
 				{ title: m.registries_title(), url: '/customize/registries', icon: LockKeyholeIcon },
-				{ title: m.variables_title(), url: '/customize/variables', icon: FileTextIcon },
-				{ title: m.git_repositories_title(), url: '/customize/git-repositories', icon: GitBranchIcon },
-				{ title: m.gitops_syncs_title(), url: '/customize/gitops-syncs', icon: RefreshCwIcon }
+				{ title: m.variables_title(), url: '/customize/variables', icon: FileTextIcon }
 			]
+		}
+	],
+	automationItems: [
+		{
+			title: m.automation_title(),
+			url: '/automation',
+			icon: WorkflowIcon,
+			items: [{ title: m.gitops_title(), url: '/automation/git', icon: GitBranchIcon }]
 		}
 	],
 	environmentItems: [

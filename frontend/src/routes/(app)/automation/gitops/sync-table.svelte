@@ -299,18 +299,16 @@
 	</DropdownMenu.Root>
 {/snippet}
 
-<div>
-	<ArcaneTable
-		persistKey="arcane-gitops-syncs-table"
-		items={syncs}
-		bind:requestOptions
-		bind:selectedIds
-		bind:mobileFieldVisibility
-		onRemoveSelected={(ids) => handleDeleteSelected(ids)}
-		onRefresh={async (options) => (syncs = await gitOpsSyncService.getSyncs(options))}
-		{columns}
-		{mobileFields}
-		rowActions={RowActions}
-		mobileCard={SyncMobileCardSnippet}
-	/>
-</div>
+<ArcaneTable
+	persistKey="arcane-gitops-syncs-table"
+	items={syncs}
+	bind:requestOptions
+	bind:selectedIds
+	bind:mobileFieldVisibility
+	onRemoveSelected={(ids) => handleDeleteSelected(ids)}
+	onRefresh={async (options) => (syncs = await gitOpsSyncService.getSyncs(options))}
+	{columns}
+	{mobileFields}
+	rowActions={RowActions}
+	mobileCard={SyncMobileCardSnippet}
+/>

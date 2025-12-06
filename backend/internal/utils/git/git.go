@@ -67,7 +67,11 @@ func (c *Client) getAuth(config AuthConfig) (transport.AuthMethod, error) {
 // Clone clones a repository to a temporary directory
 func (c *Client) Clone(url, branch string, auth AuthConfig) (string, error) {
 	// Create a temporary directory
-	tmpDir, err := os.MkdirTemp(c.workDir, "gitops-*")
+	workDir := c.workDir
+	if workDir == "" {
+		workDir = os.TempDir()
+	}
+	tmpDir, err := os.MkdirTemp(workDir, "gitops-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
@@ -330,6 +334,15 @@ func (c *Client) FileExists(repoPath, filePath string) bool {
 	fullPath := filepath.Join(repoPath, filePath)
 	_, err := os.Stat(fullPath)
 	return err == nil
+}
+
+// ReadFile reads a file from the repository
+func (c *Client) ReadFile(fullPath string) (string, error) {
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+	return string(content), nil
 }
 
 // GetLatestCommitForFile gets the latest commit that modified a specific file

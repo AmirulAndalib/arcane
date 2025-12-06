@@ -107,18 +107,14 @@ func (s *GitOpsSyncService) CreateSync(ctx context.Context, req models.CreateGit
 		return nil, fmt.Errorf("repository not found: %w", err)
 	}
 
-	// Validate project exists
-	_, err = s.projectService.GetProjectFromDatabaseByID(ctx, req.ProjectID)
-	if err != nil {
-		return nil, fmt.Errorf("project not found: %w", err)
-	}
-
+	// Store the project name - project will be created during first sync
 	sync := models.GitOpsSync{
 		Name:         req.Name,
 		RepositoryID: req.RepositoryID,
 		Branch:       req.Branch,
 		ComposePath:  req.ComposePath,
-		ProjectID:    req.ProjectID,
+		ProjectName:  req.ProjectName,
+		ProjectID:    nil, // Will be set during first sync
 		AutoSync:     false,
 		SyncInterval: 60,
 		Enabled:      true,
@@ -166,13 +162,10 @@ func (s *GitOpsSyncService) UpdateSync(ctx context.Context, id string, req model
 	if req.ComposePath != nil {
 		updates["compose_path"] = *req.ComposePath
 	}
-	if req.ProjectID != nil {
-		// Validate project exists
-		_, err := s.projectService.GetProjectFromDatabaseByID(ctx, *req.ProjectID)
-		if err != nil {
-			return nil, fmt.Errorf("project not found: %w", err)
-		}
-		updates["project_id"] = *req.ProjectID
+	if req.ProjectName != nil {
+		updates["project_name"] = *req.ProjectName
+		// Clear project_id when name changes, will be re-created on next sync
+		updates["project_id"] = nil
 	}
 	if req.AutoSync != nil {
 		updates["auto_sync"] = *req.AutoSync
@@ -251,34 +244,53 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 		return result, fmt.Errorf("compose file not found: %s", sync.ComposePath)
 	}
 
-	// Get project
-	project, err := s.projectService.GetProjectFromDatabaseByID(ctx, sync.ProjectID)
+	// Read compose file content
+	composeContent, err := s.repoService.gitClient.ReadFile(composePath)
 	if err != nil {
-		result.Message = "Project not found"
+		result.Message = "Failed to read compose file"
 		errMsg := err.Error()
 		result.Error = &errMsg
 		s.updateSyncStatus(ctx, id, "failed", errMsg)
 		return result, err
 	}
 
-	// Ensure project directory exists
-	projectComposeDir := project.Path
-	if projectComposeDir == "" {
-		result.Message = "Project path is empty"
-		errMsg := "project path is empty"
-		result.Error = &errMsg
-		s.updateSyncStatus(ctx, id, "failed", errMsg)
-		return result, fmt.Errorf("project path is empty")
+	// Get or create project
+	var project *models.Project
+	if sync.ProjectID != nil && *sync.ProjectID != "" {
+		// Try to get existing project
+		project, err = s.projectService.GetProjectFromDatabaseByID(ctx, *sync.ProjectID)
+		if err != nil {
+			slog.WarnContext(ctx, "Existing project not found, will create new one", "projectId", *sync.ProjectID, "error", err)
+			project = nil
+		}
 	}
 
-	// Copy compose file to project directory
-	destPath := filepath.Join(projectComposeDir, "docker-compose.yml")
-	if err := s.repoService.gitClient.CopyFile(composePath, destPath); err != nil {
-		result.Message = "Failed to copy compose file"
-		errMsg := err.Error()
-		result.Error = &errMsg
-		s.updateSyncStatus(ctx, id, "failed", errMsg)
-		return result, err
+	// Create project if it doesn't exist
+	if project == nil {
+		// Create project from compose file
+		project, err = s.projectService.CreateProject(ctx, sync.ProjectName, composeContent, nil, models.User{})
+		if err != nil {
+			result.Message = "Failed to create project"
+			errMsg := err.Error()
+			result.Error = &errMsg
+			s.updateSyncStatus(ctx, id, "failed", errMsg)
+			return result, err
+		}
+
+		// Update sync with project ID
+		s.db.WithContext(ctx).Model(&models.GitOpsSync{}).Where("id = ?", id).Update("project_id", project.ID)
+		slog.InfoContext(ctx, "Created project for GitOps sync", "projectName", sync.ProjectName, "projectId", project.ID)
+	} else {
+		// Update existing project's compose file
+		_, err := s.projectService.UpdateProject(ctx, project.ID, nil, &composeContent, nil)
+		if err != nil {
+			result.Message = "Failed to update project compose file"
+			errMsg := err.Error()
+			result.Error = &errMsg
+			s.updateSyncStatus(ctx, id, "failed", errMsg)
+			return result, err
+		}
+		slog.InfoContext(ctx, "Updated project compose file", "projectName", project.Name, "projectId", project.ID)
 	}
 
 	// Update sync status

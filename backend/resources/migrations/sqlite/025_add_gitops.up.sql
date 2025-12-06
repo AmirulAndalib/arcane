@@ -21,17 +21,18 @@ CREATE TABLE IF NOT EXISTS gitops_syncs (
     repository_id TEXT NOT NULL,
     branch TEXT NOT NULL,
     compose_path TEXT NOT NULL,
-    project_id TEXT NOT NULL,
-    auto_sync BOOLEAN NOT NULL DEFAULT 0,
+    project_name TEXT NOT NULL,
+    project_id TEXT,
+    auto_sync INTEGER NOT NULL DEFAULT 0,
     sync_interval INTEGER NOT NULL DEFAULT 60,
     last_sync_at DATETIME,
     last_sync_status TEXT,
     last_sync_error TEXT,
-    enabled BOOLEAN NOT NULL DEFAULT 1,
+    enabled INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME,
     FOREIGN KEY (repository_id) REFERENCES git_repositories(id) ON DELETE CASCADE,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_gitops_syncs_repository_id ON gitops_syncs(repository_id);

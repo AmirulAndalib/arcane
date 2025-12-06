@@ -265,18 +265,16 @@
 	</DropdownMenu.Root>
 {/snippet}
 
-<div>
-	<ArcaneTable
-		persistKey="arcane-git-repositories-table"
-		items={repositories}
-		bind:requestOptions
-		bind:selectedIds
-		bind:mobileFieldVisibility
-		onRemoveSelected={(ids) => handleDeleteSelected(ids)}
-		onRefresh={async (options) => (repositories = await gitRepositoryService.getRepositories(options))}
-		{columns}
-		{mobileFields}
-		rowActions={RowActions}
-		mobileCard={RepositoryMobileCardSnippet}
-	/>
-</div>
+<ArcaneTable
+	persistKey="arcane-git-repositories-table"
+	items={repositories}
+	bind:requestOptions
+	bind:selectedIds
+	bind:mobileFieldVisibility
+	onRemoveSelected={(ids) => handleDeleteSelected(ids)}
+	onRefresh={async (options) => (repositories = await gitRepositoryService.getRepositories(options))}
+	{columns}
+	{mobileFields}
+	rowActions={RowActions}
+	mobileCard={RepositoryMobileCardSnippet}
+/>

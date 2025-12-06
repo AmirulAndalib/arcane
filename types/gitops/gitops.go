@@ -236,10 +236,10 @@ type CreateSyncRequest struct {
 	// Required: true
 	ComposePath string `json:"composePath" binding:"required"`
 
-	// ProjectID is the ID of the project to sync to.
+	// ProjectName is the name of the project to create/update.
 	//
 	// Required: true
-	ProjectID string `json:"projectId" binding:"required"`
+	ProjectName string `json:"projectName" binding:"required"`
 
 	// AutoSync indicates if the sync should run automatically.
 	//
@@ -279,10 +279,10 @@ type UpdateSyncRequest struct {
 	// Required: false
 	ComposePath *string `json:"composePath,omitempty"`
 
-	// ProjectID is the ID of the project to sync to.
+	// ProjectName is the name of the project to create/update.
 	//
 	// Required: false
-	ProjectID *string `json:"projectId,omitempty"`
+	ProjectName *string `json:"projectName,omitempty"`
 
 	// AutoSync indicates if the sync should run automatically.
 	//

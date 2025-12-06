@@ -34,7 +34,7 @@
 		repositoryId: z.string().min(1, m.common_required()),
 		branch: z.string().min(1, m.common_required()),
 		composePath: z.string().min(1, m.common_required()),
-		projectId: z.string().min(1, m.common_required()),
+		projectName: z.string().min(1, m.common_required()),
 		autoSync: z.boolean().default(true),
 		syncInterval: z.number().min(1).default(5),
 		enabled: z.boolean().default(true)
@@ -45,7 +45,7 @@
 		repositoryId: open && syncToEdit ? syncToEdit.repositoryId : '',
 		branch: open && syncToEdit ? syncToEdit.branch : 'main',
 		composePath: open && syncToEdit ? syncToEdit.composePath : 'docker-compose.yml',
-		projectId: open && syncToEdit ? syncToEdit.projectId : '',
+		projectName: open && syncToEdit ? syncToEdit.projectName : '',
 		autoSync: open && syncToEdit ? (syncToEdit.autoSync ?? true) : true,
 		syncInterval: open && syncToEdit ? (syncToEdit.syncInterval ?? 5) : 5,
 		enabled: open && syncToEdit ? (syncToEdit.enabled ?? true) : true
@@ -54,26 +54,17 @@
 	let { inputs, ...form } = $derived(createForm<typeof formSchema>(formSchema, formData));
 
 	let selectedRepository = $state<{ value: string; label: string } | undefined>(undefined);
-	let selectedProject = $state<{ value: string; label: string } | undefined>(undefined);
 
 	async function loadData() {
 		loadingData = true;
 		try {
-			const [reposResult, projectsResult] = await Promise.all([
-				gitRepositoryService.getRepositories({ pagination: { page: 1, limit: 100 } }),
-				projectService.getProjects({ pagination: { page: 1, limit: 100 } })
-			]);
+			const reposResult = await gitRepositoryService.getRepositories({ pagination: { page: 1, limit: 100 } });
 			repositories = reposResult.data || [];
-			projects = projectsResult.data || [];
 
 			if (syncToEdit) {
 				const repo = repositories.find((r) => r.id === syncToEdit.repositoryId);
 				if (repo) {
 					selectedRepository = { value: repo.id, label: repo.name };
-				}
-				const proj = projects.find((p) => p.id === syncToEdit.projectId);
-				if (proj) {
-					selectedProject = { value: proj.id, label: proj.name };
 				}
 			}
 		} catch (error) {
@@ -98,7 +89,7 @@
 			repositoryId: selectedRepository?.value || data.repositoryId,
 			branch: data.branch,
 			composePath: data.composePath,
-			projectId: selectedProject?.value || data.projectId,
+			projectName: data.projectName,
 			autoSync: data.autoSync,
 			syncInterval: data.syncInterval,
 			enabled: data.enabled
@@ -169,31 +160,13 @@
 					bind:input={$inputs.composePath}
 				/>
 
-				<div class="space-y-2">
-					<Label for="project">{m.gitops_sync_project()}</Label>
-					<Select.Root
-						type="single"
-						value={selectedProject?.value}
-						onValueChange={(v) => {
-							if (v) {
-								const proj = projects.find((p) => p.id === v);
-								if (proj) {
-									selectedProject = { value: proj.id, label: proj.name };
-									$inputs.projectId.value = v;
-								}
-							}
-						}}
-					>
-						<Select.Trigger id="project">
-							<span>{selectedProject?.label ?? m.common_select_placeholder()}</span>
-						</Select.Trigger>
-						<Select.Content>
-							{#each projects as project}
-								<Select.Item value={project.id}>{project.name}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
+				<FormInput
+					label={m.gitops_sync_project()}
+					type="text"
+					placeholder={m.common_name_placeholder()}
+					bind:input={$inputs.projectName}
+					description={m.gitops_sync_project_description()}
+				/>
 
 				<SwitchWithLabel
 					id="autoSyncSwitch"
