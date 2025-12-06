@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -68,7 +69,7 @@ func (s *GitRepositoryService) GetRepositoriesPaginated(ctx context.Context, par
 func (s *GitRepositoryService) GetRepositoryByID(ctx context.Context, id string) (*models.GitRepository, error) {
 	var repository models.GitRepository
 	if err := s.db.WithContext(ctx).Where("id = ?", id).First(&repository).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("repository not found")
 		}
 		return nil, fmt.Errorf("failed to get repository: %w", err)

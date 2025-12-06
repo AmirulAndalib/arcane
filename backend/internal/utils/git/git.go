@@ -191,7 +191,9 @@ func (c *Client) TestConnection(url, branch string, auth AuthConfig) error {
 	if err != nil {
 		return err
 	}
-	defer c.Cleanup(tmpDir)
+	defer func() {
+		_ = c.Cleanup(tmpDir)
+	}()
 	return nil
 }
 

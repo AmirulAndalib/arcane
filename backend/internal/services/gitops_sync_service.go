@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -84,7 +85,7 @@ func (s *GitOpsSyncService) GetSyncsPaginated(ctx context.Context, params pagina
 func (s *GitOpsSyncService) GetSyncByID(ctx context.Context, id string) (*models.GitOpsSync, error) {
 	var sync models.GitOpsSync
 	if err := s.db.WithContext(ctx).Preload("Repository").Preload("Project").Where("id = ?", id).First(&sync).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("sync not found")
 		}
 		return nil, fmt.Errorf("failed to get sync: %w", err)
@@ -224,7 +225,11 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 		s.updateSyncStatus(ctx, id, "failed", errMsg)
 		return result, err
 	}
-	defer s.repoService.gitClient.Cleanup(repoPath)
+	defer func() {
+		if cleanupErr := s.repoService.gitClient.Cleanup(repoPath); cleanupErr != nil {
+			slog.WarnContext(ctx, "Failed to cleanup repository", "path", repoPath, "error", cleanupErr)
+		}
+	}()
 
 	// Check if compose file exists
 	composePath := filepath.Join(repoPath, sync.ComposePath)
@@ -393,7 +398,11 @@ func (s *GitOpsSyncService) BrowseFiles(ctx context.Context, id string, path str
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone repository: %w", err)
 	}
-	defer s.repoService.gitClient.Cleanup(repoPath)
+	defer func() {
+		if cleanupErr := s.repoService.gitClient.Cleanup(repoPath); cleanupErr != nil {
+			slog.WarnContext(ctx, "Failed to cleanup repository", "path", repoPath, "error", cleanupErr)
+		}
+	}()
 
 	// Browse the tree
 	files, err := s.repoService.gitClient.BrowseTree(repoPath, path)
