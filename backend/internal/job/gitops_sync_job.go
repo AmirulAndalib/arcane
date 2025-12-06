@@ -67,28 +67,3 @@ func (j *GitOpsSyncJob) Execute(ctx context.Context) error {
 	slog.InfoContext(ctx, "GitOps sync run completed")
 	return nil
 }
-
-func (j *GitOpsSyncJob) Reschedule(ctx context.Context) error {
-	gitopsSyncEnabled := j.settingsService.GetBoolSetting(ctx, "gitopsSyncEnabled", true)
-
-	if !gitopsSyncEnabled {
-		j.scheduler.RemoveJobByName("gitops-sync")
-		slog.InfoContext(ctx, "GitOps sync disabled; removed job if present")
-		return nil
-	}
-
-	interval := 5 * time.Minute
-
-	slog.InfoContext(ctx, "rescheduling GitOps sync job", "interval", interval.String())
-
-	j.scheduler.RemoveJobByName("gitops-sync")
-
-	jobDefinition := gocron.DurationJob(interval)
-	return j.scheduler.RegisterJob(
-		ctx,
-		"gitops-sync",
-		jobDefinition,
-		j.Execute,
-		false,
-	)
-}

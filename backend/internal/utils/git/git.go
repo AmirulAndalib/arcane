@@ -2,7 +2,6 @@ package git
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
@@ -105,40 +103,6 @@ func (c *Client) Clone(url, branch string, auth AuthConfig) (string, error) {
 	return tmpDir, nil
 }
 
-// Pull pulls the latest changes from a repository
-func (c *Client) Pull(repoPath string, auth AuthConfig) error {
-	repo, err := git.PlainOpen(repoPath)
-	if err != nil {
-		return fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	w, err := repo.Worktree()
-	if err != nil {
-		return fmt.Errorf("failed to get worktree: %w", err)
-	}
-
-	authMethod, err := c.getAuth(auth)
-	if err != nil {
-		return err
-	}
-
-	pullOptions := &git.PullOptions{
-		RemoteName: "origin",
-		Progress:   nil,
-	}
-
-	if authMethod != nil {
-		pullOptions.Auth = authMethod
-	}
-
-	err = w.Pull(pullOptions)
-	if err != nil && err != git.NoErrAlreadyUpToDate {
-		return fmt.Errorf("failed to pull repository: %w", err)
-	}
-
-	return nil
-}
-
 // ValidatePath ensures the path is safe and doesn't escape the repo
 func ValidatePath(repoPath, requestedPath string) error {
 	// Clean the paths
@@ -208,79 +172,9 @@ func (c *Client) BrowseTree(repoPath, targetPath string) ([]gitops.FileTreeNode,
 	return nodes, nil
 }
 
-// GetFileContent reads a file from the repository
-func (c *Client) GetFileContent(repoPath, filePath string) (string, error) {
-	// Validate path to prevent traversal
-	if err := ValidatePath(repoPath, filePath); err != nil {
-		return "", err
-	}
-
-	fullPath := filepath.Join(repoPath, filePath)
-
-	content, err := os.ReadFile(fullPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file: %w", err)
-	}
-
-	return string(content), nil
-}
-
-// CopyFile copies a file from source to destination
-func (c *Client) CopyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
-	}
-	defer sourceFile.Close()
-
-	// Create destination directory if it doesn't exist
-	dstDir := filepath.Dir(dst)
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return fmt.Errorf("failed to copy file: %w", err)
-	}
-
-	return nil
-}
-
 // Cleanup removes a temporary repository directory
 func (c *Client) Cleanup(repoPath string) error {
 	return os.RemoveAll(repoPath)
-}
-
-// GetLastCommitInfo retrieves information about the last commit
-func (c *Client) GetLastCommitInfo(repoPath string) (*CommitInfo, error) {
-	repo, err := git.PlainOpen(repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	ref, err := repo.Head()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get HEAD: %w", err)
-	}
-
-	commit, err := repo.CommitObject(ref.Hash())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get commit: %w", err)
-	}
-
-	return &CommitInfo{
-		Hash:    commit.Hash.String(),
-		Author:  commit.Author.Name,
-		Message: commit.Message,
-		Date:    commit.Author.When,
-	}, nil
 }
 
 // CommitInfo holds information about a git commit
@@ -301,30 +195,6 @@ func (c *Client) TestConnection(url, branch string, auth AuthConfig) error {
 	return nil
 }
 
-// ListBranches lists all branches in the repository
-func (c *Client) ListBranches(repoPath string) ([]string, error) {
-	repo, err := git.PlainOpen(repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	refs, err := repo.Branches()
-	if err != nil {
-		return nil, fmt.Errorf("failed to list branches: %w", err)
-	}
-
-	var branches []string
-	err = refs.ForEach(func(ref *plumbing.Reference) error {
-		branches = append(branches, ref.Name().Short())
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to iterate branches: %w", err)
-	}
-
-	return branches, nil
-}
-
 // FileExists checks if a file exists in the repository
 func (c *Client) FileExists(repoPath, filePath string) bool {
 	if err := ValidatePath(repoPath, filePath); err != nil {
@@ -343,44 +213,4 @@ func (c *Client) ReadFile(fullPath string) (string, error) {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 	return string(content), nil
-}
-
-// GetLatestCommitForFile gets the latest commit that modified a specific file
-func (c *Client) GetLatestCommitForFile(repoPath, filePath string) (*CommitInfo, error) {
-	repo, err := git.PlainOpen(repoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	ref, err := repo.Head()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get HEAD: %w", err)
-	}
-
-	commits, err := repo.Log(&git.LogOptions{From: ref.Hash()})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get log: %w", err)
-	}
-
-	var latestCommit *object.Commit
-	err = commits.ForEach(func(commit *object.Commit) error {
-		// Check if this commit modified the file
-		_, err := commit.File(filePath)
-		if err == nil {
-			latestCommit = commit
-			return fmt.Errorf("found") // Stop iteration
-		}
-		return nil
-	})
-
-	if latestCommit == nil {
-		return nil, fmt.Errorf("no commits found for file")
-	}
-
-	return &CommitInfo{
-		Hash:    latestCommit.Hash.String(),
-		Author:  latestCommit.Author.Name,
-		Message: latestCommit.Message,
-		Date:    latestCommit.Author.When,
-	}, nil
 }

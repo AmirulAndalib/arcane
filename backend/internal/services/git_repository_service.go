@@ -27,14 +27,6 @@ func NewGitRepositoryService(db *database.DB, workDir string) *GitRepositoryServ
 	}
 }
 
-func (s *GitRepositoryService) GetAllRepositories(ctx context.Context) ([]models.GitRepository, error) {
-	var repositories []models.GitRepository
-	if err := s.db.WithContext(ctx).Find(&repositories).Error; err != nil {
-		return nil, fmt.Errorf("failed to get git repositories: %w", err)
-	}
-	return repositories, nil
-}
-
 func (s *GitRepositoryService) GetRepositoriesPaginated(ctx context.Context, params pagination.QueryParams) ([]gitops.GitRepository, pagination.Response, error) {
 	var repositories []models.GitRepository
 	q := s.db.WithContext(ctx).Model(&models.GitRepository{})
@@ -198,50 +190,6 @@ func (s *GitRepositoryService) DeleteRepository(ctx context.Context, id string) 
 	}
 
 	return nil
-}
-
-func (s *GitRepositoryService) GetDecryptedToken(ctx context.Context, id string) (string, error) {
-	repository, err := s.GetRepositoryByID(ctx, id)
-	if err != nil {
-		return "", err
-	}
-
-	if repository.Token == "" {
-		return "", nil
-	}
-
-	decrypted, err := utils.Decrypt(repository.Token)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt token: %w", err)
-	}
-
-	return decrypted, nil
-}
-
-func (s *GitRepositoryService) GetDecryptedSSHKey(ctx context.Context, id string) (string, error) {
-	repository, err := s.GetRepositoryByID(ctx, id)
-	if err != nil {
-		return "", err
-	}
-
-	if repository.SSHKey == "" {
-		return "", nil
-	}
-
-	decrypted, err := utils.Decrypt(repository.SSHKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt SSH key: %w", err)
-	}
-
-	return decrypted, nil
-}
-
-func (s *GitRepositoryService) GetEnabledRepositories(ctx context.Context) ([]models.GitRepository, error) {
-	var repositories []models.GitRepository
-	if err := s.db.WithContext(ctx).Where("enabled = ?", true).Find(&repositories).Error; err != nil {
-		return nil, fmt.Errorf("failed to get enabled repositories: %w", err)
-	}
-	return repositories, nil
 }
 
 func (s *GitRepositoryService) TestConnection(ctx context.Context, id string, branch string) error {

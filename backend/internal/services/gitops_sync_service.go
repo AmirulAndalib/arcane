@@ -30,14 +30,6 @@ func NewGitOpsSyncService(db *database.DB, repoService *GitRepositoryService, pr
 	}
 }
 
-func (s *GitOpsSyncService) GetAllSyncs(ctx context.Context) ([]models.GitOpsSync, error) {
-	var syncs []models.GitOpsSync
-	if err := s.db.WithContext(ctx).Preload("Repository").Preload("Project").Find(&syncs).Error; err != nil {
-		return nil, fmt.Errorf("failed to get gitops syncs: %w", err)
-	}
-	return syncs, nil
-}
-
 func (s *GitOpsSyncService) GetSyncsPaginated(ctx context.Context, params pagination.QueryParams) ([]gitops.GitOpsSync, pagination.Response, error) {
 	var syncs []models.GitOpsSync
 	q := s.db.WithContext(ctx).Model(&models.GitOpsSync{}).Preload("Repository").Preload("Project")
