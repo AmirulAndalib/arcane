@@ -9,8 +9,8 @@ type GitRepository struct {
 	URL         string    `json:"url" sortable:"true" search:"url,git,clone,remote,https,ssh"`
 	AuthType    string    `json:"authType" sortable:"true" search:"auth,authentication,credentials,token,ssh,http"` // none, http, ssh
 	Username    string    `json:"username" sortable:"true" search:"username,user,login,account"`
-	Token       string    `json:"token" search:"token,password,credentials,secret,auth"`       // encrypted
-	SSHKey      string    `json:"sshKey" search:"ssh,key,private,public,certificate"`      // encrypted
+	Token       string    `json:"token" search:"token,password,credentials,secret,auth"` // encrypted
+	SSHKey      string    `json:"sshKey" search:"ssh,key,private,public,certificate"`    // encrypted
 	Description *string   `json:"description,omitempty" sortable:"true"`
 	Enabled     bool      `json:"enabled" sortable:"true" search:"enabled,active,disabled"`
 	CreatedAt   time.Time `json:"createdAt" sortable:"true"`

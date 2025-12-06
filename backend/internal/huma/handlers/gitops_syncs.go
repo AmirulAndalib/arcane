@@ -23,8 +23,8 @@ type GitOpsSyncHandler struct {
 
 // GitOpsSyncPaginatedResponse is the paginated response for GitOps syncs.
 type GitOpsSyncPaginatedResponse struct {
-	Success    bool               `json:"success"`
-	Data       []gitops.GitOpsSync `json:"data"`
+	Success    bool                    `json:"success"`
+	Data       []gitops.GitOpsSync     `json:"data"`
 	Pagination base.PaginationResponse `json:"pagination"`
 }
 

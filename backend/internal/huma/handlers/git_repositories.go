@@ -23,8 +23,8 @@ type GitRepositoryHandler struct {
 
 // GitRepositoryPaginatedResponse is the paginated response for git repositories.
 type GitRepositoryPaginatedResponse struct {
-	Success    bool                  `json:"success"`
-	Data       []gitops.GitRepository `json:"data"`
+	Success    bool                    `json:"success"`
+	Data       []gitops.GitRepository  `json:"data"`
 	Pagination base.PaginationResponse `json:"pagination"`
 }
 

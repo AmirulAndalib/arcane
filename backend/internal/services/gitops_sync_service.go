@@ -17,16 +17,16 @@ import (
 )
 
 type GitOpsSyncService struct {
-	db                *database.DB
-	repoService       *GitRepositoryService
-	projectService    *ProjectService
+	db             *database.DB
+	repoService    *GitRepositoryService
+	projectService *ProjectService
 }
 
 func NewGitOpsSyncService(db *database.DB, repoService *GitRepositoryService, projectService *ProjectService) *GitOpsSyncService {
 	return &GitOpsSyncService{
-		db:                db,
-		repoService:       repoService,
-		projectService:    projectService,
+		db:             db,
+		repoService:    repoService,
+		projectService: projectService,
 	}
 }
 
