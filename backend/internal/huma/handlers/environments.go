@@ -83,8 +83,8 @@ type DeleteEnvironmentOutput struct {
 }
 
 type TestConnectionInput struct {
-	ID   string `path:"id" doc:"Environment ID"`
-	Body environment.TestConnectionRequest
+	ID   string                             `path:"id" doc:"Environment ID"`
+	Body *environment.TestConnectionRequest `json:"body,omitempty"`
 }
 
 type TestConnectionOutput struct {
@@ -100,8 +100,8 @@ type UpdateHeartbeatOutput struct {
 }
 
 type PairAgentInput struct {
-	ID   string `path:"id" doc:"Environment ID (must be 0 for local)"`
-	Body environment.AgentPairRequest
+	ID   string                        `path:"id" doc:"Environment ID (must be 0 for local)"`
+	Body *environment.AgentPairRequest `json:"body,omitempty"`
 }
 
 type PairAgentOutput struct {
@@ -542,7 +542,12 @@ func (h *EnvironmentHandler) TestConnection(ctx context.Context, input *TestConn
 		return nil, huma.Error500InternalServerError("service not available")
 	}
 
-	status, err := h.environmentService.TestConnection(ctx, input.ID, input.Body.ApiUrl)
+	var apiUrl *string
+	if input.Body != nil {
+		apiUrl = input.Body.ApiUrl
+	}
+
+	status, err := h.environmentService.TestConnection(ctx, input.ID, apiUrl)
 	resp := environment.Test{Status: status}
 	if err != nil {
 		msg := err.Error()
@@ -593,7 +598,8 @@ func (h *EnvironmentHandler) PairAgent(ctx context.Context, input *PairAgentInpu
 		return nil, huma.Error404NotFound("Not found")
 	}
 
-	if h.cfg.AgentToken == "" || (input.Body.Rotate != nil && *input.Body.Rotate) {
+	shouldRotate := input.Body != nil && input.Body.Rotate != nil && *input.Body.Rotate
+	if h.cfg.AgentToken == "" || shouldRotate {
 		h.cfg.AgentToken = utils.GenerateRandomString(48)
 	}
 
