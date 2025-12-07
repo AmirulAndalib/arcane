@@ -131,7 +131,7 @@ func (s *GitOpsSyncService) CreateSync(ctx context.Context, req models.CreateGit
 
 	// Log event
 	resourceType := "git_sync"
-	s.eventService.CreateEvent(ctx, CreateEventRequest{
+	_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 		Type:         models.EventTypeGitSyncCreate,
 		Severity:     models.EventSeveritySuccess,
 		Title:        "Git sync created",
@@ -191,7 +191,7 @@ func (s *GitOpsSyncService) UpdateSync(ctx context.Context, id string, req model
 
 		// Log event
 		resourceType := "git_sync"
-		s.eventService.CreateEvent(ctx, CreateEventRequest{
+		_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 			Type:         models.EventTypeGitSyncUpdate,
 			Severity:     models.EventSeveritySuccess,
 			Title:        "Git sync updated",
@@ -218,7 +218,7 @@ func (s *GitOpsSyncService) DeleteSync(ctx context.Context, id string) error {
 
 	// Log event
 	resourceType := "git_sync"
-	s.eventService.CreateEvent(ctx, CreateEventRequest{
+	_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 		Type:         models.EventTypeGitSyncDelete,
 		Severity:     models.EventSeverityInfo,
 		Title:        "Git sync deleted",
@@ -350,7 +350,7 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 
 	// Log success event
 	resourceType := "git_sync"
-	s.eventService.CreateEvent(ctx, CreateEventRequest{
+	_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 		Type:         models.EventTypeGitSyncRun,
 		Severity:     models.EventSeveritySuccess,
 		Title:        "Git sync completed",
@@ -482,7 +482,7 @@ func (s *GitOpsSyncService) BrowseFiles(ctx context.Context, id string, path str
 
 func (s *GitOpsSyncService) logSyncError(ctx context.Context, sync *models.GitOpsSync, errorMsg string) {
 	resourceType := "git_sync"
-	s.eventService.CreateEvent(ctx, CreateEventRequest{
+	_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 		Type:         models.EventTypeGitSyncError,
 		Severity:     models.EventSeverityError,
 		Title:        "Git sync failed",

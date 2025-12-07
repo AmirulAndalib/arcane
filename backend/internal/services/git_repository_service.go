@@ -116,7 +116,7 @@ func (s *GitRepositoryService) CreateRepository(ctx context.Context, req models.
 
 	// Log event
 	resourceType := "git_repository"
-	s.eventService.CreateEvent(ctx, CreateEventRequest{
+	_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 		Type:         models.EventTypeGitRepositoryCreate,
 		Severity:     models.EventSeveritySuccess,
 		Title:        "Git repository created",
@@ -187,7 +187,7 @@ func (s *GitRepositoryService) UpdateRepository(ctx context.Context, id string, 
 
 		// Log event
 		resourceType := "git_repository"
-		s.eventService.CreateEvent(ctx, CreateEventRequest{
+		_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 			Type:         models.EventTypeGitRepositoryUpdate,
 			Severity:     models.EventSeveritySuccess,
 			Title:        "Git repository updated",
@@ -224,7 +224,7 @@ func (s *GitRepositoryService) DeleteRepository(ctx context.Context, id string) 
 
 	// Log event
 	resourceType := "git_repository"
-	s.eventService.CreateEvent(ctx, CreateEventRequest{
+	_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 		Type:         models.EventTypeGitRepositoryDelete,
 		Severity:     models.EventSeverityInfo,
 		Title:        "Git repository deleted",
@@ -272,7 +272,7 @@ func (s *GitRepositoryService) TestConnection(ctx context.Context, id string, br
 	if err != nil {
 		// Log error event
 		resourceType := "git_repository"
-		s.eventService.CreateEvent(ctx, CreateEventRequest{
+		_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 			Type:         models.EventTypeGitRepositoryError,
 			Severity:     models.EventSeverityError,
 			Title:        "Git repository connection test failed",
@@ -286,7 +286,7 @@ func (s *GitRepositoryService) TestConnection(ctx context.Context, id string, br
 
 	// Log success event
 	resourceType := "git_repository"
-	s.eventService.CreateEvent(ctx, CreateEventRequest{
+	_, _ = s.eventService.CreateEvent(ctx, CreateEventRequest{
 		Type:         models.EventTypeGitRepositoryTest,
 		Severity:     models.EventSeveritySuccess,
 		Title:        "Git repository connection successful",
