@@ -21,13 +21,15 @@ type GitOpsSyncService struct {
 	db             *database.DB
 	repoService    *GitRepositoryService
 	projectService *ProjectService
+	eventService   *EventService
 }
 
-func NewGitOpsSyncService(db *database.DB, repoService *GitRepositoryService, projectService *ProjectService) *GitOpsSyncService {
+func NewGitOpsSyncService(db *database.DB, repoService *GitRepositoryService, projectService *ProjectService, eventService *EventService) *GitOpsSyncService {
 	return &GitOpsSyncService{
 		db:             db,
 		repoService:    repoService,
 		projectService: projectService,
+		eventService:   eventService,
 	}
 }
 
@@ -127,6 +129,18 @@ func (s *GitOpsSyncService) CreateSync(ctx context.Context, req models.CreateGit
 		return nil, fmt.Errorf("failed to create sync: %w", err)
 	}
 
+	// Log event
+	resourceType := "git_sync"
+	s.eventService.CreateEvent(ctx, CreateEventRequest{
+		Type:         models.EventTypeGitSyncCreate,
+		Severity:     models.EventSeveritySuccess,
+		Title:        "Git sync created",
+		Description:  fmt.Sprintf("Created git sync configuration '%s'", sync.Name),
+		ResourceType: &resourceType,
+		ResourceID:   &sync.ID,
+		ResourceName: &sync.Name,
+	})
+
 	return s.GetSyncByID(ctx, sync.ID)
 }
 
@@ -174,15 +188,46 @@ func (s *GitOpsSyncService) UpdateSync(ctx context.Context, id string, req model
 		if err := s.db.WithContext(ctx).Model(sync).Updates(updates).Error; err != nil {
 			return nil, fmt.Errorf("failed to update sync: %w", err)
 		}
+
+		// Log event
+		resourceType := "git_sync"
+		s.eventService.CreateEvent(ctx, CreateEventRequest{
+			Type:         models.EventTypeGitSyncUpdate,
+			Severity:     models.EventSeveritySuccess,
+			Title:        "Git sync updated",
+			Description:  fmt.Sprintf("Updated git sync configuration '%s'", sync.Name),
+			ResourceType: &resourceType,
+			ResourceID:   &sync.ID,
+			ResourceName: &sync.Name,
+		})
 	}
 
 	return s.GetSyncByID(ctx, id)
 }
 
 func (s *GitOpsSyncService) DeleteSync(ctx context.Context, id string) error {
+	// Get sync info before deleting
+	sync, err := s.GetSyncByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	if err := s.db.WithContext(ctx).Where("id = ?", id).Delete(&models.GitOpsSync{}).Error; err != nil {
 		return fmt.Errorf("failed to delete sync: %w", err)
 	}
+
+	// Log event
+	resourceType := "git_sync"
+	s.eventService.CreateEvent(ctx, CreateEventRequest{
+		Type:         models.EventTypeGitSyncDelete,
+		Severity:     models.EventSeverityInfo,
+		Title:        "Git sync deleted",
+		Description:  fmt.Sprintf("Deleted git sync configuration '%s'", sync.Name),
+		ResourceType: &resourceType,
+		ResourceID:   &sync.ID,
+		ResourceName: &sync.Name,
+	})
+
 	return nil
 }
 
@@ -204,6 +249,7 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 		errMsg := "repository not found"
 		result.Error = &errMsg
 		s.updateSyncStatus(ctx, id, "failed", errMsg)
+		s.logSyncError(ctx, sync, "Repository not found")
 		return result, fmt.Errorf("repository not found")
 	}
 
@@ -213,6 +259,7 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 		errMsg := err.Error()
 		result.Error = &errMsg
 		s.updateSyncStatus(ctx, id, "failed", errMsg)
+		s.logSyncError(ctx, sync, fmt.Sprintf("Failed to get authentication: %s", err.Error()))
 		return result, err
 	}
 
@@ -223,6 +270,7 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 		errMsg := err.Error()
 		result.Error = &errMsg
 		s.updateSyncStatus(ctx, id, "failed", errMsg)
+		s.logSyncError(ctx, sync, fmt.Sprintf("Failed to clone repository: %s", err.Error()))
 		return result, err
 	}
 	defer func() {
@@ -238,6 +286,7 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 		errMsg := fmt.Sprintf("compose file not found: %s", sync.ComposePath)
 		result.Error = &errMsg
 		s.updateSyncStatus(ctx, id, "failed", errMsg)
+		s.logSyncError(ctx, sync, errMsg)
 		return result, fmt.Errorf("compose file not found: %s", sync.ComposePath)
 	}
 
@@ -248,6 +297,7 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 		errMsg := err.Error()
 		result.Error = &errMsg
 		s.updateSyncStatus(ctx, id, "failed", errMsg)
+		s.logSyncError(ctx, sync, fmt.Sprintf("Failed to read compose file: %s", err.Error()))
 		return result, err
 	}
 
@@ -271,6 +321,7 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 			errMsg := err.Error()
 			result.Error = &errMsg
 			s.updateSyncStatus(ctx, id, "failed", errMsg)
+			s.logSyncError(ctx, sync, fmt.Sprintf("Failed to create project: %s", err.Error()))
 			return result, err
 		}
 
@@ -285,6 +336,7 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 			errMsg := err.Error()
 			result.Error = &errMsg
 			s.updateSyncStatus(ctx, id, "failed", errMsg)
+			s.logSyncError(ctx, sync, fmt.Sprintf("Failed to update project: %s", err.Error()))
 			return result, err
 		}
 		slog.InfoContext(ctx, "Updated project compose file", "projectName", project.Name, "projectId", project.ID)
@@ -295,6 +347,18 @@ func (s *GitOpsSyncService) PerformSync(ctx context.Context, id string) (*gitops
 
 	result.Success = true
 	result.Message = fmt.Sprintf("Successfully synced compose file from %s to project %s", sync.ComposePath, project.Name)
+
+	// Log success event
+	resourceType := "git_sync"
+	s.eventService.CreateEvent(ctx, CreateEventRequest{
+		Type:         models.EventTypeGitSyncRun,
+		Severity:     models.EventSeveritySuccess,
+		Title:        "Git sync completed",
+		Description:  fmt.Sprintf("Successfully synced '%s' to project '%s'", sync.Name, project.Name),
+		ResourceType: &resourceType,
+		ResourceID:   &sync.ID,
+		ResourceName: &sync.Name,
+	})
 
 	slog.InfoContext(ctx, "GitOps sync completed", "syncId", id, "project", project.Name)
 
@@ -414,4 +478,17 @@ func (s *GitOpsSyncService) BrowseFiles(ctx context.Context, id string, path str
 		Path:  path,
 		Files: files,
 	}, nil
+}
+
+func (s *GitOpsSyncService) logSyncError(ctx context.Context, sync *models.GitOpsSync, errorMsg string) {
+	resourceType := "git_sync"
+	s.eventService.CreateEvent(ctx, CreateEventRequest{
+		Type:         models.EventTypeGitSyncError,
+		Severity:     models.EventSeverityError,
+		Title:        "Git sync failed",
+		Description:  fmt.Sprintf("Failed to sync '%s': %s", sync.Name, errorMsg),
+		ResourceType: &resourceType,
+		ResourceID:   &sync.ID,
+		ResourceName: &sync.Name,
+	})
 }

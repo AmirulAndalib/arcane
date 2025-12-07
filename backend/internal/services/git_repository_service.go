@@ -17,14 +17,16 @@ import (
 )
 
 type GitRepositoryService struct {
-	db        *database.DB
-	gitClient *git.Client
+	db           *database.DB
+	gitClient    *git.Client
+	eventService *EventService
 }
 
-func NewGitRepositoryService(db *database.DB, workDir string) *GitRepositoryService {
+func NewGitRepositoryService(db *database.DB, workDir string, eventService *EventService) *GitRepositoryService {
 	return &GitRepositoryService{
-		db:        db,
-		gitClient: git.NewClient(workDir),
+		db:           db,
+		gitClient:    git.NewClient(workDir),
+		eventService: eventService,
 	}
 }
 
@@ -112,6 +114,18 @@ func (s *GitRepositoryService) CreateRepository(ctx context.Context, req models.
 		return nil, fmt.Errorf("failed to create repository: %w", err)
 	}
 
+	// Log event
+	resourceType := "git_repository"
+	s.eventService.CreateEvent(ctx, CreateEventRequest{
+		Type:         models.EventTypeGitRepositoryCreate,
+		Severity:     models.EventSeveritySuccess,
+		Title:        "Git repository created",
+		Description:  fmt.Sprintf("Created git repository '%s' (%s)", repository.Name, repository.URL),
+		ResourceType: &resourceType,
+		ResourceID:   &repository.ID,
+		ResourceName: &repository.Name,
+	})
+
 	return &repository, nil
 }
 
@@ -170,6 +184,18 @@ func (s *GitRepositoryService) UpdateRepository(ctx context.Context, id string, 
 		if err := s.db.WithContext(ctx).Model(repository).Updates(updates).Error; err != nil {
 			return nil, fmt.Errorf("failed to update repository: %w", err)
 		}
+
+		// Log event
+		resourceType := "git_repository"
+		s.eventService.CreateEvent(ctx, CreateEventRequest{
+			Type:         models.EventTypeGitRepositoryUpdate,
+			Severity:     models.EventSeveritySuccess,
+			Title:        "Git repository updated",
+			Description:  fmt.Sprintf("Updated git repository '%s'", repository.Name),
+			ResourceType: &resourceType,
+			ResourceID:   &repository.ID,
+			ResourceName: &repository.Name,
+		})
 	}
 
 	return s.GetRepositoryByID(ctx, id)
@@ -186,9 +212,27 @@ func (s *GitRepositoryService) DeleteRepository(ctx context.Context, id string) 
 		return fmt.Errorf("repository is used by %d sync configuration(s)", count)
 	}
 
+	// Get repository info before deleting
+	repository, err := s.GetRepositoryByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	if err := s.db.WithContext(ctx).Where("id = ?", id).Delete(&models.GitRepository{}).Error; err != nil {
 		return fmt.Errorf("failed to delete repository: %w", err)
 	}
+
+	// Log event
+	resourceType := "git_repository"
+	s.eventService.CreateEvent(ctx, CreateEventRequest{
+		Type:         models.EventTypeGitRepositoryDelete,
+		Severity:     models.EventSeverityInfo,
+		Title:        "Git repository deleted",
+		Description:  fmt.Sprintf("Deleted git repository '%s'", repository.Name),
+		ResourceType: &resourceType,
+		ResourceID:   &repository.ID,
+		ResourceName: &repository.Name,
+	})
 
 	return nil
 }
@@ -224,7 +268,35 @@ func (s *GitRepositoryService) TestConnection(ctx context.Context, id string, br
 		branch = "main"
 	}
 
-	return s.gitClient.TestConnection(repository.URL, branch, authConfig)
+	err = s.gitClient.TestConnection(repository.URL, branch, authConfig)
+	if err != nil {
+		// Log error event
+		resourceType := "git_repository"
+		s.eventService.CreateEvent(ctx, CreateEventRequest{
+			Type:         models.EventTypeGitRepositoryError,
+			Severity:     models.EventSeverityError,
+			Title:        "Git repository connection test failed",
+			Description:  fmt.Sprintf("Failed to connect to repository '%s': %s", repository.Name, err.Error()),
+			ResourceType: &resourceType,
+			ResourceID:   &repository.ID,
+			ResourceName: &repository.Name,
+		})
+		return err
+	}
+
+	// Log success event
+	resourceType := "git_repository"
+	s.eventService.CreateEvent(ctx, CreateEventRequest{
+		Type:         models.EventTypeGitRepositoryTest,
+		Severity:     models.EventSeveritySuccess,
+		Title:        "Git repository connection successful",
+		Description:  fmt.Sprintf("Successfully connected to repository '%s'", repository.Name),
+		ResourceType: &resourceType,
+		ResourceID:   &repository.ID,
+		ResourceName: &repository.Name,
+	})
+
+	return nil
 }
 
 func (s *GitRepositoryService) GetAuthConfig(ctx context.Context, repository *models.GitRepository) (git.AuthConfig, error) {
