@@ -119,6 +119,7 @@ type Services struct {
 	Oidc              *services.OidcService
 	ApiKey            *services.ApiKeyService
 	AppImages         *services.ApplicationImagesService
+	Font              *services.FontService
 	Project           *services.ProjectService
 	Event             *services.EventService
 	Version           *services.VersionService
@@ -275,6 +276,7 @@ func registerHandlers(api huma.API, svc *Services) {
 	var oidcSvc *services.OidcService
 	var apiKeySvc *services.ApiKeyService
 	var appImagesSvc *services.ApplicationImagesService
+	var fontSvc *services.FontService
 	var projectSvc *services.ProjectService
 	var eventSvc *services.EventService
 	var versionSvc *services.VersionService
@@ -305,6 +307,7 @@ func registerHandlers(api huma.API, svc *Services) {
 		oidcSvc = svc.Oidc
 		apiKeySvc = svc.ApiKey
 		appImagesSvc = svc.AppImages
+		fontSvc = svc.Font
 		projectSvc = svc.Project
 		eventSvc = svc.Event
 		versionSvc = svc.Version
@@ -333,11 +336,12 @@ func registerHandlers(api huma.API, svc *Services) {
 	handlers.RegisterAuth(api, userSvc, authSvc, oidcSvc)
 	handlers.RegisterApiKeys(api, apiKeySvc)
 	handlers.RegisterAppImages(api, appImagesSvc)
+	handlers.RegisterFonts(api, fontSvc)
 	handlers.RegisterProjects(api, projectSvc)
 	handlers.RegisterUsers(api, userSvc)
 	handlers.RegisterVersion(api, versionSvc)
 	handlers.RegisterEvents(api, eventSvc)
-	handlers.RegisterOidc(api, authSvc, oidcSvc)
+	handlers.RegisterOidc(api, authSvc, oidcSvc, cfg)
 	handlers.RegisterEnvironments(api, environmentSvc, settingsSvc, cfg)
 	handlers.RegisterContainerRegistries(api, containerRegistrySvc)
 	handlers.RegisterTemplates(api, templateSvc)
