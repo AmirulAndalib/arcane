@@ -16,8 +16,9 @@ type CustomFile struct {
 
 // CustomFilesConfig holds configuration for custom file operations.
 type CustomFilesConfig struct {
-	AllowTraversal bool
-	AllowedPaths   []string
+	// AllowedPaths is a list of directories where custom files can be located.
+	// Paths within these directories (or within the project directory) are allowed.
+	AllowedPaths []string
 }
 
 // ArcaneManifest is the project metadata file, extensible for future features.
@@ -112,6 +113,7 @@ func ParseCustomFiles(projectDir string) ([]CustomFile, error) {
 }
 
 // ValidateCustomFilePath validates a file path for custom file operations.
+// Paths are allowed if they resolve to within the project directory or any of the configured AllowedPaths.
 func ValidateCustomFilePath(projectDir, filePath string, cfg CustomFilesConfig) (string, error) {
 	if filePath == "" {
 		return "", fmt.Errorf("file path cannot be empty")
@@ -122,40 +124,31 @@ func ValidateCustomFilePath(projectDir, filePath string, cfg CustomFilesConfig) 
 		return "", err
 	}
 
-	// Check path traversal
-	clean := filepath.Clean(filePath)
-	hasTraversal := strings.HasPrefix(clean, "..") || strings.Contains(clean, string(filepath.Separator)+"..")
-	if hasTraversal && !cfg.AllowTraversal {
-		return "", fmt.Errorf("path traversal not allowed; set CUSTOM_FILES_ALLOW_TRAVERSAL=true")
-	}
-
-	// Resolve absolute path
+	// Resolve to absolute path
 	absPath := filePath
 	if !filepath.IsAbs(filePath) {
 		absPath = filepath.Join(absProjectDir, filePath)
 	}
 	absPath, _ = filepath.Abs(absPath)
 
-	// Check if within project
+	// Check if path is within project directory
 	withinProject := strings.HasPrefix(absPath, absProjectDir+string(filepath.Separator))
 
-	// External paths require AllowedPaths
-	if !withinProject && len(cfg.AllowedPaths) == 0 {
-		return "", fmt.Errorf("external paths require CUSTOM_FILES_ALLOWED_PATHS to be configured")
+	// Check if path is within any allowed directory
+	withinAllowed := false
+	for _, ap := range cfg.AllowedPaths {
+		if strings.HasPrefix(absPath, ap+string(filepath.Separator)) || absPath == ap {
+			withinAllowed = true
+			break
+		}
 	}
 
-	// Check if path is allowed
-	if !withinProject {
-		allowed := false
-		for _, ap := range cfg.AllowedPaths {
-			if strings.HasPrefix(absPath, ap+string(filepath.Separator)) || absPath == ap {
-				allowed = true
-				break
-			}
+	// Path must be within project or an allowed directory
+	if !withinProject && !withinAllowed {
+		if len(cfg.AllowedPaths) == 0 {
+			return "", fmt.Errorf("path outside project; configure CUSTOM_FILES_ALLOWED_PATHS to allow external paths")
 		}
-		if !allowed {
-			return "", fmt.Errorf("path not in allowed directories")
-		}
+		return "", fmt.Errorf("path not in project or allowed directories")
 	}
 
 	// Check reserved names at project root

@@ -44,8 +44,7 @@ func NewProjectService(db *database.DB, cfg *config.Config, settingsService *Set
 		eventService:    eventService,
 		imageService:    imageService,
 		customFilesConfig: projects.CustomFilesConfig{
-			AllowTraversal: cfg.CustomFilesAllowTraversal,
-			AllowedPaths:   projects.ParseAllowedPaths(cfg.CustomFilesAllowedPaths),
+			AllowedPaths: projects.ParseAllowedPaths(cfg.CustomFilesAllowedPaths),
 		},
 	}
 }
