@@ -181,12 +181,7 @@
 
 <div class="flex min-h-[calc(100vh-4rem)] flex-col md:flex-row">
 	<!-- Desktop Sidebar -->
-	<aside
-		class={cn(
-			'hidden w-64 shrink-0 border-r md:block',
-			isGlassEnabled ? 'bg-background/50 backdrop-blur-sm' : 'bg-card'
-		)}
-	>
+	<aside class={cn('hidden w-64 shrink-0 border-r md:block', isGlassEnabled ? 'bg-background/50 backdrop-blur-sm' : 'bg-card')}>
 		<div class="sticky top-0 px-3 py-4">
 			<h2 class="mb-4 px-4 text-lg font-semibold tracking-tight">{m.settings_title()}</h2>
 			<nav class="space-y-1">
@@ -274,10 +269,7 @@
 				size="lg"
 				onclick={() => formState.resetFunction && formState.resetFunction()}
 				disabled={formState.isLoading}
-				class={cn(
-					'size-14 rounded-full border-2 shadow-lg',
-					isGlassEnabled ? 'bg-background/80 backdrop-blur-md' : 'bg-card'
-				)}
+				class={cn('size-14 rounded-full border-2 shadow-lg', isGlassEnabled ? 'bg-background/80 backdrop-blur-md' : 'bg-card')}
 			>
 				<ResetIcon class="size-5" />
 			</Button>
