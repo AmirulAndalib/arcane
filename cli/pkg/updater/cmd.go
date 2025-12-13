@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/getarcaneapp/arcane/cli/internal/client"
+	"github.com/getarcaneapp/arcane/cli/internal/output"
+	"github.com/getarcaneapp/arcane/cli/internal/types"
+	"github.com/getarcaneapp/arcane/types/base"
+	"github.com/getarcaneapp/arcane/types/updater"
 	"github.com/spf13/cobra"
-	"go.getarcane.app/cli/internal/client"
-	"go.getarcane.app/cli/internal/output"
-	"go.getarcane.app/cli/internal/types"
-	"go.getarcane.app/types/base"
-	"go.getarcane.app/types/updater"
 )
 
 var jsonOutput bool

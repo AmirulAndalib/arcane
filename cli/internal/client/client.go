@@ -32,8 +32,8 @@ import (
 	"net/url"
 	"time"
 
-	"go.getarcane.app/cli/internal/config"
-	"go.getarcane.app/cli/internal/types"
+	"github.com/getarcaneapp/arcane/cli/internal/config"
+	"github.com/getarcaneapp/arcane/cli/internal/types"
 )
 
 const (

@@ -1,6 +1,6 @@
 package main
 
-import cli "go.getarcane.app/cli/pkg"
+import cli "github.com/getarcaneapp/arcane/cli/pkg"
 
 func main() {
 	cli.Execute()

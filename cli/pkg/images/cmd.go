@@ -44,13 +44,13 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/getarcaneapp/arcane/cli/internal/client"
+	"github.com/getarcaneapp/arcane/cli/internal/logger"
+	"github.com/getarcaneapp/arcane/cli/internal/output"
+	"github.com/getarcaneapp/arcane/cli/internal/types"
+	"github.com/getarcaneapp/arcane/types/image"
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
-	"go.getarcane.app/cli/internal/client"
-	"go.getarcane.app/cli/internal/logger"
-	"go.getarcane.app/cli/internal/output"
-	"go.getarcane.app/cli/internal/types"
-	"go.getarcane.app/types/image"
 	"go.withmatt.com/size"
 )
 

@@ -33,29 +33,30 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
-	"go.getarcane.app/cli/internal/config"
-	"go.getarcane.app/cli/internal/logger"
-	"go.getarcane.app/cli/pkg/apikeys"
-	"go.getarcane.app/cli/pkg/auth"
-	configClient "go.getarcane.app/cli/pkg/config"
-	"go.getarcane.app/cli/pkg/containers"
-	"go.getarcane.app/cli/pkg/environments"
-	"go.getarcane.app/cli/pkg/events"
-	"go.getarcane.app/cli/pkg/generate"
-	"go.getarcane.app/cli/pkg/images"
-	"go.getarcane.app/cli/pkg/imageupdates"
-	"go.getarcane.app/cli/pkg/networks"
-	"go.getarcane.app/cli/pkg/notifications"
-	"go.getarcane.app/cli/pkg/projects"
-	"go.getarcane.app/cli/pkg/registries"
-	"go.getarcane.app/cli/pkg/settings"
-	"go.getarcane.app/cli/pkg/system"
-	"go.getarcane.app/cli/pkg/templates"
-	"go.getarcane.app/cli/pkg/updater"
-	"go.getarcane.app/cli/pkg/users"
-	"go.getarcane.app/cli/pkg/version"
-	"go.getarcane.app/cli/pkg/volumes"
+	"github.com/getarcaneapp/arcane/cli/internal/config"
+	"github.com/getarcaneapp/arcane/cli/internal/logger"
+	"github.com/getarcaneapp/arcane/cli/pkg/apikeys"
+	"github.com/getarcaneapp/arcane/cli/pkg/auth"
+	configClient "github.com/getarcaneapp/arcane/cli/pkg/config"
+	"github.com/getarcaneapp/arcane/cli/pkg/containers"
+	"github.com/getarcaneapp/arcane/cli/pkg/environments"
+	"github.com/getarcaneapp/arcane/cli/pkg/events"
+	"github.com/getarcaneapp/arcane/cli/pkg/generate"
+	"github.com/getarcaneapp/arcane/cli/pkg/images"
+	"github.com/getarcaneapp/arcane/cli/pkg/imageupdates"
+	"github.com/getarcaneapp/arcane/cli/pkg/networks"
+	"github.com/getarcaneapp/arcane/cli/pkg/notifications"
+	"github.com/getarcaneapp/arcane/cli/pkg/projects"
+	"github.com/getarcaneapp/arcane/cli/pkg/registries"
+	"github.com/getarcaneapp/arcane/cli/pkg/settings"
+	"github.com/getarcaneapp/arcane/cli/pkg/system"
+	"github.com/getarcaneapp/arcane/cli/pkg/templates"
+	"github.com/getarcaneapp/arcane/cli/pkg/updater"
+	"github.com/getarcaneapp/arcane/cli/pkg/users"
+	"github.com/getarcaneapp/arcane/cli/pkg/version"
+	"github.com/getarcaneapp/arcane/cli/pkg/volumes"
 )
 
 var (
@@ -92,8 +93,7 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
-	err := rootCmd.ExecuteContext(context.Background())
-	if err != nil {
+	if err := fang.Execute(context.Background(), rootCmd); err != nil {
 		os.Exit(1)
 	}
 }

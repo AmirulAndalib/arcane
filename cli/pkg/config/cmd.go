@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"go.getarcane.app/cli/internal/config"
+	"github.com/getarcaneapp/arcane/cli/internal/config"
 )
 
 var (
