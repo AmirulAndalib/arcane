@@ -37,6 +37,7 @@ type Services struct {
 	Notification      *services.NotificationService
 	Apprise           *services.AppriseService
 	ApiKey            *services.ApiKeyService
+	Font              *services.FontService
 }
 
 func initializeServices(ctx context.Context, db *database.DB, cfg *config.Config, httpClient *http.Client) (svcs *Services, dockerSrvice *services.DockerClientService, err error) {
@@ -50,6 +51,7 @@ func initializeServices(ctx context.Context, db *database.DB, cfg *config.Config
 	svcs.SettingsSearch = services.NewSettingsSearchService()
 	svcs.CustomizeSearch = services.NewCustomizeSearchService()
 	svcs.AppImages = services.NewApplicationImagesService(resources.FS, svcs.Settings)
+	svcs.Font = services.NewFontService(resources.FS)
 	dockerClient := services.NewDockerClientService(db, cfg)
 	svcs.Docker = dockerClient
 	svcs.User = services.NewUserService(db)
@@ -59,7 +61,7 @@ func initializeServices(ctx context.Context, db *database.DB, cfg *config.Config
 	svcs.ImageUpdate = services.NewImageUpdateService(db, svcs.Settings, svcs.ContainerRegistry, svcs.Docker, svcs.Event, svcs.Notification)
 	svcs.Image = services.NewImageService(db, svcs.Docker, svcs.ContainerRegistry, svcs.ImageUpdate, svcs.Event)
 	svcs.Project = services.NewProjectService(db, svcs.Settings, svcs.Event, svcs.Image)
-	svcs.Environment = services.NewEnvironmentService(db, httpClient, svcs.Docker)
+	svcs.Environment = services.NewEnvironmentService(db, httpClient, svcs.Docker, svcs.Event)
 	svcs.Container = services.NewContainerService(db, svcs.Event, svcs.Docker, svcs.Image)
 	svcs.Volume = services.NewVolumeService(db, svcs.Docker, svcs.Event)
 	svcs.Network = services.NewNetworkService(db, svcs.Docker, svcs.Event)
