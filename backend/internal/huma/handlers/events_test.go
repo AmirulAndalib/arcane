@@ -40,7 +40,7 @@ func seedEvent(t *testing.T, svc *services.EventService, envID string, severity 
 func TestEventHandler_ListEvents_MapsEnvironmentFilter(t *testing.T) {
 	ctx := context.Background()
 	db := setupEventsHandlerTestDB(t)
-	eventSvc := services.NewEventService(db)
+	eventSvc := services.NewEventService(db, nil)
 	h := &EventHandler{eventService: eventSvc}
 
 	seedEvent(t, eventSvc, "0", models.EventSeverityInfo, "env0")
@@ -62,7 +62,7 @@ func TestEventHandler_ListEvents_MapsEnvironmentFilter(t *testing.T) {
 func TestEventHandler_GetEventsByEnvironment_MapsSeverityFilter(t *testing.T) {
 	ctx := context.Background()
 	db := setupEventsHandlerTestDB(t)
-	eventSvc := services.NewEventService(db)
+	eventSvc := services.NewEventService(db, nil)
 	h := &EventHandler{eventService: eventSvc}
 
 	seedEvent(t, eventSvc, "0", models.EventSeverityInfo, "info")

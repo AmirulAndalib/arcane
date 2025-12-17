@@ -16,14 +16,7 @@ export const load: PageLoad = async () => {
 		}
 	} satisfies SearchPaginationSortRequest);
 
-	let environmentId = LOCAL_DOCKER_ENVIRONMENT_ID;
-	try {
-		environmentId = await environmentStore.getCurrentEnvironmentId();
-	} catch {
-		// Fallback to local environment when store isn't ready
-	}
-
-	const events = await eventService.getEventsForEnvironment(environmentId, eventRequestOptions);
+	const events = await eventService.getEvents(eventRequestOptions);
 
 	return { events, eventRequestOptions };
 };

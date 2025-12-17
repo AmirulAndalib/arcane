@@ -70,19 +70,13 @@
 				destructive: true,
 				action: async () => {
 					isLoading.removing = true;
-					let envId = LOCAL_DOCKER_ENVIRONMENT_ID;
-					try {
-						envId = await environmentStore.getCurrentEnvironmentId();
-					} catch {
-						// fallback to local
-					}
 					handleApiResultWithCallbacks({
-						result: await tryCatch(eventService.deleteForEnvironment(envId, eventId)),
+						result: await tryCatch(eventService.delete(eventId)),
 						message: m.events_delete_failed({ title: safeTitle }),
 						setLoadingState: (value) => (isLoading.removing = value),
 						onSuccess: async () => {
 							toast.success(m.events_delete_success({ title: safeTitle }));
-							events = await eventService.getEventsForEnvironment(envId, requestOptions);
+							events = await eventService.getEvents(requestOptions);
 						}
 					});
 				}
@@ -257,13 +251,7 @@
 	bind:selectedIds
 	bind:mobileFieldVisibility
 	onRefresh={async (options) => {
-		let envId = LOCAL_DOCKER_ENVIRONMENT_ID;
-		try {
-			envId = await environmentStore.getCurrentEnvironmentId();
-		} catch {
-			// fallback to local
-		}
-		events = await eventService.getEventsForEnvironment(envId, options);
+		events = await eventService.getEvents(options);
 		return events;
 	}}
 	{columns}

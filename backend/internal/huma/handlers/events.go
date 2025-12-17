@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -14,7 +15,8 @@ import (
 
 // EventHandler handles event management endpoints.
 type EventHandler struct {
-	eventService *services.EventService
+	eventService  *services.EventService
+	apiKeyService *services.ApiKeyService
 }
 
 // ============================================================================
@@ -101,13 +103,25 @@ type DeleteEventOutput struct {
 	Body base.ApiResponse[base.MessageResponse]
 }
 
+type SyncEventsInput struct {
+	XAPIKey string `header:"X-API-Key" doc:"API key for agent authentication"`
+	Body    event.SyncEventsRequest
+}
+
+type SyncEventsOutput struct {
+	Body base.ApiResponse[base.MessageResponse]
+}
+
 // ============================================================================
 // Registration
 // ============================================================================
 
 // RegisterEvents registers all event management endpoints.
-func RegisterEvents(api huma.API, eventService *services.EventService) {
-	h := &EventHandler{eventService: eventService}
+func RegisterEvents(api huma.API, eventService *services.EventService, apiKeyService *services.ApiKeyService) {
+	h := &EventHandler{
+		eventService:  eventService,
+		apiKeyService: apiKeyService,
+	}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "listEvents",
@@ -188,6 +202,18 @@ func RegisterEvents(api huma.API, eventService *services.EventService) {
 			{"ApiKeyAuth": {}},
 		},
 	}, h.GetEventsByEnvironmentLegacy)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "syncEventsFromAgent",
+		Method:      http.MethodPost,
+		Path:        "/events/sync",
+		Summary:     "Sync events from agent",
+		Description: "Receive and store events from a remote agent",
+		Tags:        []string{"Events"},
+		Security: []map[string][]string{
+			{"ApiKeyAuth": {}},
+		},
+	}, h.SyncEvents)
 }
 
 // ============================================================================
@@ -415,6 +441,52 @@ func (h *EventHandler) DeleteEvent(ctx context.Context, input *DeleteEventInput)
 			Data: base.MessageResponse{
 				Message: "Event deleted successfully",
 			},
+		},
+	}, nil
+}
+
+// SyncEvents receives events from a remote agent and stores them.
+func (h *EventHandler) SyncEvents(ctx context.Context, input *SyncEventsInput) (*SyncEventsOutput, error) {
+	if h.eventService == nil || h.apiKeyService == nil {
+		return nil, huma.Error500InternalServerError("service not available")
+	}
+
+	if len(input.Body.Events) == 0 {
+		return &SyncEventsOutput{
+			Body: base.ApiResponse[base.MessageResponse]{
+				Success: true,
+				Data:    base.MessageResponse{Message: "No events to sync"},
+			},
+		}, nil
+	}
+
+	// Get environment ID from API key
+	envID, err := h.apiKeyService.GetEnvironmentByApiKey(ctx, input.XAPIKey)
+	if err != nil || envID == nil {
+		return nil, huma.Error401Unauthorized("Invalid or missing API key")
+	}
+
+	slog.InfoContext(ctx, "Received event sync from agent",
+		"eventCount", len(input.Body.Events),
+		"environmentID", *envID)
+
+	// Override environment ID in all events with the one from the API key
+	for i := range input.Body.Events {
+		input.Body.Events[i].EnvironmentID = *envID
+	}
+
+	err = h.eventService.SyncEventsFromAgent(ctx, input.Body.Events)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to sync events from agent", "error", err)
+		return nil, huma.Error500InternalServerError((&common.EventCreationError{Err: err}).Error())
+	}
+
+	slog.InfoContext(ctx, "Successfully synced events from agent", "eventCount", len(input.Body.Events))
+
+	return &SyncEventsOutput{
+		Body: base.ApiResponse[base.MessageResponse]{
+			Success: true,
+			Data:    base.MessageResponse{Message: "Events synced successfully"},
 		},
 	}, nil
 }

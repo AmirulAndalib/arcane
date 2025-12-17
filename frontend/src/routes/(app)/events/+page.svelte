@@ -27,14 +27,8 @@
 	const totalEvents = $derived(events?.pagination?.totalItems || 0);
 
 	async function refresh() {
-		let envId = LOCAL_DOCKER_ENVIRONMENT_ID;
-		try {
-			envId = await environmentStore.getCurrentEnvironmentId();
-		} catch {
-			// fallback to local
-		}
 		await simpleRefresh(
-			() => eventService.getEventsForEnvironment(envId, requestOptions),
+			() => eventService.getEvents(requestOptions),
 			(data) => (events = data),
 			m.common_refresh_failed({ resource: m.events_title() }),
 			(v) => (isLoading.refreshing = v)
