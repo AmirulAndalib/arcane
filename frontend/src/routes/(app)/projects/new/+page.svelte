@@ -161,7 +161,7 @@
 		'data-[disabled]:opacity-50 data-[disabled]:pointer-events-none';
 </script>
 
-<div class="bg-background flex min-h-0 flex-col">
+<div class="bg-background flex h-dvh min-h-0 flex-col">
 	<div class="sticky top-0 border-b">
 		<div class="mx-auto flex h-16 max-w-full items-center justify-between gap-4 px-6">
 			<div class="flex items-center gap-4">
@@ -272,10 +272,10 @@
 		</div>
 	</div>
 
-	<div class="flex-1 overflow-hidden">
-		<div class="mx-auto h-full max-w-full">
-			<div class="flex h-full flex-col gap-4 p-6">
-				<div class="block sm:hidden">
+	<div class="flex min-h-0 flex-1 overflow-hidden">
+		<div class="mx-auto h-full w-full max-w-full min-w-0">
+			<div class="flex h-full min-h-0 flex-col gap-4 p-6 pb-10">
+				<div class="block flex-shrink-0 sm:hidden">
 					<EditableName
 						bind:value={$inputs.name.value}
 						bind:ref={nameInputRef}
@@ -288,28 +288,26 @@
 				</div>
 
 				<form
-					class="grid h-full grid-cols-1 gap-4 lg:grid-cols-5 lg:items-stretch"
+					class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-5 lg:items-stretch"
 					style="grid-template-rows: 1fr;"
 					onsubmit={preventDefault(handleSubmit)}
 				>
-					<div class="flex h-full flex-col lg:col-span-3">
+					<div class="flex min-h-0 flex-col lg:col-span-3">
 						<CodePanel
 							bind:open={composeOpen}
 							title={m.compose_compose_file_title()}
 							language="yaml"
 							bind:value={$inputs.composeContent.value}
-							placeholder={m.compose_compose_placeholder()}
 							error={$inputs.composeContent.error ?? undefined}
 						/>
 					</div>
 
-					<div class="flex h-full flex-col lg:col-span-2">
+					<div class="flex min-h-0 flex-col lg:col-span-2">
 						<CodePanel
 							bind:open={envOpen}
 							title={m.compose_env_title()}
 							language="env"
 							bind:value={$inputs.envContent.value}
-							placeholder={m.compose_env_placeholder()}
 							error={$inputs.envContent.error ?? undefined}
 						/>
 					</div>

@@ -115,6 +115,7 @@ test.describe('New Compose Project Page', () => {
     await expect(page.getByRole('button', { name: 'My New Project' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Docker Compose File' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Environment (.env)' })).toBeVisible();
+    
   });
 
   test('should validate required fields', async ({ page }) => {
@@ -157,24 +158,45 @@ test.describe('New Compose Project Page', () => {
     await page.getByRole('textbox', { name: 'My New Project' }).fill(projectName);
     await page.getByRole('textbox', { name: 'My New Project' }).press('Enter');
 
-    const composeEditor = page.locator('.cm-editor').first();
+    const composeEditor = page.locator('.monaco-editor').first();
     await expect(composeEditor).toBeVisible();
 
-    const composeContent = composeEditor.locator('.cm-content[contenteditable]');
-    await composeContent.focus();
-    await page.keyboard.press('ControlOrMeta+A');
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.evaluate((text) => navigator.clipboard.writeText(text), TEST_COMPOSE_YAML);
-    await page.keyboard.press('ControlOrMeta+V');
+    // Wait for Monaco to actually render its view before attempting input.
+    await expect(composeEditor.locator('.view-line').first()).toBeVisible();
 
-    const envEditor = page.locator('.cm-editor').nth(1);
+    // Monaco may create the internal input textarea lazily (e.g. only after focus).
+    // Click first, then wait for textarea.inputarea to appear.
+    await composeEditor.click({ position: { x: 20, y: 20 } });
+    await expect(composeEditor.locator('textarea')).toHaveCount(1);
+
+    // Use page.evaluate to set the value directly in Monaco to avoid auto-indentation issues during typing
+    await page.evaluate(({ text, lang }) => {
+      const models = (window as any).monaco.editor.getModels();
+      const model = models.find((m: any) => m.getLanguageId() === lang);
+      if (!model) throw new Error(`No ${lang} model found`);
+      model.setValue(text);
+    }, { text: TEST_COMPOSE_YAML, lang: 'yaml' });
+
+    // Basic sanity check that the new content rendered.
+    await expect(composeEditor.locator('.view-lines')).toContainText(/redis/i);
+
+    const envEditor = page.locator('.monaco-editor').nth(1);
     await expect(envEditor).toBeVisible();
 
-    const envContent = envEditor.locator('.cm-content[contenteditable]');
-    await envContent.focus();
-    await page.keyboard.press('ControlOrMeta+A');
-    await page.evaluate((text) => navigator.clipboard.writeText(text), TEST_ENV_FILE);
-    await page.keyboard.press('ControlOrMeta+V');
+    await expect(envEditor.locator('.view-line').first()).toBeVisible();
+
+    await envEditor.click({ position: { x: 20, y: 20 } });
+    await expect(envEditor.locator('textarea')).toHaveCount(1);
+
+    // Use page.evaluate to set the value directly in Monaco
+    await page.evaluate(({ text, lang }) => {
+      const models = (window as any).monaco.editor.getModels();
+      const model = models.find((m: any) => m.getLanguageId() === lang);
+      if (!model) throw new Error(`No ${lang} model found`);
+      model.setValue(text);
+    }, { text: TEST_ENV_FILE, lang: 'ini' });
+
+    await expect(envEditor.locator('.view-lines')).toContainText(/redis/i);
 
     await page.route('/api/environments/*/projects', async (route) => {
       if (route.request().method() === 'POST') {
@@ -211,7 +233,7 @@ test.describe('New Compose Project Page', () => {
 
     await expect(page.getByRole('button', { name: projectName })).toBeVisible();
 
-    await page.getByRole('tab', { name: /Services/i }).click();
+    await page.getByRole('tab', { name: 'Services' }).click();
     await page.waitForLoadState('networkidle');
 
     const serviceNameWhenStopped = page.getByRole('heading', { name: 'redis', exact: true });
@@ -228,12 +250,57 @@ test.describe('New Compose Project Page', () => {
 
     const containerNameElement = page.getByRole('link', { name: 'test-redis-container redis' });
     await expect(containerNameElement).toBeVisible({ timeout: 15000 });
+  });
 
-    const serviceBadge = page.locator('text=redis').first();
-    await expect(serviceBadge).toBeVisible();
+  test('should destroy the project and remove files from disk', async ({ page }) => {
+    const projectName = `test-destroy-${Date.now()}`;
 
-    const statusBadge = page.locator('text=Running').first();
-    await expect(statusBadge).toBeVisible();
+    // 1. Create the project first
+    await page.getByRole('button', { name: 'My New Project' }).click();
+    await page.getByRole('textbox', { name: 'My New Project' }).fill(projectName);
+    await page.getByRole('textbox', { name: 'My New Project' }).press('Enter');
+
+    const composeEditor = page.locator('.monaco-editor').first();
+    await expect(composeEditor).toBeVisible();
+    await expect(composeEditor.locator('.view-line').first()).toBeVisible();
+    await composeEditor.click({ position: { x: 20, y: 20 } });
+
+    await page.evaluate(
+      ({ text, lang }) => {
+        const models = (window as any).monaco.editor.getModels();
+        const model = models.find((m: any) => m.getLanguageId() === lang);
+        if (!model) throw new Error(`No ${lang} model found`);
+        model.setValue(text);
+      },
+      { text: TEST_COMPOSE_YAML, lang: 'yaml' }
+    );
+
+    const createButton = page.locator('button[data-slot="button"]').filter({ hasText: 'Create Project' });
+    await createButton.click();
+
+    await page.waitForURL(/\/projects\/.+/, { timeout: 10000 });
+    await expect(page.getByRole('button', { name: projectName })).toBeVisible();
+
+    // 2. Destroy the project
+    const destroyButton = page.getByRole('button', { name: 'Destroy', exact: true });
+    await expect(destroyButton).toBeVisible();
+    await destroyButton.click();
+
+    // 3. Handle the confirmation dialog
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // Check "Remove project files"
+    const removeFilesCheckbox = dialog.getByLabel(/Remove project files/i);
+    await removeFilesCheckbox.check();
+
+    // Click "Destroy" in the dialog
+    const confirmDestroyButton = dialog.getByRole('button', { name: 'Destroy', exact: true });
+    await confirmDestroyButton.click();
+
+    // 4. Verify redirection and project removal
+    await page.waitForURL(ROUTES.page, { timeout: 10000 });
+    await expect(page.getByRole('link', { name: projectName })).not.toBeVisible();
   });
 });
 
@@ -272,7 +339,7 @@ test.describe('Project Detail Page', () => {
 
     await page.getByRole('tab', { name: /Services/i }).click();
 
-    const nginxService = page.getByText(/nginx/i);
+    const nginxService = page.getByRole('heading', { name: /nginx/i });
     const emptyState = page.getByText(/No services found/i);
 
     if ((await nginxService.count()) > 0) {
@@ -301,6 +368,7 @@ test.describe('Project Detail Page', () => {
     // - classic (default): side-by-side compose.yaml + .env panels
     // - tree view: file list on the left and a single code panel on the right
     await expect(page.getByRole('heading', { name: 'compose.yaml' })).toBeVisible();
+    
 
     const projectFilesHeading = page.getByRole('heading', { name: /Project Files/i });
     const isTreeView = await projectFilesHeading.isVisible();
