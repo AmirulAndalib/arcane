@@ -12,7 +12,6 @@ import (
 	humamw "github.com/getarcaneapp/arcane/backend/internal/huma/middleware"
 	"github.com/getarcaneapp/arcane/backend/internal/models"
 	"github.com/getarcaneapp/arcane/backend/internal/services"
-	"github.com/getarcaneapp/arcane/backend/internal/utils"
 	"github.com/getarcaneapp/arcane/types/base"
 	containertypes "github.com/getarcaneapp/arcane/types/container"
 	"github.com/getarcaneapp/arcane/types/dockerinfo"
@@ -280,24 +279,10 @@ func (h *SystemHandler) GetDockerInfo(ctx context.Context, input *GetDockerInfoI
 		return nil, huma.Error500InternalServerError((&common.DockerInfoError{Err: err}).Error())
 	}
 
-	cpuCount := info.NCPU
-	memTotal := info.MemTotal
-
-	// Check for cgroup limits (LXC, Docker, etc.)
-	if cgroupLimits, err := utils.DetectCgroupLimits(); err == nil {
-		if limit := cgroupLimits.MemoryLimit; limit > 0 {
-			limitInt := int64(limit)
-			if memTotal == 0 || limitInt < memTotal {
-				memTotal = limitInt
-			}
-		}
-		if cgroupLimits.CPUCount > 0 && (cpuCount == 0 || cgroupLimits.CPUCount < cpuCount) {
-			cpuCount = cgroupLimits.CPUCount
-		}
-	}
-
-	info.NCPU = cpuCount
-	info.MemTotal = memTotal
+	// Docker API returns the resources visible to the Docker daemon.
+	// If Docker runs inside LXC, it already reports LXC-limited resources.
+	// We don't apply Arcane's cgroup limits as those reflect the Arcane
+	// container's limits, not the Docker host/LXC environment.
 
 	return &GetDockerInfoOutput{
 		Body: dockerinfo.Info{

@@ -558,3 +558,32 @@ func (s *SystemService) GetDiskUsagePath(ctx context.Context) string {
 	}
 	return path
 }
+
+// DockerHostInfo contains host resource information from Docker.
+type DockerHostInfo struct {
+	CPUCount    int
+	MemoryTotal int64
+}
+
+// GetDockerHostInfo returns the Docker host's CPU count and total memory.
+// This reflects the actual host resources, not any container limits.
+func (s *SystemService) GetDockerHostInfo(ctx context.Context) (*DockerHostInfo, error) {
+	if s.dockerService == nil {
+		return nil, fmt.Errorf("docker service not available")
+	}
+
+	dockerClient, err := s.dockerService.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get docker client: %w", err)
+	}
+
+	info, err := dockerClient.Info(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get docker info: %w", err)
+	}
+
+	return &DockerHostInfo{
+		CPUCount:    info.NCPU,
+		MemoryTotal: info.MemTotal,
+	}, nil
+}

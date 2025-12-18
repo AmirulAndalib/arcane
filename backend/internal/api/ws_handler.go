@@ -20,7 +20,6 @@ import (
 	"github.com/getarcaneapp/arcane/backend/internal/config"
 	"github.com/getarcaneapp/arcane/backend/internal/middleware"
 	"github.com/getarcaneapp/arcane/backend/internal/services"
-	"github.com/getarcaneapp/arcane/backend/internal/utils"
 	httputil "github.com/getarcaneapp/arcane/backend/internal/utils/http"
 	ws "github.com/getarcaneapp/arcane/backend/internal/utils/ws"
 	"github.com/gin-gonic/gin"
@@ -525,9 +524,14 @@ func (h *WebSocketHandler) collectSystemStats(ctx context.Context) SystemStats {
 	cpuUsage := h.cpuCache.value
 	h.cpuCache.RUnlock()
 
-	cpuCount := h.getCPUCount()
-	memUsed, memTotal := h.getMemoryInfo()
-	cpuCount, memUsed, memTotal = h.applyCgroupLimits(cpuCount, memUsed, memTotal)
+	// Get CPU count and memory total from Docker host info.
+	// Docker API returns resources visible to the daemon (including LXC limits if applicable).
+	// This ensures we show Docker host resources, not Arcane container limits.
+	cpuCount, memTotal := h.getDockerHostResources(ctx)
+
+	// Get current memory usage from local system metrics.
+	memUsed, _ := h.getMemoryInfo()
+
 	diskUsed, diskTotal := h.getDiskInfo(ctx)
 	hostname := h.getHostname()
 	gpuStats, gpuCount := h.getGPUInfo(ctx)
@@ -547,6 +551,19 @@ func (h *WebSocketHandler) collectSystemStats(ctx context.Context) SystemStats {
 	}
 }
 
+// getDockerHostResources returns CPU count and memory total from the Docker host.
+func (h *WebSocketHandler) getDockerHostResources(ctx context.Context) (int, uint64) {
+	if h.systemService != nil {
+		if hostInfo, err := h.systemService.GetDockerHostInfo(ctx); err == nil {
+			return hostInfo.CPUCount, uint64(hostInfo.MemoryTotal)
+		}
+	}
+	// Fallback to local system metrics if Docker info is unavailable
+	cpuCount := h.getCPUCount()
+	_, memTotal := h.getMemoryInfo()
+	return cpuCount, memTotal
+}
+
 // getCPUCount returns the number of CPUs.
 func (h *WebSocketHandler) getCPUCount() int {
 	cpuCount, err := cpu.Counts(true)
@@ -563,28 +580,6 @@ func (h *WebSocketHandler) getMemoryInfo() (uint64, uint64) {
 		return 0, 0
 	}
 	return memInfo.Used, memInfo.Total
-}
-
-// applyCgroupLimits applies cgroup limits when running in a container.
-func (h *WebSocketHandler) applyCgroupLimits(cpuCount int, memUsed, memTotal uint64) (int, uint64, uint64) {
-	cgroupLimits, err := utils.DetectCgroupLimits()
-	if err != nil {
-		return cpuCount, memUsed, memTotal
-	}
-
-	if limit := cgroupLimits.MemoryLimit; limit > 0 {
-		limitUint := uint64(limit)
-		if memTotal == 0 || limitUint < memTotal {
-			memTotal = limitUint
-			if cgroupLimits.MemoryUsage > 0 {
-				memUsed = uint64(cgroupLimits.MemoryUsage)
-			}
-		}
-	}
-	if cgroupLimits.CPUCount > 0 && (cpuCount == 0 || cgroupLimits.CPUCount < cpuCount) {
-		cpuCount = cgroupLimits.CPUCount
-	}
-	return cpuCount, memUsed, memTotal
 }
 
 // getDiskInfo returns disk usage and total.
