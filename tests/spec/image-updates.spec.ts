@@ -62,33 +62,53 @@ test.describe('Image Update UI - Check All Updates Button', () => {
   test('should display the Check Updates button on images page', async ({ page }) => {
     await navigateToImages(page);
 
-    // Look for the Check Updates button in the action bar
-    const checkUpdatesButton = page.getByRole('button', { name: /check.*update/i });
+    // Find the Check Updates button - it might be directly visible or in a menu
+    let checkUpdatesButton = page.getByRole('button', { name: 'Check Updates' });
+    const isDirectlyVisible = await checkUpdatesButton.isVisible().catch(() => false);
+
+    if (!isDirectlyVisible) {
+      // Try to find and click the overflow menu trigger
+      const menuTrigger = page.getByRole('button', { name: 'More actions' });
+      await menuTrigger.click();
+      checkUpdatesButton = page.getByRole('menuitem', { name: 'Check Updates' });
+    }
+
     await expect(checkUpdatesButton).toBeVisible();
   });
 
   test('should trigger bulk update check when clicking Check Updates button', async ({ page }) => {
     await navigateToImages(page);
 
-    // Find and click the Check Updates button
-    const checkUpdatesButton = page.getByRole('button', { name: /check.*update/i });
+    // Find the Check Updates button - it might be directly visible or in a menu
+    let checkUpdatesButton = page.getByRole('button', { name: 'Check Updates' });
+    const isDirectlyVisible = await checkUpdatesButton.isVisible().catch(() => false);
+
+    if (!isDirectlyVisible) {
+      // Try to find and click the overflow menu trigger
+      const menuTrigger = page.getByRole('button', { name: 'More actions' });
+      await menuTrigger.click();
+      checkUpdatesButton = page.getByRole('menuitem', { name: 'Check Updates' });
+    }
+
     await expect(checkUpdatesButton).toBeVisible();
 
-    // Click the button
     await checkUpdatesButton.click();
-
-    // Wait for the loading state or completion toast
-    // The button should show a loading state or we should see a toast notification
     await expect(async () => {
-      // Either button shows loading state
-      const buttonText = await checkUpdatesButton.textContent();
-      const isLoading = buttonText?.toLowerCase().includes('checking');
-
-      // Or a toast appears
+      // Check for toast first (most reliable indicator)
       const toast = page.locator('li[data-sonner-toast]');
       const toastVisible = await toast.isVisible().catch(() => false);
+      if (toastVisible) return;
 
-      expect(isLoading || toastVisible).toBeTruthy();
+      // If button is still visible (not in a menu), check for loading state
+      const isVisible = await checkUpdatesButton.isVisible().catch(() => false);
+      if (isVisible) {
+        const buttonText = await checkUpdatesButton.textContent();
+        const isLoading = buttonText?.toLowerCase().includes('checking');
+        expect(isLoading).toBeTruthy();
+      } else {
+        // If button is gone (menu closed), we must wait for the toast
+        expect(toastVisible).toBeTruthy();
+      }
     }).toPass({ timeout: 30000 });
 
     // Eventually a success or completion toast should appear
