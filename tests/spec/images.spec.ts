@@ -58,8 +58,15 @@ test.describe('Images Page', () => {
   test('should open the Prune Unused Images dialog', async ({ page }) => {
     await navigateToImages(page);
 
-    await page.getByRole('button', { name: 'More actions' }).click();
-    await page.getByRole('menuitem', { name: 'Prune Unused' }).click();
+    let pruneButton = page.getByRole('button', { name: 'Prune Unused' });
+    const isDirectlyVisible = await pruneButton.isVisible().catch(() => false);
+
+    if (!isDirectlyVisible) {
+      await page.getByRole('button', { name: 'More actions' }).click();
+      pruneButton = page.getByRole('menuitem', { name: 'Prune Unused' });
+    }
+
+    await pruneButton.click();
     await expect(
       page.locator('div[role="heading"][aria-level="2"][data-dialog-title]:has-text("Prune Unused Images")'),
     ).toBeVisible();
@@ -107,8 +114,15 @@ test.describe('Images Page', () => {
   test('should call prune API on prune click and confirmation', async ({ page }) => {
     await navigateToImages(page);
 
-    await page.getByRole('button', { name: 'More actions' }).click();
-    await page.getByRole('menuitem', { name: 'Prune Unused' }).click();
+    let pruneButton = page.getByRole('button', { name: 'Prune Unused' });
+    const isDirectlyVisible = await pruneButton.isVisible().catch(() => false);
+
+    if (!isDirectlyVisible) {
+      await page.getByRole('button', { name: 'More actions' }).click();
+      pruneButton = page.getByRole('menuitem', { name: 'Prune Unused' });
+    }
+
+    await pruneButton.click();
 
     await expect(
       page.locator('div[role="heading"][aria-level="2"][data-dialog-title]:has-text("Prune Unused Images")'),

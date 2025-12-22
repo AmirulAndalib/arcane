@@ -93,23 +93,11 @@ test.describe('Image Update UI - Check All Updates Button', () => {
     await expect(checkUpdatesButton).toBeVisible();
 
     await checkUpdatesButton.click();
-    await expect(async () => {
-      // Check for toast first (most reliable indicator)
-      const toast = page.locator('li[data-sonner-toast]');
-      const toastVisible = await toast.isVisible().catch(() => false);
-      if (toastVisible) return;
 
-      // If button is still visible (not in a menu), check for loading state
-      const isVisible = await checkUpdatesButton.isVisible().catch(() => false);
-      if (isVisible) {
-        const buttonText = await checkUpdatesButton.textContent();
-        const isLoading = buttonText?.toLowerCase().includes('checking');
-        expect(isLoading).toBeTruthy();
-      } else {
-        // If button is gone (menu closed), we must wait for the toast
-        expect(toastVisible).toBeTruthy();
-      }
-    }).toPass({ timeout: 30000 });
+    if (isDirectlyVisible) {
+      // If it's a direct button, it should show a loading state
+      await expect(checkUpdatesButton).toContainText(/checking/i, { timeout: 10000 });
+    }
 
     // Eventually a success or completion toast should appear
     await expect(page.locator('li[data-sonner-toast]')).toBeVisible({ timeout: 60000 });
