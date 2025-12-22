@@ -704,7 +704,7 @@
 			</div>
 		</div>
 
-		<div class="space-y-4 px-6 py-2 md:hidden">
+		<div class="space-y-4 py-2 md:hidden">
 			{#each groupedContainers() ?? [] as [projectName, projectContainers] (projectName)}
 				{@const projectContainerIds = new Set(projectContainers.map((c) => c.id))}
 				{@const projectRows = table
@@ -717,15 +717,13 @@
 					description={`${projectContainers.length} ${projectContainers.length === 1 ? 'container' : 'containers'}`}
 					icon={ProjectsIcon}
 				>
-					<div class="space-y-3">
-						{#each projectRows as row (row.id)}
-							{@render ContainerMobileCardSnippet({ item: row.original as ContainerSummaryDto, mobileFieldVisibility })}
-						{:else}
-							<div class="h-24 flex items-center justify-center text-center text-muted-foreground">
-								{m.common_no_results_found()}
-							</div>
-						{/each}
-					</div>
+					{#each projectRows as row (row.id)}
+						{@render ContainerMobileCardSnippet({ item: row.original as ContainerSummaryDto, mobileFieldVisibility })}
+					{:else}
+						<div class="flex h-24 items-center justify-center text-center text-muted-foreground">
+							{m.common_no_results_found()}
+						</div>
+					{/each}
 				</DropdownCard>
 			{/each}
 		</div>
