@@ -37,7 +37,7 @@
 		}
 	});
 
-	const imageSize = $derived(() => bytes.format(image?.size || 0) ?? '0 B');
+	const imageSize = $derived(() => bytes.format(image?.size || 0) || '0 B');
 	const architecture = $derived(() => image?.architecture || m.common_na());
 	const osName = $derived(() => image?.os || m.common_na());
 
