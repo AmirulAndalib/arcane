@@ -144,8 +144,9 @@
 	}
 
 	const columns = [
-		{ accessorKey: 'repo', title: m.images_repository(), sortable: true, cell: RepoCell },
 		{ accessorKey: 'id', title: m.common_id(), hidden: true },
+		{ accessorKey: 'repo', title: m.images_repository(), sortable: true, cell: RepoCell },
+		{ accessorKey: 'repoTags', title: m.common_tags(), cell: TagCell },
 		{
 			accessorKey: 'inUse',
 			title: m.common_status(),
@@ -159,16 +160,15 @@
 			cell: UpdatesCell
 		},
 		{ accessorKey: 'size', title: m.common_size(), sortable: true, cell: SizeCell },
-		{ accessorKey: 'repoTags', title: m.common_tags(), cell: TagCell },
 		{ accessorKey: 'created', title: m.common_created(), sortable: true, cell: CreatedCell }
 	] satisfies ColumnSpec<ImageSummaryDto>[];
 
 	const mobileFields = [
 		{ id: 'id', label: m.common_id(), defaultVisible: false },
+		{ id: 'repoTags', label: m.common_tags(), defaultVisible: true },
 		{ id: 'inUse', label: m.common_status(), defaultVisible: true },
 		{ id: 'updates', label: m.images_updates(), defaultVisible: true },
 		{ id: 'size', label: m.common_size(), defaultVisible: true },
-		{ id: 'repoTags', label: m.common_tags(), defaultVisible: true },
 		{ id: 'created', label: m.common_created(), defaultVisible: true }
 	];
 

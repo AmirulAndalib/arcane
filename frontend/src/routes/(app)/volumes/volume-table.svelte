@@ -110,26 +110,15 @@
 	}
 
 	const columns = [
-		{ accessorKey: 'name', title: m.common_name(), sortable: true, cell: NameCell },
 		{ accessorKey: 'id', title: m.common_id(), hidden: true },
-		{
-			accessorKey: 'inUse',
-			title: m.common_status(),
-			sortable: true,
-			cell: StatusCell
-		},
-		{
-			accessorKey: 'size',
-			title: m.common_size(),
-			sortable: true,
-			cell: SizeCell
-		},
+		{ accessorKey: 'name', title: m.common_name(), sortable: true, cell: NameCell },
+		{ accessorKey: 'inUse', title: m.common_status(), sortable: true, cell: StatusCell },
+		{ accessorKey: 'size', title: m.common_size(), sortable: true, cell: SizeCell },
 		{ accessorKey: 'createdAt', title: m.common_created(), sortable: true, cell: CreatedCell },
 		{ accessorKey: 'driver', title: m.common_driver(), sortable: true }
 	] satisfies ColumnSpec<VolumeSummaryDto>[];
 
 	const mobileFields = [
-		{ id: 'id', label: m.common_id(), defaultVisible: false },
 		{ id: 'inUse', label: m.common_status(), defaultVisible: true },
 		{ id: 'size', label: m.common_size(), defaultVisible: true },
 		{ id: 'createdAt', label: m.common_created(), defaultVisible: true },

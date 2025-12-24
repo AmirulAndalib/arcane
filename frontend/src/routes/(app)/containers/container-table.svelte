@@ -266,12 +266,12 @@
 	}
 
 	const columns = $derived([
+		{ accessorKey: 'id', title: m.common_id(), cell: IdCell, hidden: true },
 		{ accessorKey: 'names', id: 'name', title: m.common_name(), sortable: !groupByProject, cell: NameCell },
-		{ accessorKey: 'id', title: m.common_id(), cell: IdCell },
 		{ accessorKey: 'state', title: m.common_state(), sortable: !groupByProject, cell: StateCell },
 		{ accessorKey: 'image', title: m.common_image(), sortable: !groupByProject, cell: ImageCell },
-		{ accessorKey: 'imageId', id: 'update', title: m.containers_update_column(), cell: UpdateCell },
 		{ accessorKey: 'status', title: m.common_status() },
+		{ accessorKey: 'imageId', id: 'update', title: m.containers_update_column(), cell: UpdateCell },
 		{ accessorKey: 'networkSettings', id: 'ipAddress', title: m.containers_ip_address(), sortable: false, cell: IPAddressCell },
 		{ accessorKey: 'ports', title: m.common_ports(), cell: PortsCell },
 		{ accessorKey: 'created', title: m.common_created(), sortable: !groupByProject, cell: CreatedCell }
@@ -280,8 +280,8 @@
 	const mobileFields = [
 		{ id: 'id', label: m.common_id(), defaultVisible: false },
 		{ id: 'state', label: m.common_state(), defaultVisible: true },
-		{ id: 'image', label: m.common_image(), defaultVisible: true },
 		{ id: 'status', label: m.common_status(), defaultVisible: true },
+		{ id: 'image', label: m.common_image(), defaultVisible: true },
 		{ id: 'ipAddress', label: m.containers_ip_address(), defaultVisible: false },
 		{ id: 'ports', label: m.common_ports(), defaultVisible: true },
 		{ id: 'created', label: m.common_created(), defaultVisible: true }
@@ -350,7 +350,7 @@
 {/snippet}
 
 {#snippet IdCell({ item }: { item: ContainerSummaryDto })}
-	<span class="font-mono text-sm">{String(item.id).substring(0, 12)}</span>
+	<span class="font-mono text-sm">{String(item.id)}</span>
 {/snippet}
 
 {#snippet StateCell({ item }: { item: ContainerSummaryDto })}
@@ -483,6 +483,14 @@
 				icon: ClockIcon,
 				iconVariant: 'purple' as const,
 				show: (mobileFieldVisibility.status ?? true) && item.status !== undefined
+			},
+			{
+				label: m.containers_ip_address(),
+				getValue: (item: ContainerSummaryDto) => getContainerIpAddress(item) ?? m.common_na(),
+				icon: NetworksIcon,
+				iconVariant: 'sky' as const,
+				type: 'mono' as const,
+				show: mobileFieldVisibility.ipAddress ?? false
 			}
 		]}
 		footer={(mobileFieldVisibility.created ?? true)

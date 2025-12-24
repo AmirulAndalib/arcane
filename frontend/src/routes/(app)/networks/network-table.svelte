@@ -127,35 +127,11 @@
 	}
 
 	const columns = [
-		{
-			accessorKey: 'name',
-			title: m.common_name(),
-			sortable: true,
-			cell: NameCell
-		},
-		{
-			accessorKey: 'id',
-			title: m.common_id(),
-			cell: IdCell
-		},
-		{
-			accessorKey: 'inUse',
-			title: m.common_status(),
-			sortable: true,
-			cell: StatusCell
-		},
-		{
-			accessorKey: 'driver',
-			title: m.common_driver(),
-			sortable: true,
-			cell: DriverCell
-		},
-		{
-			accessorKey: 'scope',
-			title: m.common_scope(),
-			sortable: true,
-			cell: ScopeCell
-		}
+		{ accessorKey: 'id', title: m.common_id(), cell: IdCell, hidden: true },
+		{ accessorKey: 'name', title: m.common_name(), sortable: true, cell: NameCell },
+		{ accessorKey: 'inUse', title: m.common_status(), sortable: true, cell: StatusCell },
+		{ accessorKey: 'driver', title: m.common_driver(), sortable: true, cell: DriverCell },
+		{ accessorKey: 'scope', title: m.common_scope(), sortable: true, cell: ScopeCell }
 	] satisfies ColumnSpec<NetworkSummaryDto>[];
 
 	const mobileFields = [
@@ -172,8 +148,8 @@
 	<a class="font-medium hover:underline" href="/networks/{item.id}">{item.name}</a>
 {/snippet}
 
-{#snippet IdCell({ value }: { value: unknown })}
-	<span class="truncate font-mono text-sm">{String(value ?? '')}</span>
+{#snippet IdCell({ item }: { item: NetworkSummaryDto })}
+	<span class="truncate font-mono text-sm">{String(item.id)}</span>
 {/snippet}
 
 {#snippet DriverCell({ item }: { item: NetworkSummaryDto })}
