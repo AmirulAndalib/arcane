@@ -1,4 +1,8 @@
-<script lang="ts" module>
+<script lang="ts">
+	import { ArcaneButton } from '$lib/components/arcane-button/index.js';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import { cn } from '$lib/utils';
+	import { ArrowLeftIcon, EllipsisIcon } from '$lib/icons';
 	import type { Snippet } from 'svelte';
 	import type { Action } from '$lib/components/arcane-button/index.js';
 
@@ -11,14 +15,6 @@
 		disabled?: boolean;
 		onclick: () => void;
 	}
-</script>
-
-<script lang="ts">
-	import { ArcaneButton } from '$lib/components/arcane-button/index.js';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { cn } from '$lib/utils';
-	import { ArrowLeftIcon, EllipsisIcon } from '$lib/icons';
-	import { browser } from '$app/environment';
 
 	interface Props {
 		backUrl: string;
@@ -48,7 +44,6 @@
 	const showFloatingHeader = $derived(scrollY > 120);
 
 	$effect(() => {
-		if (!browser) return;
 		const onScroll = () => (scrollY = window.scrollY);
 		window.addEventListener('scroll', onScroll, { passive: true });
 		return () => window.removeEventListener('scroll', onScroll);
@@ -58,7 +53,6 @@
 	const secondaryActions = $derived(actions.slice(1));
 </script>
 
-<!-- Floating header on scroll -->
 {#if showFloatingHeader}
 	<div
 		class="animate-in fade-in slide-in-from-top-2 fixed top-4 left-1/2 z-40 w-[calc(100%-2rem)] max-w-fit -translate-x-1/2 px-2 duration-200 sm:w-auto sm:px-0"
@@ -112,16 +106,13 @@
 {/if}
 
 <div class={cn('space-y-6 pb-8', className)}>
-	<!-- Header -->
 	<div class="space-y-4">
-		<!-- Back button row -->
 		<div class="flex items-center justify-between">
 			<ArcaneButton action="base" tone="ghost" size="sm" href={backUrl} class="-ml-2">
 				<ArrowLeftIcon class="size-4" />
 				{backLabel}
 			</ArcaneButton>
 
-			<!-- Mobile actions -->
 			<div class="flex items-center gap-2 sm:hidden">
 				{#if actions.length === 1 && primaryAction}
 					<ArcaneButton
@@ -153,7 +144,6 @@
 			</div>
 		</div>
 
-		<!-- Title and actions row -->
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 			<div class="min-w-0 flex-1 space-y-2">
 				<h1 class="text-2xl font-bold tracking-tight break-all sm:text-3xl">{title}</h1>
@@ -167,7 +157,6 @@
 				{/if}
 			</div>
 
-			<!-- Desktop actions -->
 			<div class="hidden shrink-0 items-center gap-2 sm:flex">
 				{#each actions as act (act.id)}
 					<ArcaneButton
@@ -187,6 +176,5 @@
 		{/if}
 	</div>
 
-	<!-- Content -->
 	{@render children()}
 </div>

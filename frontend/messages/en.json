@@ -121,6 +121,8 @@
 	"common_search": "Search…",
 	"common_usage": "Usage",
 	"common_reset": "Reset",
+	"common_unsaved_changes": "Unsaved changes",
+	"common_all_changes_saved": "All changes saved",
 	"common_remove_selected_count": "Remove Selected ({count})",
 	"common_toggle_columns": "Toggle columns",
 	"common_select_all": "Select all",

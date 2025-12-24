@@ -9,6 +9,7 @@
 	import { getContext } from 'svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { EllipsisIcon, ResetIcon, type IconType } from '$lib/icons';
+	import { cn } from '$lib/utils';
 
 	export interface SettingsActionButton {
 		id: string;
@@ -62,7 +63,6 @@
 	const mobileVisibleButtons = $derived(actionButtons.filter((btn) => btn.showOnMobile));
 	const mobileDropdownButtons = $derived(actionButtons.filter((btn) => !btn.showOnMobile));
 
-	// Get form state from context if available
 	const formState = getContext<{
 		hasChanges: boolean;
 		isLoading: boolean;
@@ -71,11 +71,9 @@
 	}>('settingsFormState');
 </script>
 
-<div class="px-2 py-4 pb-5 sm:px-6 sm:py-6 sm:pb-10 lg:px-8 {className}">
+<div class={cn('px-2 py-4 pb-5 sm:px-6 sm:py-6 sm:pb-10 lg:px-8', className)}>
 	<HeaderCard>
-		<!-- 3-column layout: title | center | actions -->
 		<div class="flex items-center justify-between gap-4">
-			<!-- Left: Icon + Title -->
 			<div class="flex flex-1 items-center gap-3 sm:gap-4">
 				{#if Icon}
 					<div
@@ -92,7 +90,6 @@
 				</div>
 			</div>
 
-			<!-- Center: Stats -->
 			{#if pageType === 'management' && statCards && statCards.length > 0}
 				<div class="hidden flex-1 items-center justify-center md:flex">
 					<div class="border-border/50 relative overflow-hidden rounded-full border">
@@ -116,7 +113,6 @@
 				</div>
 			{/if}
 
-			<!-- Right: Actions -->
 			<div class="flex flex-1 items-center justify-end gap-2">
 				{#if showReadOnlyTag}
 					<UiConfigDisabledTag />
@@ -125,9 +121,9 @@
 				{#if pageType === 'form' && formState && !showReadOnlyTag}
 					<div class="hidden items-center gap-2 sm:flex">
 						{#if formState.hasChanges}
-							<span class="mr-2 text-xs text-orange-600 dark:text-orange-400"> Unsaved changes </span>
+							<span class="mr-2 text-xs text-orange-600 dark:text-orange-400">{m.common_unsaved_changes()}</span>
 						{:else if !formState.hasChanges && formState.saveFunction}
-							<span class="mr-2 text-xs text-green-600 dark:text-green-400"> All changes saved </span>
+							<span class="mr-2 text-xs text-green-600 dark:text-green-400">{m.common_all_changes_saved()}</span>
 						{/if}
 
 						{#if formState.hasChanges && formState.resetFunction}
@@ -191,7 +187,7 @@
 								<DropdownMenu.Trigger>
 									{#snippet child({ props })}
 										<ArcaneButton {...props} action="base" tone="ghost" size="icon" class="bg-background/70 size-8 border">
-											<span class="sr-only">Open menu</span>
+											<span class="sr-only">{m.common_open_menu()}</span>
 											<EllipsisIcon class="size-4" />
 										</ArcaneButton>
 									{/snippet}
