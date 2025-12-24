@@ -52,23 +52,20 @@
 		containerClass = 'space-y-8 pb-5 md:space-y-10 md:pb-5'
 	}: Props = $props();
 
-	const firstButton = $derived(actionButtons[0]);
-	const restButtons = $derived(actionButtons.slice(1));
-
 	const DROPDOWN_WIDTH = 44;
 	const GAP = 8;
 
 	let containerWidth = $state(0);
 	let buttonWidths = $state<number[]>([]);
+	let measurementNode: HTMLElement | null = null;
 
 	const visibleCount = $derived.by(() => {
-		if (buttonWidths.length === 0 || containerWidth === 0) {
-			return actionButtons.length;
+		const total = actionButtons.length;
+		if (total === 0 || buttonWidths.length === 0 || containerWidth === 0) {
+			return total;
 		}
 
-		const total = buttonWidths.length;
-
-		let totalWidth = buttonWidths.reduce((sum, w, i) => sum + w + (i > 0 ? GAP : 0), 0);
+		const totalWidth = buttonWidths.reduce((sum, w, i) => sum + w + (i > 0 ? GAP : 0), 0);
 		if (totalWidth <= containerWidth) {
 			return total;
 		}
@@ -77,46 +74,70 @@
 		for (let i = 0; i < total; i++) {
 			const needed = buttonWidths[i] + (i > 0 ? GAP : 0);
 			if (usedWidth + needed > containerWidth) {
-				return Math.max(1, i); // Always show at least one
+				return i;
 			}
 			usedWidth += needed;
 		}
 		return total;
 	});
 
-	function measureButtons(node: HTMLElement, _buttonCount: number) {
-		const measure = () => {
-			const children = node.children;
-			const widths: number[] = [];
-			for (let i = 0; i < children.length; i++) {
-				widths.push((children[i] as HTMLElement).offsetWidth);
-			}
-			buttonWidths = widths;
-		};
-
-		requestAnimationFrame(measure);
-
-		return {
-			update: () => requestAnimationFrame(measure)
-		};
-	}
-
-	function observeWidth(node: HTMLElement) {
-		const ro = new ResizeObserver((entries) => {
-			containerWidth = entries[0].contentRect.width;
-		});
-		ro.observe(node);
-		return { destroy: () => ro.disconnect() };
-	}
-
 	const visibleButtons = $derived(actionButtons.slice(0, visibleCount));
 	const overflowButtons = $derived(actionButtons.slice(visibleCount));
+
+	function measureButtons(node: HTMLElement) {
+		measurementNode = node;
+		return {
+			destroy: () => {
+				measurementNode = null;
+			}
+		};
+	}
+
+	$effect(() => {
+		const buttons = actionButtons;
+		if (!measurementNode || buttons.length === 0) return;
+
+		const timeoutId = setTimeout(() => {
+			requestAnimationFrame(() => {
+				if (!measurementNode) return;
+				const widths: number[] = [];
+				for (const child of measurementNode.children) {
+					widths.push((child as HTMLElement).offsetWidth);
+				}
+				if (widths.length > 0 && widths.length === buttons.length) {
+					buttonWidths = widths;
+				}
+			});
+		}, 0);
+
+		return () => clearTimeout(timeoutId);
+	});
+
+	function observeWidth(node: HTMLElement) {
+		let rafId: number | null = null;
+		const ro = new ResizeObserver((entries) => {
+			if (rafId) cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(() => {
+				const width = entries[0]?.contentRect.width ?? 0;
+				if (width > 0 && width !== containerWidth) {
+					containerWidth = width;
+				}
+			});
+		});
+		ro.observe(node);
+		return {
+			destroy: () => {
+				if (rafId) cancelAnimationFrame(rafId);
+				ro.disconnect();
+			}
+		};
+	}
 </script>
 
 <div class="{containerClass} {className}">
 	<HeaderCard>
 		<div class="flex items-center justify-between gap-4">
-			<div class="flex flex-1 items-center gap-3 sm:gap-4">
+			<div class="flex min-w-64 flex-1 items-center gap-3 sm:gap-4">
 				{#if Icon}
 					<div
 						class="bg-primary/10 text-primary ring-primary/20 flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 sm:size-10"
@@ -133,14 +154,10 @@
 			</div>
 
 			{#if statCards && statCards.length > 0}
-				<div class="hidden flex-1 items-center justify-center md:flex">
-					<div class="border-border/50 relative overflow-hidden rounded-full border">
-						<div class="bg-muted/50 absolute inset-0"></div>
-						<div class="relative flex items-center gap-4 px-4 py-1.5 backdrop-blur-md">
+				<div class="hidden shrink items-center justify-center md:flex">
+					<div class="border-border/50 bg-muted/30 relative overflow-hidden rounded-xl border backdrop-blur-sm">
+						<div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4 py-2">
 							{#each statCards as card, i}
-								{#if i > 0}
-									<div class="bg-border/50 h-4 w-px"></div>
-								{/if}
 								<StatCard
 									variant="mini"
 									title={card.title}
@@ -159,8 +176,8 @@
 				{#if actionButtons.length > 0}
 					<!-- Hidden measurement container -->
 					<div
-						use:measureButtons={actionButtons.length}
-						class="pointer-events-none invisible absolute flex items-center gap-2"
+						use:measureButtons
+						class="pointer-events-none invisible fixed -left-[9999px] flex items-center gap-2"
 						aria-hidden="true"
 					>
 						{#each actionButtons as button (button.id)}
@@ -214,42 +231,28 @@
 						{/if}
 					</div>
 
-					<!-- MD & SM: Show first button + dropdown for rest -->
+					<!-- MD & SM: Collapse all into dropdown -->
 					<div class="flex items-center gap-2 lg:hidden">
-						{#if firstButton}
-							<ArcaneButton
-								action={firstButton.action}
-								customLabel={firstButton.label}
-								loadingLabel={firstButton.loadingLabel}
-								loading={firstButton.loading}
-								disabled={firstButton.disabled}
-								onclick={firstButton.onclick}
-								size="sm"
-							/>
-						{/if}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<ArcaneButton {...props} action="base" tone="outline" size="icon" class="size-8 shrink-0">
+										<span class="sr-only">More actions</span>
+										<EllipsisIcon class="size-4" />
+									</ArcaneButton>
+								{/snippet}
+							</DropdownMenu.Trigger>
 
-						{#if restButtons.length > 0}
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<ArcaneButton {...props} action="base" tone="outline" size="icon" class="size-8 shrink-0">
-											<span class="sr-only">More actions</span>
-											<EllipsisIcon class="size-4" />
-										</ArcaneButton>
-									{/snippet}
-								</DropdownMenu.Trigger>
-
-								<DropdownMenu.Content align="end" class="min-w-[160px]">
-									<DropdownMenu.Group>
-										{#each restButtons as button (button.id)}
-											<DropdownMenu.Item onclick={button.onclick} disabled={button.disabled || button.loading}>
-												{button.loading ? button.loadingLabel || button.label : button.label}
-											</DropdownMenu.Item>
-										{/each}
-									</DropdownMenu.Group>
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
-						{/if}
+							<DropdownMenu.Content align="end" class="min-w-[160px]">
+								<DropdownMenu.Group>
+									{#each actionButtons as button (button.id)}
+										<DropdownMenu.Item onclick={button.onclick} disabled={button.disabled || button.loading}>
+											{button.loading ? button.loadingLabel || button.label : button.label}
+										</DropdownMenu.Item>
+									{/each}
+								</DropdownMenu.Group>
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
 					</div>
 				{/if}
 			</div>
