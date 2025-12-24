@@ -62,20 +62,13 @@
 		navigationSettingsOverridesStore.current = newOverrides;
 		persistedState = navigationSettingsOverridesStore.current;
 		if (key === 'mode') resetNavigationVisibility();
-		toast.success(m.clear_local_override());
 	}
 
 	// Navigation Mode state
 	const modeHasOverride = $derived(persistedState.mode !== undefined);
 	let modeScopeInternal = $state<'server' | 'local' | null>(null);
-	const modeScope = $derived(modeScopeInternal ?? (modeHasOverride ? 'local' : 'server'));
+	const modeScope = $derived(modeHasOverride ? (modeScopeInternal ?? 'local') : 'server');
 	const modeDisplayValue = $derived(modeScope === 'local' ? persistedState.mode : $formInputs.mobileNavigationMode.value);
-
-	$effect(() => {
-		if (!modeHasOverride && modeScopeInternal === 'local') {
-			modeScopeInternal = 'server';
-		}
-	});
 
 	function handleModeSelect(mode: 'floating' | 'docked') {
 		if (modeScope === 'local') {
@@ -97,14 +90,10 @@
 	// Show Labels state
 	const labelsHasOverride = $derived(persistedState.showLabels !== undefined);
 	let labelsScopeInternal = $state<'server' | 'local' | null>(null);
-	const labelsScope = $derived(labelsScopeInternal ?? (labelsHasOverride ? 'local' : 'server'));
-	const labelsDisplayValue = $derived(labelsScope === 'local' ? persistedState.showLabels : $formInputs.mobileNavigationShowLabels.value);
-
-	$effect(() => {
-		if (!labelsHasOverride && labelsScopeInternal === 'local') {
-			labelsScopeInternal = 'server';
-		}
-	});
+	const labelsScope = $derived(labelsHasOverride ? (labelsScopeInternal ?? 'local') : 'server');
+	const labelsDisplayValue = $derived(
+		labelsScope === 'local' ? persistedState.showLabels : $formInputs.mobileNavigationShowLabels.value
+	);
 
 	function handleLabelsChange(checked: boolean) {
 		if (labelsScope === 'local') {
@@ -116,7 +105,6 @@
 
 	function handleLabelsScopeChange(newScope: 'server' | 'local') {
 		if (newScope === 'local' && !labelsHasOverride) {
-			// Create override with current server value
 			setLocalOverride('showLabels', $formInputs.mobileNavigationShowLabels.value);
 		} else if (newScope === 'server' && labelsHasOverride) {
 			clearLocalOverride('showLabels');
