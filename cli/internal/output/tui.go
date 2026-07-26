@@ -8,7 +8,7 @@ import (
 	"charm.land/bubbles/v2/progress"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
-	"go.withmatt.com/size"
+	"go.getarcane.app/sys/bytes"
 )
 
 type spinnerDoneMsg struct{}
@@ -149,11 +149,11 @@ func (m progressModel) View() tea.View {
 	return tea.NewView(fmt.Sprintf("%s\n%s", m.label, bar))
 }
 
-func safeCapacity(value int64) size.Capacity {
+func safeCapacity(value int64) bytes.Capacity {
 	if value < 0 {
-		return size.Capacity(0)
+		return bytes.Capacity(0)
 	}
-	return size.Capacity(uint64(value))
+	return bytes.Capacity(uint64(value))
 }
 
 // Progress renders a Bubble Tea progress bar inline.

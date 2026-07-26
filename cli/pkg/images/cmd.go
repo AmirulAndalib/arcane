@@ -56,7 +56,7 @@ import (
 	"github.com/getarcaneapp/arcane/cli/v2/pkg/images/updates"
 	"github.com/getarcaneapp/arcane/types/v2/image"
 	"github.com/spf13/cobra"
-	"go.withmatt.com/size"
+	"go.getarcane.app/sys/bytes"
 )
 
 var (
@@ -174,7 +174,7 @@ var imagesListCmd = &cobra.Command{
 				inUse = color.New(color.FgGreen).Sprint("Yes")
 			}
 			id := color.New(color.FgHiWhite, color.Bold).Sprint(img.ID)
-			rows = append(rows, []string{id, tag, size.Capacity(img.Size).String(), inUse})
+			rows = append(rows, []string{id, tag, bytes.Capacity(img.Size).String(), inUse})
 		}
 
 		output.Table(headers, rows)
@@ -239,7 +239,7 @@ var imagesGetCmd = &cobra.Command{
 		if len(result.Data.RepoTags) > 0 {
 			output.KeyValue("Tags", strings.Join(result.Data.RepoTags, ", "))
 		}
-		output.KeyValue("Size", size.Capacity(result.Data.Size).String())
+		output.KeyValue("Size", bytes.Capacity(result.Data.Size).String())
 		output.KeyValue("Architecture", result.Data.Architecture)
 		output.KeyValue("OS", result.Data.Os)
 		if result.Data.Created != "" {
@@ -537,7 +537,7 @@ var imagesPruneCmd = &cobra.Command{
 			return errors.WrapIf(err, "failed to parse response")
 		}
 
-		output.Success("Pruned %d images, reclaimed %s", len(result.Data.ImagesDeleted), size.Capacity(result.Data.SpaceReclaimed).String())
+		output.Success("Pruned %d images, reclaimed %s", len(result.Data.ImagesDeleted), bytes.Capacity(result.Data.SpaceReclaimed).String())
 
 		return nil
 	},
@@ -589,7 +589,7 @@ var imagesCountsCmd = &cobra.Command{
 		output.KeyValue("In Use", result.Data.Inuse)
 		output.KeyValue("Unused", result.Data.Unused)
 		output.KeyValue("Total", result.Data.Total)
-		output.KeyValue("Total Size", size.Capacity(result.Data.TotalSize).String())
+		output.KeyValue("Total Size", bytes.Capacity(result.Data.TotalSize).String())
 
 		return nil
 	},
