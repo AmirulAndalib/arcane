@@ -103,10 +103,10 @@ func (s *VolumeService) GetVolumeByName(ctx context.Context, name string) (*volu
 	}
 
 	volResult, err := dockerClient.VolumeInspect(ctx, name, client.VolumeInspectOptions{})
-	vol := volResult.Volume
 	if err != nil {
 		return nil, errors.WrapIf(err, "volume not found")
 	}
+	vol := volResult.Volume
 
 	settings := s.settingsService.GetSettingsConfig()
 	usageCtx, usageCancel := timeouts.WithTimeout(ctx, settings.DockerAPITimeout.AsInt(), timeouts.DefaultDockerAPI)
@@ -1128,7 +1128,6 @@ func (s *VolumeService) UploadFile(ctx context.Context, volumeName, destPath str
 		return err
 	}
 	if _, err := tw.Write(contentBytes); err != nil {
-		_ = tw.Close()
 		return err
 	}
 	if err := tw.Close(); err != nil {

@@ -1,6 +1,8 @@
 package cmdutil
 
 import (
+	"context"
+
 	"github.com/getarcaneapp/arcane/cli/v2/internal/config"
 	runtimectx "github.com/getarcaneapp/arcane/cli/v2/internal/runtime"
 	clitypes "github.com/getarcaneapp/arcane/cli/v2/internal/types"
@@ -22,7 +24,12 @@ func EffectiveLimit(cmd *cobra.Command, resource, flagName string, flagValue, fa
 	}
 
 	resource = clitypes.NormalizePaginatedResource(resource)
-	if app, ok := runtimectx.From(cmd.Context()); ok {
+
+	var ctx context.Context
+	if cmd != nil {
+		ctx = cmd.Context()
+	}
+	if app, ok := runtimectx.From(ctx); ok {
 		if cfg := app.Config(); cfg != nil {
 			if v := cfg.LimitFor(resource); v != 0 {
 				return v

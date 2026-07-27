@@ -128,7 +128,10 @@ func (s *VersionService) fetchLatestReleaseInternal(ctx context.Context) (latest
 
 func (s *VersionService) GetLatestVersion(ctx context.Context) (string, error) {
 	rel, err := s.getLatestReleaseInternal(ctx)
-	return rel.TagName, err
+	if err != nil {
+		return "", err
+	}
+	return rel.TagName, nil
 }
 
 func (s *VersionService) IsNewer(latest, current string) bool {

@@ -485,11 +485,12 @@ func (h *EnvironmentHandler) createEnvironmentWithApiKeyInternal(ctx context.Con
 		"api_key_id":   apiKeyDto.ID,
 		"access_token": apiKey,
 	}
-	created, err = h.environmentService.UpdateEnvironment(ctx, created.ID, updates, &user.ID, &user.Username)
+	updated, err := h.environmentService.UpdateEnvironment(ctx, created.ID, updates, &user.ID, &user.Username)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to link API key to environment", "environmentID", created.ID, "error", err.Error())
 		return nil, huma.Error500InternalServerError("Failed to link API key")
 	}
+	created = updated
 
 	out, mapErr := mapper.MapOne[*models.Environment, environment.Environment](created)
 	if mapErr != nil {

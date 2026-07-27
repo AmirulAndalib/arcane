@@ -896,8 +896,13 @@ func (s *NotificationService) sendBatchImageUpdateNotificationForTargetInternal(
 }
 
 func (s *NotificationService) SendPruneReportNotification(ctx context.Context, result *system.PruneAllResult) error {
+	if result == nil {
+		slog.InfoContext(ctx, "skipping prune report notification because no prune result was reported")
+		return nil
+	}
+
 	hasChanges := pruneResultHasChangesInternal(result)
-	hasErrors := result != nil && len(result.Errors) > 0
+	hasErrors := len(result.Errors) > 0
 	if !hasChanges && !hasErrors {
 		slog.InfoContext(ctx, "skipping prune report notification because no resources were pruned and no errors were reported")
 		return nil
@@ -923,7 +928,7 @@ func (s *NotificationService) SendPruneReportNotification(ctx context.Context, r
 
 func (s *NotificationService) sendPruneReportNotificationForTargetInternal(ctx context.Context, target NotificationTarget, result *system.PruneAllResult) error {
 	hasChanges := pruneResultHasChangesInternal(result)
-	hasErrors := result != nil && len(result.Errors) > 0
+	hasErrors := len(result.Errors) > 0
 
 	metadata := models.JSON{
 		"spaceReclaimed": result.SpaceReclaimed,
