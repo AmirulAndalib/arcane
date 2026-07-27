@@ -3,7 +3,7 @@ package libarcane
 import (
 	"bufio"
 	"context"
-	json "encoding/json/v2"
+	"encoding/json/v2"
 	"io"
 	"net/http"
 	"net/netip"

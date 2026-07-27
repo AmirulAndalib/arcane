@@ -1,6 +1,9 @@
 package authz
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestPermissionSetAllowsGlobal(t *testing.T) {
 	ps := NewPermissionSet()
@@ -221,7 +224,7 @@ func TestVariablePermissionsAreSeparateGlobalGrantsWithBuiltInAccess(t *testing.
 		if !IsOrgLevel(permission) {
 			t.Fatalf("variable permission %q must be global", permission)
 		}
-		if permissionSliceContainsInternal(BuiltInMonitorPermissions(), permission) {
+		if slices.Contains(BuiltInMonitorPermissions(), permission) {
 			t.Fatalf("Monitor must not receive %q", permission)
 		}
 	}
@@ -232,7 +235,7 @@ func TestVariablePermissionsAreSeparateGlobalGrantsWithBuiltInAccess(t *testing.
 		"No-Shell Editor": BuiltInNoShellEditorPermissions(),
 	} {
 		for _, permission := range variablePermissions {
-			if !permissionSliceContainsInternal(permissions, permission) {
+			if !slices.Contains(permissions, permission) {
 				t.Fatalf("%s must receive %q", name, permission)
 			}
 		}
@@ -242,11 +245,11 @@ func TestVariablePermissionsAreSeparateGlobalGrantsWithBuiltInAccess(t *testing.
 		"Viewer":   BuiltInViewerPermissions(),
 		"Deployer": BuiltInDeployerPermissions(),
 	} {
-		if !permissionSliceContainsInternal(permissions, PermVariablesRead) {
+		if !slices.Contains(permissions, PermVariablesRead) {
 			t.Fatalf("%s must receive %q", name, PermVariablesRead)
 		}
 		for _, permission := range variablePermissions[1:] {
-			if permissionSliceContainsInternal(permissions, permission) {
+			if slices.Contains(permissions, permission) {
 				t.Fatalf("%s must not receive %q", name, permission)
 			}
 		}
@@ -259,15 +262,6 @@ func TestVariablePermissionsAreSeparateGlobalGrantsWithBuiltInAccess(t *testing.
 			t.Fatalf("template grants must not satisfy %q", permission)
 		}
 	}
-}
-
-func permissionSliceContainsInternal(permissions []string, permission string) bool {
-	for _, candidate := range permissions {
-		if candidate == permission {
-			return true
-		}
-	}
-	return false
 }
 
 func TestPermissionCatalogDerivesKnownPermissionsAndScopes(t *testing.T) {

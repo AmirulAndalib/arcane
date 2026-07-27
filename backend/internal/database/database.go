@@ -16,8 +16,8 @@ import (
 
 	"emperror.dev/errors"
 
-	sqlite "github.com/libtnb/sqlite"
-	goose "github.com/pressly/goose/v3"
+	"github.com/libtnb/sqlite"
+	"github.com/pressly/goose/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
