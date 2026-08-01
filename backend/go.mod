@@ -26,8 +26,8 @@ require (
 	github.com/docker/compose/v5 v5.3.1
 	github.com/docker/go-units v0.5.0
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/getarcaneapp/arcane/cli/v2 v2.5.0
-	github.com/getarcaneapp/arcane/types/v2 v2.5.0
+	github.com/getarcaneapp/arcane/cli/v2 v2.6.0
+	github.com/getarcaneapp/arcane/types/v2 v2.6.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/gofrs/flock v0.13.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
