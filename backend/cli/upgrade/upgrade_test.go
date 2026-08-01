@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/moby/moby/client"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.getarcane.app/updater/labels"
 )
@@ -131,9 +132,10 @@ func TestRefreshRecreatedImageLabelsInternalKeepsNilWhenNoLabelsExist(t *testing
 
 func TestRefreshRecreatedContainerLabelsInternalPreservesLabelsWhenTargetInspectFails(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.URL.Path, "/images/target:latest/json") {
-			t.Errorf("unexpected Docker API request: %s %s", r.Method, r.URL.Path)
-		}
+
+		assert.Contains(t, r.URL.Path, "/images/target:latest/json",
+			"unexpected Docker API request: %s %s", r.Method, r.URL.Path)
+
 		http.Error(w, "target inspect failed", http.StatusInternalServerError)
 	}))
 	t.Cleanup(server.Close)
@@ -173,7 +175,7 @@ func TestRefreshRecreatedContainerLabelsInternalPreservesOverridesWhenPreviousIn
 		case strings.Contains(r.URL.Path, "/images/sha256:old-image/json"):
 			http.Error(w, "previous inspect failed", http.StatusInternalServerError)
 		default:
-			t.Errorf("unexpected Docker API request: %s %s", r.Method, r.URL.Path)
+			assert.Failf(t, "unexpected failure", "unexpected Docker API request: %s %s", r.Method, r.URL.Path)
 			http.NotFound(w, r)
 		}
 	}))
