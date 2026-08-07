@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -37,10 +38,11 @@ const (
 	passkeyCeremonyPurposeRegistration = "registration"
 	passkeyCeremonyPurposeStepUp       = "step_up"
 
-	authTransactionKindMFA    = "mfa"
-	authTransactionKindStepUp = "step_up"
-	authTransactionPending    = "pending"
-	authTransactionCompleted  = "completed"
+	authTransactionKindMFA           = "mfa"
+	authTransactionKindStepUp        = "step_up"
+	authTransactionKindMobilePasskey = "mobile_passkey"
+	authTransactionPending           = "pending"
+	authTransactionCompleted         = "completed"
 
 	passkeyCeremonyTTL     = 5 * time.Minute
 	passkeyStepUpTTL       = 5 * time.Minute
@@ -536,19 +538,25 @@ func (s *passkeyService) FinishPasskeyLogin(ctx context.Context, ceremonyID stri
 	}
 	parsed, err := protocol.ParseCredentialRequestResponseBytes(payload)
 	if err != nil {
+		slog.WarnContext(ctx, "passkey login validation failed", "stage", "parse", "error", err)
 		return nil, ErrPasskeyResponse
 	}
 
-	var resolved *webAuthnUser
-	user, credential, err := s.webAuthn.ValidatePasskeyLogin(func(rawID, userHandle []byte) (webauthn.User, error) {
-		adapter, lookupErr := s.lookupDiscoverableUserInternal(ctx, rawID, userHandle)
-		if lookupErr != nil {
-			return nil, lookupErr
-		}
-		resolved = adapter
-		return adapter, nil
-	}, session, parsed)
-	if err != nil || user == nil || credential == nil || resolved == nil {
+	resolved, err := s.lookupDiscoverableUserInternal(ctx, parsed.RawID)
+	if err != nil {
+		slog.WarnContext(ctx, "passkey login validation failed", "stage", "credential_lookup", "error", err)
+		return nil, ErrPasskeyResponse
+	}
+
+	// The credential ID is globally unique for this RP and its signature proves
+	// ownership. Resolve the user from that ID instead of relying on the optional
+	// userHandle returned by a password manager. Some providers omit or transform
+	// that handle even for a discoverable credential.
+	session.UserID = resolved.WebAuthnID()
+	parsed.Response.UserHandle = nil
+	credential, err := s.webAuthn.ValidateLogin(resolved, session, parsed)
+	if err != nil || credential == nil {
+		slog.WarnContext(ctx, "passkey login validation failed", "stage", "assertion", "error", err)
 		return nil, ErrPasskeyResponse
 	}
 
@@ -556,6 +564,60 @@ func (s *passkeyService) FinishPasskeyLogin(ctx context.Context, ceremonyID stri
 		return nil, err
 	}
 	return &resolved.model, nil
+}
+
+func (s *passkeyService) FinishMobilePasskeyLogin(ctx context.Context, ceremonyID string, payload []byte, codeChallenge string) (*auth.MobilePasskeyCompletion, error) {
+	codeChallenge, err := normalizeMobilePasskeyCodeChallengeInternal(codeChallenge)
+	if err != nil {
+		return nil, err
+	}
+	user, err := s.FinishPasskeyLogin(ctx, ceremonyID, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	transaction := newAuthTransactionInternal(user.ID, authTransactionKindMobilePasskey, models.UserSessionSourcePasskey, auth.SessionMeta{}, nil, passkeyStepUpTTL)
+	transaction.SecretHash = &codeChallenge
+	if err := s.db.WithContext(ctx).Create(transaction).Error; err != nil {
+		return nil, errors.WrapIf(err, "failed to create mobile passkey transaction")
+	}
+	return &auth.MobilePasskeyCompletion{TransactionID: transaction.ID, ExpiresAt: transaction.ExpiresAt}, nil
+}
+
+func (s *passkeyService) ExchangeMobilePasskeyLogin(ctx context.Context, transactionID, codeVerifier string) (*models.User, error) {
+	if err := s.readyInternal(); err != nil {
+		return nil, err
+	}
+	codeChallenge, err := mobilePasskeyCodeChallengeInternal(codeVerifier)
+	if err != nil {
+		return nil, err
+	}
+
+	var transaction models.AuthTransaction
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ? AND kind = ? AND status = ? AND secret_hash = ? AND expires_at > ?", transactionID, authTransactionKindMobilePasskey, authTransactionPending, codeChallenge, time.Now()).First(&transaction).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrPasskeyTransaction
+			}
+			return errors.WrapIf(err, "failed to load mobile passkey transaction")
+		}
+
+		now := time.Now()
+		result := tx.Model(&models.AuthTransaction{}).
+			Where("id = ? AND status = ? AND expires_at > ?", transaction.ID, authTransactionPending, now).
+			Updates(map[string]any{"status": authTransactionCompleted, "completed_at": now, "updated_at": now})
+		if result.Error != nil {
+			return errors.WrapIf(result.Error, "failed to complete mobile passkey transaction")
+		}
+		if result.RowsAffected != 1 {
+			return ErrPasskeyTransaction
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.loadUserModelInternal(ctx, transaction.UserID)
 }
 
 func (s *passkeyService) FinishMFA(ctx context.Context, transactionID string, payload []byte) (*AuthenticationCompletion, error) {
@@ -1181,15 +1243,12 @@ func (s *passkeyService) countPasskeysInternal(ctx context.Context, userID strin
 	return int(count), nil
 }
 
-func (s *passkeyService) lookupDiscoverableUserInternal(ctx context.Context, rawID, userHandle []byte) (*webAuthnUser, error) {
-	if len(rawID) == 0 || len(userHandle) == 0 {
+func (s *passkeyService) lookupDiscoverableUserInternal(ctx context.Context, rawID []byte) (*webAuthnUser, error) {
+	if len(rawID) == 0 {
 		return nil, ErrPasskeyResponse
 	}
 	var row models.Passkey
 	if err := s.db.WithContext(ctx).Where("rp_id = ? AND credential_id = ?", s.rpID, rawID).First(&row).Error; err != nil {
-		return nil, ErrPasskeyResponse
-	}
-	if subtle.ConstantTimeCompare([]byte(row.UserID), userHandle) != 1 {
 		return nil, ErrPasskeyResponse
 	}
 	return s.loadWebAuthnUserInternal(ctx, row.UserID)
@@ -1391,6 +1450,25 @@ func groupRecoveryCodeInternal(code string) string {
 func hashSecretInternal(secret string) string {
 	sum := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(sum[:])
+}
+
+func normalizeMobilePasskeyCodeChallengeInternal(codeChallenge string) (string, error) {
+	codeChallenge = strings.TrimSpace(codeChallenge)
+	decoded, err := base64.RawURLEncoding.DecodeString(codeChallenge)
+	if err != nil || len(decoded) != sha256.Size || base64.RawURLEncoding.EncodeToString(decoded) != codeChallenge {
+		return "", ErrPasskeyResponse
+	}
+	return codeChallenge, nil
+}
+
+func mobilePasskeyCodeChallengeInternal(codeVerifier string) (string, error) {
+	codeVerifier = strings.TrimSpace(codeVerifier)
+	decoded, err := base64.RawURLEncoding.DecodeString(codeVerifier)
+	if err != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != codeVerifier {
+		return "", ErrPasskeyTransaction
+	}
+	sum := sha256.Sum256([]byte(codeVerifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:]), nil
 }
 
 func randomSecretInternal() (string, error) {

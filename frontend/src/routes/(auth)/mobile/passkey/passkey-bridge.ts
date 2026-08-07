@@ -1,6 +1,6 @@
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/browser';
 
-export const MOBILE_PASSKEY_BRIDGE_VERSION = 1;
+export const MOBILE_PASSKEY_BRIDGE_VERSION = 2;
 export const MOBILE_PASSKEY_MAX_REQUEST_BYTES = 65_536;
 export const MOBILE_PASSKEY_MAX_RESPONSE_BYTES = 65_536;
 
@@ -14,10 +14,14 @@ export type MobilePasskeyErrorCode = 'invalid_request' | 'oversized' | 'unsuppor
 export type MobilePasskeyCredential = AuthenticationResponseJSON | RegistrationResponseJSON;
 
 export interface MobilePasskeyBridgeRequest {
-	version: 1;
+	version: 2;
 	state: string;
 	operation: MobilePasskeyOperation;
 	options: Record<string, unknown>;
+	mobileLogin?: {
+		ceremonyId: string;
+		codeChallenge: string;
+	};
 }
 
 export class MobilePasskeyBridgeRequestError extends Error {
@@ -96,16 +100,34 @@ export function decodeMobilePasskeyBridgeRequest(fragment: string): MobilePasske
 
 	const state = isValidState(candidate['state']) ? candidate['state'] : undefined;
 	const keys = Object.keys(candidate).sort();
+	const mobileLogin = candidate['mobileLogin'];
 	const hasExactShape =
-		keys.length === 4 && keys[0] === 'operation' && keys[1] === 'options' && keys[2] === 'state' && keys[3] === 'version';
+		(keys.length === 4 && keys[0] === 'operation' && keys[1] === 'options' && keys[2] === 'state' && keys[3] === 'version') ||
+		(keys.length === 5 &&
+			keys[0] === 'mobileLogin' &&
+			keys[1] === 'operation' &&
+			keys[2] === 'options' &&
+			keys[3] === 'state' &&
+			keys[4] === 'version');
 	const operation = candidate['operation'];
+	const hasValidMobileLogin =
+		mobileLogin === undefined ||
+		(isRecord(mobileLogin) &&
+			Object.keys(mobileLogin).length === 2 &&
+			typeof mobileLogin['ceremonyId'] === 'string' &&
+			mobileLogin['ceremonyId'].length > 0 &&
+			mobileLogin['ceremonyId'].length <= 128 &&
+			typeof mobileLogin['codeChallenge'] === 'string' &&
+			/^[A-Za-z0-9_-]{43}$/.test(mobileLogin['codeChallenge']));
 
 	if (
 		!hasExactShape ||
 		candidate['version'] !== MOBILE_PASSKEY_BRIDGE_VERSION ||
 		!state ||
 		(operation !== 'authenticate' && operation !== 'register') ||
-		!isRecord(candidate['options'])
+		!isRecord(candidate['options']) ||
+		!hasValidMobileLogin ||
+		(mobileLogin !== undefined && operation !== 'authenticate')
 	) {
 		throw new MobilePasskeyBridgeRequestError('invalid_request', state);
 	}
@@ -114,7 +136,15 @@ export function decodeMobilePasskeyBridgeRequest(fragment: string): MobilePasske
 		version: MOBILE_PASSKEY_BRIDGE_VERSION,
 		state,
 		operation,
-		options: candidate['options']
+		options: candidate['options'],
+		...(mobileLogin === undefined
+			? {}
+			: {
+					mobileLogin: {
+						ceremonyId: mobileLogin['ceremonyId'] as string,
+						codeChallenge: mobileLogin['codeChallenge'] as string
+					}
+				})
 	};
 }
 
@@ -127,6 +157,13 @@ export function makeMobilePasskeySuccessCallback(state: string, credential: Mobi
 	const callback = new URL(CALLBACK_URL);
 	callback.searchParams.set('state', state);
 	callback.searchParams.set('response', encodeBase64URL(responseBytes));
+	return callback.toString();
+}
+
+export function makeMobilePasskeyLoginCallback(state: string, transactionId: string): string {
+	const callback = new URL(CALLBACK_URL);
+	callback.searchParams.set('state', state);
+	callback.searchParams.set('transaction', transactionId);
 	return callback.toString();
 }
 

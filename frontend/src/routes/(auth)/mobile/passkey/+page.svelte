@@ -13,12 +13,14 @@
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import { AlertIcon, ApiKeyIcon, ShieldCheckIcon, SuccessIcon } from '#lib/icons';
 	import { m } from '#lib/paraglide/messages';
+	import { passkeyService } from '#lib/services/passkey-service';
 	import { getApplicationLogo } from '#lib/utils/docker';
 	import {
 		MobilePasskeyBridgeRequestError,
 		classifyMobilePasskeyError,
 		decodeMobilePasskeyBridgeRequest,
 		makeMobilePasskeyErrorCallback,
+		makeMobilePasskeyLoginCallback,
 		makeMobilePasskeySuccessCallback,
 		type MobilePasskeyBridgeRequest,
 		type MobilePasskeyCredential
@@ -77,6 +79,15 @@
 				credential = await startAuthentication({
 					optionsJSON: request.options as unknown as PublicKeyCredentialRequestOptionsJSON
 				});
+				if (request.mobileLogin) {
+					const completion = await passkeyService.finishMobileLogin(
+						request.mobileLogin.ceremonyId,
+						credential,
+						request.mobileLogin.codeChallenge
+					);
+					returnToArcaneMobile(makeMobilePasskeyLoginCallback(request.state, completion.transactionId));
+					return;
+				}
 			} else {
 				credential = await startRegistration({
 					optionsJSON: request.options as unknown as PublicKeyCredentialCreationOptionsJSON
