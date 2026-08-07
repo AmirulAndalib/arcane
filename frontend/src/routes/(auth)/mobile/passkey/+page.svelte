@@ -33,7 +33,6 @@
 	let status = $state<CeremonyStatus>('preparing');
 	let pageError = $state<PageError>('invalid_request');
 	let request = $state<MobilePasskeyBridgeRequest | null>(null);
-	let serverOrigin = $state('');
 	let callbackTimer: number | undefined;
 
 	onMount(() => {
@@ -44,7 +43,6 @@
 	});
 
 	async function initializeCeremony() {
-		serverOrigin = window.location.host;
 		const fragment = window.location.hash;
 		window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
 
@@ -125,12 +123,7 @@
 				<div class="flex size-11 items-center justify-center rounded-xl border bg-background/50 ring-1 ring-border/40">
 					<img class="h-7 w-auto" src={logoUrl} alt={m.layout_title()} />
 				</div>
-				<div class="leading-tight">
-					<p class="text-sm font-semibold tracking-wide">{m.layout_title()}</p>
-					<p class="mt-1 text-[11px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
-						{m.mobile_passkey_secure_handoff()}
-					</p>
-				</div>
+				<p class="text-sm font-semibold tracking-wide">{m.layout_title()}</p>
 			</div>
 			<ShieldCheckIcon class="size-5 text-primary" />
 		</div>
@@ -173,35 +166,13 @@
 			</div>
 		{:else}
 			<div>
-				<div class="flex size-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary">
-					<ApiKeyIcon class="size-7" />
-				</div>
-				<h1 id="mobile-passkey-title" class="mt-5 text-3xl font-semibold tracking-tight text-balance">
+				<h1 id="mobile-passkey-title" class="text-3xl font-semibold tracking-tight text-balance">
 					{m.mobile_passkey_title()}
 				</h1>
 				<p class="mt-2 text-sm leading-relaxed text-muted-foreground">{m.mobile_passkey_description()}</p>
 			</div>
 
-			<div class="my-6 overflow-hidden rounded-2xl border bg-background/45 ring-1 ring-border/30">
-				<div class="h-px w-full bg-gradient-to-r from-transparent via-primary/60 to-transparent"></div>
-				<div class="flex items-center gap-3 p-4">
-					<div class="flex size-9 shrink-0 items-center justify-center rounded-xl border bg-card text-primary">
-						<ShieldCheckIcon class="size-4" />
-					</div>
-					<div class="min-w-0 flex-1">
-						<p class="text-[11px] font-medium tracking-[0.1em] text-muted-foreground uppercase">
-							{m.mobile_passkey_arcane_server()}
-						</p>
-						<p class="mt-1 truncate font-mono text-sm font-medium" title={serverOrigin}>{serverOrigin}</p>
-					</div>
-					<span class="relative flex size-2.5" aria-hidden="true">
-						<span class="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-40"></span>
-						<span class="relative inline-flex size-2.5 rounded-full bg-primary"></span>
-					</span>
-				</div>
-			</div>
-
-			<div class="space-y-2">
+			<div class="mt-7 space-y-2">
 				<ArcaneButton
 					action="login"
 					icon={ApiKeyIcon}
@@ -229,11 +200,3 @@
 		{/if}
 	</section>
 </main>
-
-<style>
-	@media (prefers-reduced-motion: reduce) {
-		:global(.animate-ping) {
-			animation: none;
-		}
-	}
-</style>
