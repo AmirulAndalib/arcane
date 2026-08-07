@@ -196,8 +196,9 @@ func (s *passkeyService) readyInternal() error {
 }
 
 type webAuthnUser struct {
-	model       models.User
-	credentials []webauthn.Credential
+	model              models.User
+	credentials        []webauthn.Credential
+	credentialModelIDs map[string]string
 }
 
 func (u *webAuthnUser) WebAuthnID() []byte {
@@ -238,11 +239,13 @@ func (s *passkeyService) loadWebAuthnUserInternal(ctx context.Context, userID st
 	}
 
 	credentials := make([]webauthn.Credential, len(rows))
+	credentialModelIDs := make(map[string]string, len(rows))
 	for i := range rows {
 		credentials[i] = credentialFromModelInternal(rows[i])
+		credentialModelIDs[string(rows[i].CredentialID)] = rows[i].ID
 	}
 
-	return &webAuthnUser{model: user, credentials: credentials}, nil
+	return &webAuthnUser{model: user, credentials: credentials, credentialModelIDs: credentialModelIDs}, nil
 }
 
 func credentialFromModelInternal(row models.Passkey) webauthn.Credential {
@@ -542,25 +545,21 @@ func (s *passkeyService) FinishPasskeyLogin(ctx context.Context, ceremonyID stri
 		return nil, ErrPasskeyResponse
 	}
 
-	resolved, err := s.lookupDiscoverableUserInternal(ctx, parsed.RawID)
-	if err != nil {
-		slog.WarnContext(ctx, "passkey login validation failed", "stage", "credential_lookup", "error", err)
-		return nil, ErrPasskeyResponse
-	}
-
-	// The credential ID is globally unique for this RP and its signature proves
-	// ownership. Resolve the user from that ID instead of relying on the optional
-	// userHandle returned by a password manager. Some providers omit or transform
-	// that handle even for a discoverable credential.
-	session.UserID = resolved.WebAuthnID()
-	parsed.Response.UserHandle = nil
-	credential, err := s.webAuthn.ValidateLogin(resolved, session, parsed)
-	if err != nil || credential == nil {
+	var resolved *webAuthnUser
+	user, credential, err := s.webAuthn.ValidatePasskeyLogin(func(_ []byte, userHandle []byte) (webauthn.User, error) {
+		adapter, lookupErr := s.loadWebAuthnUserInternal(ctx, string(userHandle))
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
+		resolved = adapter
+		return adapter, nil
+	}, session, parsed)
+	if err != nil || user == nil || credential == nil || resolved == nil {
 		slog.WarnContext(ctx, "passkey login validation failed", "stage", "assertion", "error", err)
 		return nil, ErrPasskeyResponse
 	}
 
-	if err := s.updateCredentialAfterAssertionInternal(ctx, credential); err != nil {
+	if err := s.updateCredentialAfterAssertionInternal(ctx, resolved, credential); err != nil {
 		return nil, err
 	}
 	return &resolved.model, nil
@@ -1139,7 +1138,7 @@ func (s *passkeyService) finishKnownUserAssertionInternal(ctx context.Context, t
 	if err != nil || credential == nil {
 		return nil, ErrPasskeyResponse
 	}
-	if err := s.updateCredentialAfterAssertionInternal(ctx, credential); err != nil {
+	if err := s.updateCredentialAfterAssertionInternal(ctx, adapter, credential); err != nil {
 		return nil, err
 	}
 	return &adapter.model, nil
@@ -1243,17 +1242,6 @@ func (s *passkeyService) countPasskeysInternal(ctx context.Context, userID strin
 	return int(count), nil
 }
 
-func (s *passkeyService) lookupDiscoverableUserInternal(ctx context.Context, rawID []byte) (*webAuthnUser, error) {
-	if len(rawID) == 0 {
-		return nil, ErrPasskeyResponse
-	}
-	var row models.Passkey
-	if err := s.db.WithContext(ctx).Where("rp_id = ? AND credential_id = ?", s.rpID, rawID).First(&row).Error; err != nil {
-		return nil, ErrPasskeyResponse
-	}
-	return s.loadWebAuthnUserInternal(ctx, row.UserID)
-}
-
 func (s *passkeyService) persistCredentialInternal(ctx context.Context, userID string, credential *webauthn.Credential, name string) (*models.Passkey, error) {
 	if credential == nil || len(credential.ID) == 0 || len(credential.PublicKey) == 0 {
 		return nil, ErrPasskeyResponse
@@ -1301,13 +1289,17 @@ func (s *passkeyService) persistCredentialInternal(ctx context.Context, userID s
 	return row, nil
 }
 
-func (s *passkeyService) updateCredentialAfterAssertionInternal(ctx context.Context, credential *webauthn.Credential) error {
-	if credential == nil || len(credential.ID) == 0 {
+func (s *passkeyService) updateCredentialAfterAssertionInternal(ctx context.Context, adapter *webAuthnUser, credential *webauthn.Credential) error {
+	if adapter == nil || credential == nil || len(credential.ID) == 0 {
+		return ErrPasskeyResponse
+	}
+	credentialModelID, ok := adapter.credentialModelIDs[string(credential.ID)]
+	if !ok || credentialModelID == "" {
 		return ErrPasskeyResponse
 	}
 	now := time.Now()
 	result := s.db.WithContext(ctx).Model(&models.Passkey{}).
-		Where("rp_id = ? AND credential_id = ?", s.rpID, credential.ID).
+		Where("id = ? AND user_id = ? AND rp_id = ?", credentialModelID, adapter.model.ID, s.rpID).
 		Updates(map[string]any{
 			"sign_count":      credential.Authenticator.SignCount,
 			"backup_eligible": credential.Flags.BackupEligible,
