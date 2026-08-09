@@ -157,3 +157,20 @@ func TestMirrorDirectoryContentsPreserving_ToleratesUnreadableDestSubdir(t *test
 	require.NoError(t, os.Chmod(locked, 0o755))
 	assert.FileExists(t, filepath.Join(locked, "config", "app.conf"))
 }
+
+func TestDiscoverProjectDirectories_UnreadableRootErrorIsActionable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root; permission bits are not enforced")
+	}
+
+	root := t.TempDir()
+	require.NoError(t, os.Chmod(root, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
+
+	_, err := DiscoverProjectDirectories(root, false, 0)
+	require.Error(t, err)
+	// The bare "permission denied" must be wrapped with the runtime identity
+	// and remediation hints (#3489).
+	assert.Contains(t, err.Error(), "not readable by the runtime user")
+	assert.Contains(t, err.Error(), "PUID")
+}

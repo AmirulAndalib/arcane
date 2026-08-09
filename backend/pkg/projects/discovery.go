@@ -67,17 +67,23 @@ func DiscoverProjectDirectories(root string, followSymlinks bool, maxDepth int) 
 	root = filepath.Clean(root)
 
 	isDir, err := IsProjectDirectoryPath(root, followSymlinks)
-	if err != nil {
-		return nil, err
-	}
-	if !isDir {
+	if err == nil && !isDir {
 		return nil, errors.Errorf("project root is not a directory: %s", root)
 	}
 
 	discovered := make([]DiscoveredProjectDir, 0)
 	ancestors := make(map[string]struct{})
 
-	if err := walkProjectDirectoriesInternal(root, true, 0, maxDepth, followSymlinks, ancestors, &discovered); err != nil {
+	if err == nil {
+		err = walkProjectDirectoriesInternal(root, true, 0, maxDepth, followSymlinks, ancestors, &discovered)
+	}
+	if err != nil {
+		// The process runs as the PUID/PGID runtime user (default 65532) even
+		// when the container was started as root, so a root-only projects
+		// directory is genuinely unreadable (#3489).
+		if errors.Is(err, os.ErrPermission) {
+			return nil, errors.WrapIff(err, "projects directory is not readable by the runtime user (uid %d): fix its permissions or set PUID/PGID to an owner that can read it", os.Geteuid())
+		}
 		return nil, err
 	}
 
