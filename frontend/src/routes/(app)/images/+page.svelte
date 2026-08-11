@@ -19,8 +19,7 @@
 	import type { SearchPaginationSortRequest } from '#lib/types/shared';
 	import { untrack } from 'svelte';
 	import { ResourcePageLayout, type ActionButton, type StatCardConfig } from '#lib/layouts/index.js';
-	import { CloseIcon, VolumesIcon, LocalFolderComputerIcon, SearchIcon, HammerIcon, ShieldAlertIcon } from '#lib/icons';
-	import { goto } from '$app/navigation';
+	import { CloseIcon, VolumesIcon, LocalFolderComputerIcon, SearchIcon } from '#lib/icons';
 	import { createMutation, createQuery, useQueryClient, keepPreviousData } from '@tanstack/svelte-query';
 	import PruneModeCard from '#lib/components/prune/prune-mode-card.svelte';
 	import { activityToastOptions, extractActivityId } from '#lib/utils/activity-toast';
@@ -273,20 +272,6 @@
 				disabled: !resourcesReady || isChecking
 			});
 		}
-		buttons.push({
-			id: 'builds',
-			action: 'inspect',
-			label: m.builds(),
-			icon: HammerIcon,
-			onclick: () => void goto('/images/builds')
-		});
-		buttons.push({
-			id: 'vulnerabilities',
-			action: 'inspect',
-			label: m.vuln_title(),
-			icon: ShieldAlertIcon,
-			onclick: () => void goto('/images/vulnerabilities')
-		});
 		buttons.push({
 			id: 'refresh',
 			action: 'restart',
