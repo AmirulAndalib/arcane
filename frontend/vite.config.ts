@@ -35,7 +35,7 @@ const explicitInsecureTLS = parseBooleanEnv(process.env['DEV_BACKEND_INSECURE_TL
 // Allow local self-signed HTTPS while developing edge mTLS against the manager.
 const useInsecureLocalTLS = explicitInsecureTLS ?? (parsedDevBackendURL.protocol === 'https:' && (parsedDevBackendURL.hostname === 'localhost' || parsedDevBackendURL.hostname === '127.0.0.1'));
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
 	plugins: [
 		tailwindcss(),
 		sveltekit({
@@ -53,7 +53,8 @@ export default defineConfig({
 			project: './project.inlang',
 			outdir: './src/lib/paraglide',
 			cookieName: 'locale',
-			strategy: ['cookie', 'preferredLanguage', 'baseLocale']
+			strategy: ['cookie', 'preferredLanguage', 'baseLocale'],
+			outputStructure: command === 'build' ? 'message-modules' : 'locale-modules'
 		}),
 		Icons({
 			compiler: 'svelte',
@@ -83,4 +84,4 @@ export default defineConfig({
 			}
 		}
 	}
-});
+}));
