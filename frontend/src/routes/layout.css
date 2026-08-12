@@ -314,26 +314,26 @@ html.reduce-effects *::after {
 	}
 
 	.bubble-shadow {
-		box-shadow: 0 1px 2px -1px color-mix(in oklch, var(--glass-shadow-color) 60%, transparent);
+		box-shadow: 0 1px 2px color-mix(in oklch, var(--glass-shadow-color) 34%, transparent);
 	}
 
 	.bubble-shadow-lg {
-		box-shadow: 0 6px 20px -10px color-mix(in oklch, var(--glass-shadow-color) 60%, transparent);
+		box-shadow: 0 10px 24px -14px color-mix(in oklch, var(--glass-shadow-color) 55%, transparent);
 	}
 
 	.hover-lift {
 		transition:
-			transform 200ms ease,
-			box-shadow 200ms ease;
+			transform 160ms ease,
+			box-shadow 160ms ease;
 	}
 
 	.hover-lift:hover {
 		transform: translateY(-1px);
-		box-shadow: 0 4px 12px -6px color-mix(in oklch, var(--glass-shadow-color) 70%, transparent);
+		box-shadow: 0 8px 20px -12px color-mix(in oklch, var(--glass-shadow-color) 72%, transparent);
 	}
 
 	.hover-lift:active {
-		transform: translateY(0);
+		transform: translateY(0) scale(0.98);
 	}
 
 	@media (prefers-reduced-motion: reduce) {
@@ -348,7 +348,7 @@ html.reduce-effects *::after {
 
 	/* Subtle press feedback for clickable controls */
 	.pressable {
-		transition: transform 120ms ease;
+		transition: transform 110ms ease;
 	}
 	.pressable:active {
 		transform: scale(0.97);
