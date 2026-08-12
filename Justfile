@@ -669,6 +669,67 @@ i18n-add locale native_name settings="frontend/project.inlang/settings.json" pic
     mv "$picker_tmp" "$picker_path"
     rm -f "$block_tmp"
 
+    formatting_path="frontend/src/lib/utils/formatting.ts"
+    if [ ! -f "$formatting_path" ]; then
+        echo "Warning: $formatting_path not found; add the date-fns loader for '{{ locale }}' manually."
+    elif rg -q "date-fns/locale/{{ locale }}'" "$formatting_path"; then
+        echo "date-fns loader for '{{ locale }}' already present in $formatting_path"
+    else
+        f_start="$(rg -n -F "const dateFnsLocaleLoaders" "$formatting_path" | head -n1 | cut -d: -f1)"
+        if [ -z "$f_start" ]; then
+            echo "Warning: unable to find dateFnsLocaleLoaders in $formatting_path; add '{{ locale }}' manually."
+        else
+            f_end="$(awk -v s="$f_start" 'NR>s && $0 ~ /^[[:space:]]*};/ { print NR; exit }' "$formatting_path")"
+            if [ -z "$f_end" ]; then
+                echo "Warning: unable to find end of dateFnsLocaleLoaders in $formatting_path; add '{{ locale }}' manually."
+            else
+                f_const_indent="$(sed -n "${f_start}p" "$formatting_path" | sed -E 's/^([[:space:]]*).*/\1/')"
+                f_entry_indent="$(sed -n "$((f_start+1)),$((f_end-1))p" "$formatting_path" | awk 'NF { match($0, /^[[:space:]]*/); print substr($0, RSTART, RLENGTH); exit }')"
+                if [ -z "$f_entry_indent" ]; then
+                    f_entry_indent="${f_const_indent}	"
+                fi
+
+                f_entries="$(mktemp)"
+                while IFS= read -r line; do
+                    if [[ $line =~ ^[[:space:]]*\'?([^\'\":]+)\'?:.*date-fns/locale/([A-Za-z-]+) ]]; then
+                        key="${BASH_REMATCH[1]}"
+                        mod="${BASH_REMATCH[2]}"
+                        if [ "$key" != "{{ locale }}" ]; then
+                            printf '%s\t%s\n' "$key" "$mod" >> "$f_entries"
+                        fi
+                    fi
+                done < <(sed -n "$((f_start+1)),$((f_end-1))p" "$formatting_path")
+                printf '%s\t%s\n' "{{ locale }}" "{{ locale }}" >> "$f_entries"
+
+                f_block="$(sed -n "${f_start}p" "$formatting_path")"
+                f_block+=$'\n'
+                while IFS=$'\t' read -r key mod; do
+                    [ -z "$key" ] && continue
+                    if [[ $key =~ ^[A-Za-z_$][A-Za-z0-9_$]*$ ]]; then
+                        out_key="$key"
+                    else
+                        out_key="'${key}'"
+                    fi
+                    f_block+="${f_entry_indent}${out_key}: () => resolveDateFnsLocale(() => import('date-fns/locale/${mod}')),"
+                    f_block+=$'\n'
+                done < <(LC_ALL=C sort -f -t $'\t' -k1,1 "$f_entries")
+                f_block+="${f_const_indent}};"
+                rm -f "$f_entries"
+
+                f_tmp="$(mktemp)"
+                sed -n "1,$((f_start-1))p" "$formatting_path" > "$f_tmp"
+                printf '%s\n' "$f_block" >> "$f_tmp"
+                tail -n "+$((f_end+1))" "$formatting_path" >> "$f_tmp"
+                mv "$f_tmp" "$formatting_path"
+                echo "Added date-fns loader for '{{ locale }}' to $formatting_path"
+
+                if [ ! -e "frontend/node_modules/date-fns/locale/{{ locale }}.js" ] && [ ! -d "frontend/node_modules/date-fns/locale/{{ locale }}" ]; then
+                    echo "Warning: date-fns may not ship a '{{ locale }}' locale (check the module name, e.g. en uses en-US)."
+                fi
+            fi
+        fi
+    fi
+
     if [ -f "$target_file" ]; then
         echo "Messages file already exists, not overwriting: $target_file"
     else
