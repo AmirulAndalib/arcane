@@ -9,7 +9,7 @@
 
 :root {
 	color-scheme: light;
-	--radius: 0.6rem;
+	--radius: 0.875rem;
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.145 0 0);
 	--card: oklch(1 0 0);
@@ -21,11 +21,11 @@
 	--secondary: oklch(0.967 0.001 286.375);
 	--secondary-foreground: oklch(0.21 0.006 285.885);
 	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
+	--muted-foreground: oklch(0.52 0 0);
 	--accent: oklch(0.97 0 0);
 	--accent-foreground: oklch(0.205 0 0);
 	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
+	--border: oklch(0.905 0 0);
 	--input: oklch(0.922 0 0);
 	--ring: oklch(0.606 0.25 292.717);
 	--chart-1: oklch(0.811 0.111 293.571);
@@ -47,6 +47,13 @@
 	--glass-base: var(--bg-surface);
 	--glass-tint: var(--primary);
 	--glass-shadow-color: oklch(0 0 0 / 0.12);
+	--shadow-glass-sm: 0 1px 2px color-mix(in oklch, var(--glass-shadow-color) 40%, transparent);
+	--shadow-glass-md:
+		0 2px 8px -4px color-mix(in oklch, var(--glass-shadow-color) 55%, transparent),
+		0 4px 16px -8px color-mix(in oklch, var(--glass-shadow-color) 35%, transparent);
+	--shadow-glass-lg:
+		0 10px 24px -14px color-mix(in oklch, var(--glass-shadow-color) 65%, transparent),
+		0 24px 48px -24px color-mix(in oklch, var(--glass-shadow-color) 45%, transparent);
 
 	--arcane-z-content: 0;
 	--arcane-z-raised: 10;
@@ -95,6 +102,13 @@
 	--glass-base: var(--bg-surface);
 	--glass-tint: var(--primary);
 	--glass-shadow-color: oklch(0 0 0 / 0.32);
+	--shadow-glass-sm: 0 1px 2px color-mix(in oklch, var(--glass-shadow-color) 45%, transparent);
+	--shadow-glass-md:
+		0 2px 8px -4px color-mix(in oklch, var(--glass-shadow-color) 60%, transparent),
+		0 4px 16px -8px color-mix(in oklch, var(--glass-shadow-color) 40%, transparent);
+	--shadow-glass-lg:
+		0 10px 24px -14px color-mix(in oklch, var(--glass-shadow-color) 70%, transparent),
+		0 24px 48px -24px color-mix(in oklch, var(--glass-shadow-color) 50%, transparent);
 }
 
 html.no-blur *,
@@ -300,25 +314,25 @@ html.reduce-effects *::after {
 		background:
 			radial-gradient(
 				120% 100% at 10% 0%,
-				color-mix(in oklch, var(--glass-tint, var(--primary)) 7%, transparent) 0%,
+				color-mix(in oklch, var(--glass-tint, var(--primary)) 9%, transparent) 0%,
 				transparent 60%
 			),
 			radial-gradient(
 				120% 100% at 100% 0%,
-				color-mix(in oklch, var(--glass-base, var(--bg-surface)) 12%, transparent) 0%,
+				color-mix(in oklch, var(--glass-base, var(--bg-surface)) 14%, transparent) 0%,
 				transparent 60%
 			);
 		background-color: color-mix(in oklch, var(--glass-base, var(--bg-surface)) 92%, transparent);
 		border-radius: var(--radius-lg);
-		box-shadow: 0 2px 8px -4px color-mix(in oklch, var(--glass-shadow-color) 50%, transparent);
+		box-shadow: var(--shadow-glass-md);
 	}
 
 	.bubble-shadow {
-		box-shadow: 0 1px 2px color-mix(in oklch, var(--glass-shadow-color) 34%, transparent);
+		box-shadow: var(--shadow-glass-sm);
 	}
 
 	.bubble-shadow-lg {
-		box-shadow: 0 10px 24px -14px color-mix(in oklch, var(--glass-shadow-color) 55%, transparent);
+		box-shadow: var(--shadow-glass-lg);
 	}
 
 	.hover-lift {
@@ -365,7 +379,7 @@ html.reduce-effects *::after {
 	.bubble-outline {
 		background:
 			linear-gradient(var(--glass-base, var(--bg-surface)), var(--glass-base, var(--bg-surface))) padding-box,
-			linear-gradient(135deg, color-mix(in oklch, var(--glass-tint, var(--primary)) 28%, transparent), transparent 60%) border-box;
+			linear-gradient(135deg, color-mix(in oklch, var(--glass-tint, var(--primary)) 34%, transparent), transparent 60%) border-box;
 		border: 1px solid transparent;
 		border-radius: var(--radius-lg);
 	}
