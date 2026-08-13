@@ -234,7 +234,7 @@ func (s *VersionService) resolveNextVersionInternal(ctx context.Context, imageRe
 		return ""
 	}
 
-	lookupRef := ""
+	var lookupRef string
 	switch {
 	case strings.TrimSpace(newestDigest) != "":
 		lookupRef = imageRef + "@" + strings.TrimSpace(newestDigest)
