@@ -3813,14 +3813,30 @@ func TestProjectService_ArchiveProject_RequiresStoppedProject(t *testing.T) {
 	require.NoError(t, settingsService.SetStringSetting(ctx, "projectsDirectory", projectsRoot))
 
 	projectPath := createComposeProjectDir(t, projectsRoot, "running-demo")
+	// DB row says stopped; the live Docker state below is what must block the archive.
 	require.NoError(t, db.Create(&models.Project{
-		BaseModel:    models.BaseModel{ID: "project-running"},
-		Name:         "running-demo",
-		DirName:      ptr("running-demo"),
-		Path:         projectPath,
-		Status:       models.ProjectStatusRunning,
-		RunningCount: 1,
+		BaseModel: models.BaseModel{ID: "project-running"},
+		Name:      "running-demo",
+		DirName:   ptr("running-demo"),
+		Path:      projectPath,
+		Status:    models.ProjectStatusStopped,
 	}).Error)
+
+	configureProjectRuntimeDockerInternal(t, []container.Summary{
+		{
+			ID:     "app-container",
+			Names:  []string{"/running-demo-app-1"},
+			Image:  "nginx:alpine",
+			State:  container.StateRunning,
+			Status: "Up 30 seconds",
+			Labels: map[string]string{
+				composeapi.ProjectLabel:    "running-demo",
+				composeapi.ServiceLabel:    "app",
+				composeapi.ConfigHashLabel: "app-hash",
+				composeapi.WorkingDirLabel: "/host/path/projects/running-demo",
+			},
+		},
+	})
 
 	svc := NewProjectService(db, settingsService, nil, nil, nil, nil, nil, nil, config.Load())
 	err = svc.ArchiveProject(ctx, "project-running", models.User{BaseModel: models.BaseModel{ID: "user-1"}, Username: "tester"})
@@ -3851,6 +3867,8 @@ func TestProjectService_ArchiveProject_TogglesArchiveFlag(t *testing.T) {
 		Status:    models.ProjectStatusStopped,
 	}).Error)
 
+	configureProjectRuntimeDockerInternal(t, nil)
+
 	svc := NewProjectService(db, settingsService, nil, nil, nil, nil, nil, nil, config.Load())
 	user := models.User{BaseModel: models.BaseModel{ID: "user-1"}, Username: "tester"}
 
@@ -3865,6 +3883,51 @@ func TestProjectService_ArchiveProject_TogglesArchiveFlag(t *testing.T) {
 	require.NoError(t, db.First(&unarchived, "id = ?", "project-stopped").Error)
 	assert.False(t, unarchived.IsArchived)
 	assert.Nil(t, unarchived.ArchivedAt)
+}
+
+func TestProjectService_ArchiveProject_LiveVerificationErrorPolicy(t *testing.T) {
+	db := setupProjectTestDB(t)
+	ctx := context.Background()
+
+	projectsRoot := t.TempDir()
+	settingsService, err := newSettingsServiceForTestInternal(t, ctx, db)
+	require.NoError(t, err)
+	require.NoError(t, settingsService.SetStringSetting(ctx, "projectsDirectory", projectsRoot))
+
+	unreachablePath := createComposeProjectDir(t, projectsRoot, "unreachable-demo")
+	require.NoError(t, db.Create(&models.Project{
+		BaseModel: models.BaseModel{ID: "project-unreachable"},
+		Name:      "unreachable-demo",
+		DirName:   ptr("unreachable-demo"),
+		Path:      unreachablePath,
+		Status:    models.ProjectStatusStopped,
+	}).Error)
+
+	noComposePath := filepath.Join(projectsRoot, "no-compose-demo")
+	require.NoError(t, os.MkdirAll(noComposePath, 0o755))
+	require.NoError(t, db.Create(&models.Project{
+		BaseModel: models.BaseModel{ID: "project-no-compose"},
+		Name:      "no-compose-demo",
+		DirName:   ptr("no-compose-demo"),
+		Path:      noComposePath,
+		Status:    models.ProjectStatusStopped,
+	}).Error)
+
+	t.Setenv("DOCKER_HOST", "tcp://127.0.0.1:1")
+
+	svc := NewProjectService(db, settingsService, nil, nil, nil, nil, nil, nil, config.Load())
+	user := models.User{BaseModel: models.BaseModel{ID: "user-1"}, Username: "tester"}
+
+	err = svc.ArchiveProject(ctx, "project-unreachable", user)
+	require.Error(t, err)
+	var stored models.Project
+	require.NoError(t, db.First(&stored, "id = ?", "project-unreachable").Error)
+	assert.False(t, stored.IsArchived)
+
+	require.NoError(t, svc.ArchiveProject(ctx, "project-no-compose", user))
+	var archived models.Project
+	require.NoError(t, db.First(&archived, "id = ?", "project-no-compose").Error)
+	assert.True(t, archived.IsArchived)
 }
 
 func TestProjectService_MapProjectToDto_SetsRedeployDisabledFromRuntimeServices(t *testing.T) {

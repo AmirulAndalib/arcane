@@ -177,23 +177,6 @@ func ensureProjectMutableInternal(proj *models.Project) error {
 	return nil
 }
 
-func isProjectArchiveBlockedInternal(proj *models.Project) bool {
-	if proj == nil {
-		return false
-	}
-	if proj.RunningCount > 0 {
-		return true
-	}
-	switch proj.Status {
-	case models.ProjectStatusRunning, models.ProjectStatusPartiallyRunning, models.ProjectStatusDeploying, models.ProjectStatusRestarting:
-		return true
-	case models.ProjectStatusStopped, models.ProjectStatusUnknown, models.ProjectStatusStopping:
-		return false
-	default:
-		return false
-	}
-}
-
 func (s *ProjectService) ArchiveProject(ctx context.Context, projectID string, user models.User) error {
 	proj, err := s.GetProjectFromDatabaseByID(ctx, projectID)
 	if err != nil {
@@ -202,8 +185,19 @@ func (s *ProjectService) ArchiveProject(ctx context.Context, projectID string, u
 	if proj.IsArchived {
 		return nil
 	}
-	if isProjectArchiveBlockedInternal(proj) {
-		return common.Classify(common.ErrProjectMustBeStopped, errors.New("project must be stopped before archiving"))
+
+	// Gate on live Docker state, not the persisted status row, which can go
+	// stale when containers are stopped outside an Arcane project action.
+	// A project without a compose file cannot have managed containers running
+	// and is a prime archive candidate, so it is allowed through.
+	services, servicesErr := s.GetProjectServices(ctx, projectID)
+	switch {
+	case servicesErr != nil && !errors.Is(servicesErr, common.ErrProjectComposeFileNotFound):
+		return errors.WrapIf(servicesErr, "cannot verify project is stopped before archiving")
+	case servicesErr == nil:
+		if _, running := getServiceCounts(services); running > 0 {
+			return common.Classify(common.ErrProjectMustBeStopped, errors.New("project must be stopped before archiving"))
+		}
 	}
 
 	now := time.Now()
