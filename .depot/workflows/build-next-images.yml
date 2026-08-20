@@ -73,6 +73,13 @@ jobs:
           username: ${{ vars.GHCR_USERNAME }}
           password: ${{ secrets.ARCANE_BOT_TOKEN }}
 
+      - name: Login to Quay
+        uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
       - name: Login to Docker Hub
         uses: docker/login-action@v4
         with:
@@ -93,15 +100,15 @@ jobs:
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser-pro
-          version: "~> 2"
+          version: '~> 2'
           args: release --clean --nightly --skip=announce,validate,homebrew
         env:
           GITHUB_TOKEN: ${{ secrets.ARCANE_BOT_TOKEN }}
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
-          BUILD_NEXT: "true"
-          SKIP_RELEASE: "true"
-          SKIP_CHANGELOG: "true"
+          BUILD_NEXT: 'true'
+          SKIP_RELEASE: 'true'
+          SKIP_CHANGELOG: 'true'
           NEXT_IMAGE_VERSION: ${{ steps.next-version.outputs.version }}
           GORELEASER_CURRENT_TAG: ${{ steps.next-version.outputs.image_tag }}
           GORELEASER_PREVIOUS_TAG: ${{ steps.next-version.outputs.previous_tag }}

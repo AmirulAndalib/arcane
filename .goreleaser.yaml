@@ -280,6 +280,7 @@ dockers_v2:
       - 'ghcr.io/getarcaneapp/arcane'
       - 'ghcr.io/getarcaneapp/manager'
       - 'getarcaneapp/manager'
+      - 'quay.io/getarcaneapp/manager'
     tags:
       - '{{ if index .Env "BUILD_NEXT" }}next{{ end }}'
       - 'v{{ .Version }}'
@@ -292,7 +293,7 @@ dockers_v2:
       - linux/arm/v7
       - linux/riscv64
     labels:
-      'org.opencontainers.image.authors': 'OFKM Technologies'
+      'org.opencontainers.image.authors': 'Arcane Organization'
       'org.opencontainers.image.url': 'https://github.com/getarcaneapp/arcane'
       'org.opencontainers.image.documentation': 'https://github.com/getarcaneapp/arcane/blob/main/README.md'
       'org.opencontainers.image.source': 'https://github.com/getarcaneapp/arcane'
@@ -312,6 +313,7 @@ dockers_v2:
       - 'ghcr.io/getarcaneapp/arcane-headless'
       - 'ghcr.io/getarcaneapp/agent'
       - 'getarcaneapp/agent'
+      - 'quay.io/getarcaneapp/agent'
     tags:
       - '{{ if index .Env "BUILD_NEXT" }}next{{ end }}'
       - 'v{{ .Version }}'
@@ -324,7 +326,7 @@ dockers_v2:
       - linux/arm/v7
       - linux/riscv64
     labels:
-      'org.opencontainers.image.authors': 'OFKM Technologies'
+      'org.opencontainers.image.authors': 'Arcane Organization'
       'org.opencontainers.image.url': 'https://github.com/getarcaneapp/arcane'
       'org.opencontainers.image.documentation': 'https://github.com/getarcaneapp/arcane/blob/main/README.md'
       'org.opencontainers.image.source': 'https://github.com/getarcaneapp/arcane'
@@ -332,7 +334,7 @@ dockers_v2:
       'org.opencontainers.image.revision': '{{.FullCommit}}'
       'org.opencontainers.image.licenses': 'BSD-3-Clause'
       'org.opencontainers.image.title': 'Arcane Agent'
-      'org.opencontainers.image.description': 'Arcane Agent'
+      'org.opencontainers.image.description': 'Arcanes Remote Agent'
       'com.getarcaneapp.arcane.agent': 'true'
     sbom: true
 
