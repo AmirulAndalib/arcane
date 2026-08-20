@@ -279,9 +279,9 @@ dockers_v2:
     images:
       - 'ghcr.io/getarcaneapp/arcane'
       - 'ghcr.io/getarcaneapp/manager'
+      - 'getarcaneapp/manager'
     tags:
       - '{{ if index .Env "BUILD_NEXT" }}next{{ end }}'
-      - '{{ if index .Env "BUILD_NEXT" }}next-static{{ end }}'
       - 'v{{ .Version }}'
       - '{{ if not (index .Env "BUILD_NEXT") }}v{{ .Major }}.{{ .Minor }}{{ end }}'
       - '{{ if not (index .Env "BUILD_NEXT") }}v{{ .Major }}{{ end }}'
@@ -311,9 +311,9 @@ dockers_v2:
     images:
       - 'ghcr.io/getarcaneapp/arcane-headless'
       - 'ghcr.io/getarcaneapp/agent'
+      - 'getarcaneapp/agent'
     tags:
       - '{{ if index .Env "BUILD_NEXT" }}next{{ end }}'
-      - '{{ if index .Env "BUILD_NEXT" }}next-static{{ end }}'
       - 'v{{ .Version }}'
       - '{{ if not (index .Env "BUILD_NEXT") }}v{{ .Major }}.{{ .Minor }}{{ end }}'
       - '{{ if not (index .Env "BUILD_NEXT") }}v{{ .Major }}{{ end }}'
