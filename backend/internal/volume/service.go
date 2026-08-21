@@ -8,20 +8,27 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/getarcaneapp/arcane/backend/v2/internal/activity"
+	"github.com/getarcaneapp/arcane/backend/v2/internal/backup"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/config"
+	"github.com/getarcaneapp/arcane/backend/v2/internal/container"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/docker"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/image"
+	s3domain "github.com/getarcaneapp/arcane/backend/v2/internal/s3"
 
 	"emperror.dev/errors"
 
+	"github.com/getarcaneapp/arcane/backend/v2/internal/actors"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/database"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/event"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/settings"
 	dockerutil "github.com/getarcaneapp/arcane/backend/v2/pkg/dockerutil"
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/libarcane"
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/libarcane/timeouts"
+	"github.com/getarcaneapp/arcane/backend/v2/pkg/scheduler/entityjobs"
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/utils"
 	workspacepkg "github.com/getarcaneapp/arcane/backend/v2/pkg/workspace"
+	schedulertypes "github.com/getarcaneapp/arcane/types/v2/scheduler"
 	volumetypes "github.com/getarcaneapp/arcane/types/v2/volume"
 	"github.com/moby/moby/client"
 	"golang.org/x/sync/singleflight"
@@ -31,9 +38,14 @@ type VolumeService struct {
 	db                        *database.DB
 	dockerService             *docker.DockerClientService
 	eventService              *event.EventService
+	activityService           *activity.ActivityService
 	settingsService           *settings.SettingsService
+	containerService          *container.ContainerService
 	imageService              *image.ImageService
+	engine                    *backup.Engine
+	s3Destinations            *s3domain.S3DestinationService
 	backupVolumeName          string
+	encryptionKey             string
 	workspaceMaxDepth         int
 	workspaceMaxEntries       int
 	workspaceMaxFileSizeBytes int64
@@ -45,6 +57,13 @@ type VolumeService struct {
 	// second overwrites the first in helperByVolume, orphaning a `sleep infinity`
 	// container that pins the volume until restart.
 	helperGroup singleflight.Group
+	jobs        *entityjobs.Registry
+}
+
+// SetScheduler injects the dynamic scheduler and admission gate for per-policy
+// backup jobs. Agent mode passes them too: agents run their own volume backups.
+func (s *VolumeService) SetScheduler(ctx context.Context, scheduler schedulertypes.DynamicScheduler, admissionGate *actors.Gate[actors.AdmissionKey]) error {
+	return s.jobs.SetScheduler(ctx, scheduler, admissionGate)
 }
 
 type volumeWorkspaceLockContextKeyInternal struct{}
@@ -56,14 +75,16 @@ type volumeWorkspaceLockContextInternal struct {
 
 const trivyCacheVolumePruneFilterValue = libarcane.InternalResourceLabel + "=true"
 
-func NewVolumeService(db *database.DB, dockerService *docker.DockerClientService, eventService *event.EventService, settingsService *settings.SettingsService, imageService *image.ImageService, cfg *config.Config) *VolumeService {
+func NewVolumeService(db *database.DB, dockerService *docker.DockerClientService, eventService *event.EventService, activityService *activity.ActivityService, settingsService *settings.SettingsService, containerService *container.ContainerService, imageService *image.ImageService, engine *backup.Engine, s3Destinations *s3domain.S3DestinationService, cfg *config.Config) *VolumeService {
 	slog.Debug("volume service: new")
 	backupVolumeName := ""
+	encryptionKey := ""
 	workspaceMaxDepth := 50
 	workspaceMaxEntries := 10000
 	workspaceMaxFileSizeMB := workspacepkg.DefaultMaxFileSizeMB
 	if cfg != nil {
 		backupVolumeName = cfg.BackupVolumeName
+		encryptionKey = cfg.EncryptionKey
 		workspaceMaxDepth = cfg.VolumeWorkspaceMaxDepth
 		workspaceMaxEntries = cfg.VolumeWorkspaceMaxEntries
 		workspaceMaxFileSizeMB = cfg.VolumeWorkspaceMaxFileSizeMB
@@ -75,13 +96,19 @@ func NewVolumeService(db *database.DB, dockerService *docker.DockerClientService
 		db:                        db,
 		dockerService:             dockerService,
 		eventService:              eventService,
+		activityService:           activityService,
 		settingsService:           settingsService,
+		containerService:          containerService,
 		imageService:              imageService,
+		engine:                    engine,
+		s3Destinations:            s3Destinations,
 		backupVolumeName:          backupVolumeName,
+		encryptionKey:             encryptionKey,
 		workspaceMaxDepth:         workspaceMaxDepth,
 		workspaceMaxEntries:       workspaceMaxEntries,
 		workspaceMaxFileSizeBytes: workspacepkg.MaxFileSizeBytes(workspaceMaxFileSizeMB),
 		helperByVolume:            make(map[string]*volumeHelper),
+		jobs:                      entityjobs.New("volume-backup:", backup.VolumeAdmissionScope),
 	}
 }
 
@@ -190,6 +217,7 @@ func (s *VolumeService) DeleteVolume(ctx context.Context, name string, force boo
 	}
 
 	s.removeHelperEntry(name)
+	s.removeVolumeBackupPolicyInternal(ctx, name)
 	dockerutil.InvalidateVolumeUsageCache(dockerClient)
 	return nil
 }
@@ -230,6 +258,7 @@ func (s *VolumeService) PruneVolumesWithOptions(ctx context.Context, all bool) (
 
 	for _, volumeName := range volumePruneResult.Report.VolumesDeleted {
 		s.removeHelperEntry(volumeName)
+		s.removeVolumeBackupPolicyInternal(ctx, volumeName)
 	}
 
 	dockerutil.InvalidateVolumeUsageCache(dockerClient)

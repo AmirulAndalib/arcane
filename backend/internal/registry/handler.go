@@ -18,6 +18,8 @@ import (
 	"go.getarcane.app/sys/crypto"
 )
 
+const registryRemoteSyncFailureMessageInternal = "Failed to fan out registry sync to remote environments"
+
 // ContainerRegistryHandler handles container registry management endpoints.
 type ContainerRegistryHandler struct {
 	registryService      *ContainerRegistryService
@@ -392,7 +394,7 @@ func (h *ContainerRegistryHandler) triggerRemoteRegistrySync(ctx context.Context
 
 	go func(syncCtx context.Context, syncReason string) {
 		if err := h.syncRemoteRegistries(syncCtx); err != nil {
-			slog.WarnContext(syncCtx, "Failed to fan out registry sync to remote environments", "reason", syncReason, "error", err.Error())
+			slog.WarnContext(syncCtx, registryRemoteSyncFailureMessageInternal, "reason", syncReason, "error", err.Error())
 		}
 	}(detachedCtx, reason)
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/getarcaneapp/arcane/backend/v2/internal/session"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/swarm"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/system"
+	"github.com/getarcaneapp/arcane/backend/v2/internal/systembackup"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/upload"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/variable"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/vulnerability"
@@ -92,6 +93,9 @@ var ServiceOptions = fx.Options(
 		provideWebhookModuleInternal,
 		variable.NewVariableService,
 		variable.New,
+		provideS3ModuleInternal,
+		provideS3ServiceInternal,
+		provideBackupEngineInternal,
 		upload.NewUploadService,
 		upload.New,
 
@@ -100,6 +104,9 @@ var ServiceOptions = fx.Options(
 		provideGitRepositoryModuleInternal,
 		provideGitRepositoryServiceInternal,
 		provideVolumeModuleInternal,
+		provideVolumeServiceInternal,
+		provideSystemBackupServiceInternal,
+		systembackup.New,
 		provideAuthServiceInternal,
 		provideAuthModuleInternal,
 		provideContainerRegistryModuleInternal,

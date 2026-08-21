@@ -1,14 +1,25 @@
-import type { Action } from '#lib/components/arcane-button/index.js';
+import type { Action, ArcaneButtonSize } from '#lib/components/arcane-button/index.js';
 import type { IconType } from '#lib/icons';
+
+export interface SettingsActionOption {
+	label: string;
+	icon?: IconType;
+	onclick: () => void;
+	disabled?: boolean;
+}
 
 export interface SettingsActionButton {
 	id: string;
 	action: Action;
+	icon?: IconType;
 	label: string;
 	loadingLabel?: string;
 	loading?: boolean;
 	disabled?: boolean;
-	onclick: () => void;
+	size?: ArcaneButtonSize;
+	onclick?: () => void;
+	// When set, the button renders as a dropdown trigger and onclick is unused.
+	options?: SettingsActionOption[];
 	showOnMobile?: boolean;
 }
 

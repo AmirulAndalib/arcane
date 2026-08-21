@@ -50,12 +50,6 @@ type SystemUpgradeService struct {
 	settingsService *settings.SettingsService
 }
 
-type upgraderRuntimeOptionsInternal struct {
-	ContainerEnv []string
-	Mounts       []mount.Mount
-	NetworkMode  container.NetworkMode
-}
-
 func NewSystemUpgradeService(
 	db *database.DB,
 	dockerService *docker.DockerClientService,
@@ -211,7 +205,7 @@ func (s *SystemUpgradeService) TriggerUpgradeViaCLI(ctx context.Context, user co
 	}
 
 	// Create the upgrader container config
-	runtimeOptions, err := resolveSystemUpgraderRuntimeOptionsInternal(
+	containerEnv, runtimeMounts, networkMode, err := ResolveUpgraderRuntimeOptions(
 		ctx,
 		s.dockerService.DockerHost(),
 		&currentContainer,
@@ -242,14 +236,14 @@ func (s *SystemUpgradeService) TriggerUpgradeViaCLI(ctx context.Context, user co
 		// is short-lived and never goes through the runtime-identity drop, so
 		// don't rely on the image's default user.
 		User: "0:0",
-		Env:  runtimeOptions.ContainerEnv,
+		Env:  containerEnv,
 		Labels: map[string]string{
 			"com.getarcaneapp.arcane.upgrader": "true",
 			"com.getarcaneapp.arcane":          "true",
 		},
 	}
 
-	mounts := append([]mount.Mount{}, runtimeOptions.Mounts...)
+	mounts := append([]mount.Mount{}, runtimeMounts...)
 	if appDataMount != nil {
 		mounts = append(mounts, *appDataMount)
 	}
@@ -262,7 +256,7 @@ func (s *SystemUpgradeService) TriggerUpgradeViaCLI(ctx context.Context, user co
 	hostConfig := &container.HostConfig{
 		AutoRemove:  !keepUpgraderContainer, // default: clean up after completion
 		Mounts:      mounts,
-		NetworkMode: runtimeOptions.NetworkMode,
+		NetworkMode: networkMode,
 	}
 	// Inherit the security context that lets the running Arcane container reach
 	// the Docker socket (e.g. SELinux label=disable, privileged); the upgrader
@@ -328,32 +322,30 @@ func determineUpgradeBinaryPathInternal(containerLabels map[string]string) strin
 	return "/app/arcane"
 }
 
-func resolveSystemUpgraderRuntimeOptionsInternal(
+// ResolveUpgraderRuntimeOptions determines how a helper container reaches the Docker daemon.
+func ResolveUpgraderRuntimeOptions(
 	ctx context.Context,
 	dockerHost string,
 	currentContainer *container.InspectResponse,
 	discoverHostPath func(context.Context, string) (string, error),
 	isRunningInDocker func() bool,
 	selectReachableNetwork func(context.Context, *container.InspectResponse, string) string,
-) (upgraderRuntimeOptionsInternal, error) {
-	options := upgraderRuntimeOptionsInternal{
-		ContainerEnv: vuln.BuildDockerHostEnv(dockerHost),
-	}
+) ([]string, []mount.Mount, container.NetworkMode, error) {
+	containerEnv := vuln.BuildDockerHostEnv(dockerHost)
 
 	scheme, socketPath, err := vuln.ParseDockerHost(dockerHost)
 	if err != nil {
-		return upgraderRuntimeOptionsInternal{}, errors.WrapIff(err, "resolve docker host %q", dockerHost)
+		return nil, nil, "", errors.WrapIff(err, "resolve docker host %q", dockerHost)
 	}
 
 	if scheme != "unix" {
 		// The upgrader must reach the tcp DOCKER_HOST, so prefer a network the
 		// daemon proxy is actually on over the plain auto heuristic (#3533).
+		networkMode := dockerutils.SelectAutoNetworkMode(currentContainer)
 		if selectReachableNetwork != nil {
-			options.NetworkMode = container.NetworkMode(selectReachableNetwork(ctx, currentContainer, dockerHost))
-		} else {
-			options.NetworkMode = container.NetworkMode(dockerutils.SelectAutoNetworkMode(currentContainer))
+			networkMode = selectReachableNetwork(ctx, currentContainer, dockerHost)
 		}
-		return options, nil
+		return containerEnv, nil, container.NetworkMode(networkMode), nil
 	}
 
 	socketSource, err := vuln.ResolveUnixSocketSource(
@@ -363,16 +355,16 @@ func resolveSystemUpgraderRuntimeOptionsInternal(
 		isRunningInDocker,
 	)
 	if err != nil {
-		return upgraderRuntimeOptionsInternal{}, errors.WrapIf(err, "resolve unix socket source")
+		return nil, nil, "", errors.WrapIf(err, "resolve unix socket source")
 	}
 
-	options.Mounts = append(options.Mounts, mount.Mount{
+	mounts := []mount.Mount{{
 		Type:   mount.TypeBind,
 		Source: socketSource,
 		Target: socketPath,
-	})
+	}}
 
-	return options, nil
+	return containerEnv, mounts, "", nil
 }
 
 // getCurrentContainerID detects if we're running in Docker and returns container ID

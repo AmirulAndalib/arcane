@@ -8,6 +8,7 @@ import (
 	"github.com/getarcaneapp/arcane/backend/v2/internal/activity"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/apikey"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/auth"
+	"github.com/getarcaneapp/arcane/backend/v2/internal/backup"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/docker"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/environment"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/event"
@@ -22,6 +23,7 @@ import (
 	"github.com/getarcaneapp/arcane/backend/v2/internal/project"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/registry"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/role"
+	s3domain "github.com/getarcaneapp/arcane/backend/v2/internal/s3"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/session"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/settings"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/swarm"
@@ -42,6 +44,7 @@ import (
 	"github.com/getarcaneapp/arcane/backend/v2/internal/port"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/search"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/system"
+	"github.com/getarcaneapp/arcane/backend/v2/internal/systembackup"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/updater"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/version"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/volume"
@@ -68,6 +71,9 @@ type graphParams struct {
 	BuildWorkspace    *build.BuildWorkspaceService
 	Lifecycle         *project.LifecycleService
 	Volume            *volume.Module
+	BackupEngine      *backup.Engine
+	S3Destination     *s3domain.Module
+	SystemBackup      *systembackup.Module
 	Network           *network.NetworkService
 	Port              *port.PortService
 	Swarm             *swarm.SwarmService

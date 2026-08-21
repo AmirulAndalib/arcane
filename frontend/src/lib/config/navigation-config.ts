@@ -25,7 +25,8 @@ import {
 	GlobeIcon,
 	UpdateIcon,
 	VariableIcon,
-	ActivityIcon
+	ActivityIcon,
+	BackupIcon
 } from '#lib/icons';
 import { m } from '#lib/paraglide/messages';
 import type { ShortcutKey } from '#lib/utils/navigation';
@@ -43,6 +44,7 @@ export type NavigationItem = {
 	 * item visible to every authenticated user.
 	 */
 	accessSurfaceId?: string;
+	adminOnly?: boolean;
 };
 
 export type NavigationSections = {
@@ -222,6 +224,13 @@ export const navigationItems: NavigationSections = {
 					accessSurfaceId: 'settings.category.activity'
 				},
 				{
+					title: m.system_backups_title(),
+					url: '/settings/backups',
+					icon: BackupIcon,
+					accessSurfaceId: 'settings.category.systembackups',
+					adminOnly: true
+				},
+				{
 					title: m.builds(),
 					url: '/settings/builds',
 					icon: HammerIcon,
@@ -313,6 +322,7 @@ function canSeeItem(
 	currentEnvId: string | undefined,
 	accessManifest: PermissionsManifest | null | undefined
 ): boolean {
+	if (item.adminOnly && !user.isGlobalAdmin) return false;
 	if (!item.accessSurfaceId) return true;
 	if (!accessManifest?.accessSurfaces?.length) return true;
 	return canReachAccessSurface(accessManifest, item.accessSurfaceId, user, currentEnvId);

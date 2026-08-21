@@ -105,11 +105,41 @@ export interface FileContentResponse {
 	mimeType: string;
 }
 
-export interface BackupEntry {
+import type { BackupDestination, BackupPolicyUpdate, BackupRun } from './backup';
+
+export type VolumeBackupDestination = BackupDestination;
+
+export interface CreateVolumeBackupRequest {
+	destination?: VolumeBackupDestination;
+	policyId?: string;
+	s3DestinationId?: string;
+}
+
+export interface BackupEntry extends BackupRun {
+	volumeName: string;
+}
+
+export interface VolumeBackupPolicy {
 	id: string;
 	volumeName: string;
-	size: number;
-	createdAt: string;
+	enabled: boolean;
+	schedule: string;
+	retentionCount: number;
+	stopContainers: boolean;
+	localEnabled: boolean;
+	s3Enabled: boolean;
+	s3DestinationId: string;
+	s3DestinationName?: string;
+	s3Available: boolean;
+	s3Bucket: string;
+	lastRun?: BackupEntry;
+}
+
+export type UpdateVolumeBackupPolicy = BackupPolicyUpdate;
+
+export interface VolumeBackupPolicyCollection {
+	policies: VolumeBackupPolicy[];
+	s3Available: boolean;
 }
 
 // --- Customize search ---

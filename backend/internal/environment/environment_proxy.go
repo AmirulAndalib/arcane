@@ -2,12 +2,14 @@ package environment
 
 import (
 	"github.com/getarcaneapp/arcane/backend/v2/internal/gitrepo"
+	s3domain "github.com/getarcaneapp/arcane/backend/v2/internal/s3"
 
 	"context"
 	"encoding/json/v2"
 	"log/slog"
 	"maps"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/remenv"
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/utils"
 	httputils "github.com/getarcaneapp/arcane/backend/v2/pkg/utils/httpx"
+	backuptypes "github.com/getarcaneapp/arcane/types/v2/backup"
 	"github.com/getarcaneapp/arcane/types/v2/containerregistry"
 	"github.com/getarcaneapp/arcane/types/v2/gitops"
 	"go.getarcane.app/sys/crypto"
@@ -59,6 +62,59 @@ func (s *EnvironmentService) SyncRegistriesToRemoteEnvironments(ctx context.Cont
 		return errors.Errorf("failed to sync registries to %d remote environment(s)", failedCount)
 	}
 
+	return nil
+}
+
+// SyncS3DestinationsToRemoteEnvironments refreshes the destination cache on every enabled remote environment.
+func (s *EnvironmentService) SyncS3DestinationsToRemoteEnvironments(ctx context.Context) error {
+	envs, err := s.ListRemoteEnvironments(ctx)
+	if err != nil {
+		return errors.WrapIf(err, "failed to list remote environments for S3 destination sync")
+	}
+
+	var failedCount int
+	for _, env := range envs {
+		if env.AccessToken == nil || strings.TrimSpace(*env.AccessToken) == "" {
+			slog.DebugContext(ctx, "Skipping S3 destination sync for environment without access token", "environmentID", env.ID, "environmentName", env.Name)
+			continue
+		}
+		if err := s.SyncS3DestinationsToEnvironment(ctx, env.ID); err != nil {
+			failedCount++
+			slog.WarnContext(ctx, "Failed to sync S3 destinations to remote environment", "environmentID", env.ID, "environmentName", env.Name, "error", err)
+		}
+	}
+
+	if failedCount > 0 {
+		return errors.Errorf("failed to sync S3 destinations to %d remote environment(s)", failedCount)
+	}
+	return nil
+}
+
+// CheckS3DestinationReferences returns an error while any managed environment
+// still references the destination, or when a synced environment cannot be
+// checked conclusively. Deleting credentials that a remote environment still
+// needs would strand its policies and retained backups.
+func (s *EnvironmentService) CheckS3DestinationReferences(ctx context.Context, destinationID string) error {
+	envs, err := s.ListRemoteEnvironments(ctx)
+	if err != nil {
+		return errors.WrapIf(err, "failed to list remote environments for S3 destination reference check")
+	}
+	for _, env := range envs {
+		if env.AccessToken == nil || strings.TrimSpace(*env.AccessToken) == "" {
+			// Environments without an access token never receive destination
+			// syncs, so they cannot hold a reference.
+			continue
+		}
+		var result struct {
+			InUse bool `json:"inUse"`
+		}
+		if err := s.ProxyJSONRequestForEnvironment(ctx, env, http.MethodGet, "/api/backups/s3/"+url.PathEscape(destinationID)+"/in-use", nil, &result); err != nil {
+			return errors.WrapIff(err, "cannot verify S3 destination references on environment %s; restore connectivity before deleting", env.Name)
+		}
+		if result.InUse {
+			return errors.Errorf("still referenced by environment %s", env.Name)
+		}
+	}
 	return nil
 }
 
@@ -318,6 +374,22 @@ func (s *EnvironmentService) SyncRegistriesToEnvironment(ctx context.Context, en
 		},
 		func(items []containerregistry.Sync) containerregistry.SyncRequest {
 			return containerregistry.SyncRequest{Registries: items}
+		},
+	)
+}
+
+// SyncS3DestinationsToEnvironment sends manager-owned destinations to one remote environment.
+func (s *EnvironmentService) SyncS3DestinationsToEnvironment(ctx context.Context, environmentID string) error {
+	return fanOutSyncToEnvironmentInternal(ctx, s, environmentID, "S3 destinations", "/api/backups/s3/sync",
+		func(_ context.Context, destination s3domain.S3Destination) (backuptypes.S3DestinationSync, bool, error) {
+			secret, err := crypto.Decrypt(destination.SecretAccessKey)
+			if err != nil {
+				return backuptypes.S3DestinationSync{}, false, errors.WrapIff(err, "failed to decrypt S3 destination %s for sync", destination.ID)
+			}
+			return destination.ToSync(secret), true, nil
+		},
+		func(items []backuptypes.S3DestinationSync) backuptypes.S3DestinationSyncRequest {
+			return backuptypes.S3DestinationSyncRequest{Destinations: items}
 		},
 	)
 }
