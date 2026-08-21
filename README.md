@@ -11,7 +11,7 @@
 
 <br />
 
-<img width="1685" alt="image" align="center" src=".github/assets/dashboard-1.19.3.png" />
+<img width="1685" alt="image" align="center" src=".github/assets/arcane-dash-2.18.1.png" />
 
 ## Documentation
 
