@@ -276,10 +276,13 @@ _format-check-go:
 
 [group('quality')]
 _format-all:
-    @just _format-frontend
-    @just _format-js
-    @just _format-go
-    @just _format-just
+    #!/usr/bin/env bash
+    # Run every formatter even if one fails, so e.g. a vp/pnpm hiccup can't skip gofmt
+    failed=0
+    for target in frontend js go just; do
+        just "_format-${target}" || failed=1
+    done
+    exit "${failed}"
 
 [group('quality')]
 _format-check-all:
