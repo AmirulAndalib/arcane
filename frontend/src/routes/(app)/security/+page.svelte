@@ -16,6 +16,7 @@
 	import { TabBar, type TabItem } from '#lib/components/tab-bar';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { environmentStore } from '#lib/stores/environment.store.svelte';
+	import { activityStore } from '#lib/stores/activity.store.svelte';
 	import { hasPermission } from '#lib/utils/auth';
 	import { mapVulnerabilityPage, mapVulnerabilityRequest } from '#lib/utils/vulnerability';
 	import { useUrlTab } from '#lib/hooks/use-url-tab.svelte';
@@ -199,6 +200,21 @@
 	});
 
 	useEnvironmentRefresh(refreshAll);
+
+	let activePatchActivityIds = new Set<string>();
+	$effect(() => {
+		const active = new Set(
+			activityStore.activities
+				.filter(
+					(a) =>
+						(a.type === 'image_patch' || a.type === 'vulnerability_scan') && (a.status === 'queued' || a.status === 'running')
+				)
+				.map((a) => a.id)
+		);
+		const finished = [...activePatchActivityIds].some((id) => !active.has(id));
+		activePatchActivityIds = active;
+		if (finished) void loadPatches();
+	});
 
 	$effect(() => () => {
 		destroyed = true;
