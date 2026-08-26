@@ -12,7 +12,7 @@ require (
 	charm.land/log/v2 v2.0.0
 	emperror.dev/errors v0.8.1
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/getarcaneapp/arcane/types/v2 v2.6.0
+	github.com/getarcaneapp/arcane/types/v2 v2.9.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/mattn/go-runewidth v0.0.28
 	github.com/samber/hot v0.13.0
@@ -20,8 +20,8 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
-	go.getarcane.app/acfs v0.4.2
-	go.getarcane.app/sys/bytes v0.1.0
+	go.getarcane.app/acfs v0.5.0
+	go.getarcane.app/sys/bytes v0.2.0
 )
 
 require (

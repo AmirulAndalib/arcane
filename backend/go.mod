@@ -31,8 +31,8 @@ require (
 	github.com/docker/compose/v5 v5.5.0
 	github.com/docker/go-units v0.5.0
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/getarcaneapp/arcane/cli/v2 v2.8.1
-	github.com/getarcaneapp/arcane/types/v2 v2.8.1
+	github.com/getarcaneapp/arcane/cli/v2 v2.9.0
+	github.com/getarcaneapp/arcane/types/v2 v2.9.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/go-webauthn/webauthn v0.17.4
 	github.com/gofrs/flock v0.13.0
@@ -63,13 +63,14 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/subosito/gotenv v1.6.0
 	github.com/wneessen/go-mail v0.8.1
-	go.getarcane.app/acfs v0.4.2
-	go.getarcane.app/builds v0.3.1
-	go.getarcane.app/docker/convert v0.2.0
+	go.getarcane.app/acfs v0.5.0
+	go.getarcane.app/builds v0.4.0
+	go.getarcane.app/docker/convert v0.3.0
+	go.getarcane.app/kit v0.1.0
 	go.getarcane.app/streams v0.4.0
-	go.getarcane.app/sys/cgroup v0.1.1
-	go.getarcane.app/sys/crypto v0.1.0
-	go.getarcane.app/updater v0.7.3
+	go.getarcane.app/sys/cgroup v0.2.0
+	go.getarcane.app/sys/crypto v0.2.0
+	go.getarcane.app/updater v0.8.0
 	go.uber.org/fx v1.24.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 	golang.org/x/crypto v0.55.0
@@ -141,7 +142,7 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/cpuguy83/go-docker v0.4.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
-	github.com/depot/depot-go v0.5.2 // indirect
+	github.com/depot/depot-go v0.5.3 // indirect
 	github.com/docker/buildx v0.36.1 // indirect
 	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
@@ -258,7 +259,7 @@ require (
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/tonistiigi/dchapes-mode v0.0.0-20250318174251-73d941a28323 // indirect
-	github.com/tonistiigi/fsutil v0.0.0-20260717003753-6d9dc2ebad62 // indirect
+	github.com/tonistiigi/fsutil v0.0.0-20260819142231-83cac42c1c52 // indirect
 	github.com/tonistiigi/go-csvvalue v0.0.0-20240814133006-030d3b2625d0 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea // indirect
 	github.com/tonistiigi/vt100 v0.0.0-20240514184818-90bafcd6abab // indirect
@@ -273,7 +274,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	github.com/zmb3/spotify/v2 v2.3.1 // indirect
-	go.getarcane.app/sys/atomic v0.1.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.69.0 // indirect
