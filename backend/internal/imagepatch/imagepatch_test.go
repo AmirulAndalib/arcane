@@ -60,7 +60,7 @@ func TestListPatchTargets_ExcludesUntaggedImages(t *testing.T) {
 	dsn := fmt.Sprintf("file:image-patch-test-%d?mode=memory&cache=shared", time.Now().UnixNano())
 	gdb, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, gdb.AutoMigrate(&vulnerability.VulnerabilityScanRecord{}, &ImagePatchRecord{}))
+	require.NoError(t, gdb.AutoMigrate(&vulnerability.VulnerabilityScanRecord{}, &vulnerability.VulnerabilityReportRecord{}, &ImagePatchRecord{}))
 	db := &database.DB{DB: gdb}
 
 	svc := &ImagePatchService{
@@ -68,15 +68,15 @@ func TestListPatchTargets_ExcludesUntaggedImages(t *testing.T) {
 		dockerService: docker.NewDockerClientService(ctx, nil, &config.Config{DockerHost: "unix:///nonexistent-arcane-test.sock"}, nil),
 	}
 
-	reportPath := "/data/vulnerability-reports/test.json"
 	fixable := 3
 	records := []vulnerability.VulnerabilityScanRecord{
-		{ID: "sha256:aaa", ImageName: "nginx:latest", Status: vulnerability.ScanStatusCompleted, ScanTime: time.Now(), ReportPath: &reportPath, FixableCount: &fixable},
-		{ID: "sha256:bbb", ImageName: "sha256:bbb", Status: vulnerability.ScanStatusCompleted, ScanTime: time.Now(), ReportPath: &reportPath, FixableCount: &fixable},
-		{ID: "sha256:ccc", ImageName: "<none>:<none>", Status: vulnerability.ScanStatusCompleted, ScanTime: time.Now(), ReportPath: &reportPath, FixableCount: &fixable},
+		{ID: "sha256:aaa", ImageName: "nginx:latest", Status: vulnerability.ScanStatusCompleted, ScanTime: time.Now(), FixableCount: &fixable},
+		{ID: "sha256:bbb", ImageName: "sha256:bbb", Status: vulnerability.ScanStatusCompleted, ScanTime: time.Now(), FixableCount: &fixable},
+		{ID: "sha256:ccc", ImageName: "<none>:<none>", Status: vulnerability.ScanStatusCompleted, ScanTime: time.Now(), FixableCount: &fixable},
 	}
 	for i := range records {
 		require.NoError(t, db.Create(&records[i]).Error)
+		require.NoError(t, db.Create(&vulnerability.VulnerabilityReportRecord{ImageID: records[i].ID, Data: "{}"}).Error)
 	}
 
 	targets, _, err := svc.ListPatchTargets(ctx, "0", pagination.QueryParams{Limit: 20})

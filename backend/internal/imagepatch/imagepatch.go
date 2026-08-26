@@ -38,7 +38,6 @@ import (
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/utils/logging"
 	activitytypes "github.com/getarcaneapp/arcane/types/v2/activity"
 	"github.com/getarcaneapp/arcane/types/v2/imagepatch"
-	vulntypes "github.com/getarcaneapp/arcane/types/v2/vulnerability"
 )
 
 // ImagePatchService patches image OS packages in place using the Copacetic
@@ -110,24 +109,18 @@ func (s *ImagePatchService) PatchImage(ctx context.Context, envID, imageID strin
 
 	// Resolve the stored scan report when patching from a scan.
 	mode := imagepatch.PatchModeUpdateAll
-	reportPath := ""
+	var reportData []byte
 	if strings.TrimSpace(opts.ScanID) != "" {
 		// Scan records are keyed by image ID; refuse a scan belonging to a
 		// different image than the one selected by the route.
 		if opts.ScanID != imageInspect.ID {
 			return nil, common.ErrPatchScanImageMismatch
 		}
-		var scan vulnerability.VulnerabilityScanRecord
-		if err := s.db.WithContext(runCtx).First(&scan, "id = ?", opts.ScanID).Error; err != nil {
+		var report vulnerability.VulnerabilityReportRecord
+		if err := s.db.WithContext(runCtx).First(&report, "image_id = ?", opts.ScanID).Error; err != nil || len(report.Data) == 0 {
 			return nil, common.ErrPatchScanReportUnavailable
 		}
-		if scan.ReportPath == nil || strings.TrimSpace(*scan.ReportPath) == "" {
-			return nil, common.ErrPatchScanReportUnavailable
-		}
-		if exists, err := acfs.Exists(runCtx, filepath.Dir(*scan.ReportPath), "/"+filepath.Base(*scan.ReportPath)); err != nil || !exists {
-			return nil, common.ErrPatchScanReportUnavailable
-		}
-		reportPath = *scan.ReportPath
+		reportData = []byte(report.Data)
 		mode = imagepatch.PatchModeReport
 	}
 
@@ -187,13 +180,13 @@ func (s *ImagePatchService) PatchImage(ctx context.Context, envID, imageID strin
 		"patchTarget", copaImageRef,
 	)
 
-	go s.patchInBackgroundInternal(runCtx, record, opts, reportPath, copaImageRef, activityID)
+	go s.patchInBackgroundInternal(runCtx, record, opts, reportData, copaImageRef, activityID)
 
 	dto := record.ToDto()
 	return &dto, nil
 }
 
-func (s *ImagePatchService) patchInBackgroundInternal(ctx context.Context, record *ImagePatchRecord, opts imagepatch.PatchOptions, reportPath, copaImageRef, activityID string) {
+func (s *ImagePatchService) patchInBackgroundInternal(ctx context.Context, record *ImagePatchRecord, opts imagepatch.PatchOptions, reportData []byte, copaImageRef, activityID string) {
 	select {
 	case s.patchSlot <- struct{}{}:
 		defer func() { <-s.patchSlot }()
@@ -201,6 +194,23 @@ func (s *ImagePatchService) patchInBackgroundInternal(ctx context.Context, recor
 		s.finishPatchRecordInternal(ctx, record, imagepatch.PatchStatusFailed, ctx.Err().Error(), nil, 0)
 		s.completePatchActivityInternal(ctx, activityID, false, ctx.Err().Error())
 		return
+	}
+
+	// Copa consumes the scan report as a file; materialize the stored report
+	// into a temp file for the duration of the run.
+	reportPath := ""
+	if len(reportData) > 0 {
+		reportDir, err := os.MkdirTemp("", "arcane-patch-report")
+		if err == nil {
+			reportPath = filepath.Join(reportDir, "report.json")
+			err = os.WriteFile(reportPath, reportData, 0o600)
+			defer os.RemoveAll(reportDir)
+		}
+		if err != nil {
+			s.finishPatchRecordInternal(ctx, record, imagepatch.PatchStatusFailed, err.Error(), nil, 0)
+			s.completePatchActivityInternal(ctx, activityID, false, err.Error())
+			return
+		}
 	}
 
 	startTime := time.Now()
@@ -503,37 +513,29 @@ func (s *ImagePatchService) ListPatchTargets(ctx context.Context, envID string, 
 	}
 
 	// Only list images that are actionable (fixable vulnerabilities) or carry
-	// patch history. NULL fixable_count means a pre-column scan record; keep it
-	// visible until the next scan fills the count in.
+	// patch history.
 	patchedImageIDs := s.db.Model(&ImagePatchRecord{}).
 		Distinct().
 		Select("original_image_id").
 		Where("environment_id = ?", envID)
+	reportImageIDs := s.db.Model(&vulnerability.VulnerabilityReportRecord{}).Select("image_id")
 	q := s.db.WithContext(ctx).
 		Model(&vulnerability.VulnerabilityScanRecord{}).
-		Where("status = ? AND report_path IS NOT NULL", vulnerability.ScanStatusCompleted).
-		Where("(fixable_count > 0 OR fixable_count IS NULL OR id IN (?))", patchedImageIDs).
+		Where("status = ?", vulnerability.ScanStatusCompleted).
+		Where("id IN (?)", reportImageIDs).
+		Where("(fixable_count > 0 OR id IN (?))", patchedImageIDs).
 		Where("image_name NOT LIKE 'sha256:%' AND image_name NOT LIKE '%<none>%' AND image_name <> id")
 	if len(excludedNames) > 0 {
 		q = q.Where("image_name NOT IN ?", excludedNames)
 	}
-	if term := strings.TrimSpace(params.Search); term != "" {
-		q = q.Where("image_name LIKE ?", "%"+term+"%")
-	}
+	q = pagination.ApplyLikeSearch(q, params.Search, "image_name LIKE ?")
 
-	var totalItems int64
-	if err := q.Count(&totalItems).Error; err != nil {
-		return nil, pagination.Response{}, errors.WrapIf(err, "failed to count patch targets")
+	if params.Sort == "" {
+		params.Sort = "scanTime"
 	}
-
-	limit := params.Limit
-	if limit <= 0 {
-		limit = 20
-		params.Limit = limit
-	}
-
 	var scans []vulnerability.VulnerabilityScanRecord
-	if err := q.Order("scan_time DESC").Offset(params.Start).Limit(limit).Find(&scans).Error; err != nil {
+	paginationResp, err := pagination.PaginateAndSortDB(params, q, &scans)
+	if err != nil {
 		return nil, pagination.Response{}, errors.WrapIf(err, "failed to list patch targets")
 	}
 
@@ -547,7 +549,7 @@ func (s *ImagePatchService) ListPatchTargets(ctx context.Context, envID string, 
 		target := imagepatch.PatchTarget{
 			ImageID:      scan.ID,
 			ImageRef:     scan.ImageName,
-			FixableCount: fixableVulnerabilityCountInternal(ctx, scan),
+			FixableCount: mo.PointerToOption(scan.FixableCount).OrEmpty(),
 			TotalCount:   scan.TotalCount,
 			ScanTime:     scan.ScanTime,
 		}
@@ -570,7 +572,7 @@ func (s *ImagePatchService) ListPatchTargets(ctx context.Context, envID string, 
 		targets = append(targets, target)
 	}
 
-	return targets, pagination.BuildResponse(totalItems, totalItems, params), nil
+	return targets, paginationResp, nil
 }
 
 // patchedImageScanSummaryInternal looks up the scan of a completed patch's
@@ -593,40 +595,10 @@ func (s *ImagePatchService) patchedImageScanSummaryInternal(ctx context.Context,
 	}
 	return &imagepatch.PatchScanSummary{
 		Status:       scan.Status,
-		FixableCount: fixableVulnerabilityCountInternal(ctx, &scan),
+		FixableCount: mo.PointerToOption(scan.FixableCount).OrEmpty(),
 		TotalCount:   scan.TotalCount,
 		ScanTime:     scan.ScanTime,
 	}
-}
-
-func fixableVulnerabilityCountInternal(ctx context.Context, scan *vulnerability.VulnerabilityScanRecord) int {
-	if scan.FixableCount != nil {
-		return *scan.FixableCount
-	}
-	if scan.ReportPath == nil || strings.TrimSpace(*scan.ReportPath) == "" {
-		return 0
-	}
-	data, err := acfs.ReadFile(ctx, filepath.Dir(*scan.ReportPath), "/"+filepath.Base(*scan.ReportPath))
-	if err != nil {
-		return 0
-	}
-	var report vulntypes.TrivyReport
-	if err := json.Unmarshal(data, &report); err != nil {
-		return 0
-	}
-	count := 0
-	for i := range report.Results {
-		res := &report.Results[i]
-		if res.Class != vulntypes.TrivyClassOSPackages {
-			continue
-		}
-		for j := range res.Vulnerabilities {
-			if strings.TrimSpace(res.Vulnerabilities[j].FixedVersion) != "" {
-				count++
-			}
-		}
-	}
-	return count
 }
 
 // PatchFlaggedImages patches every image whose latest completed vulnerability
@@ -637,7 +609,8 @@ func fixableVulnerabilityCountInternal(ctx context.Context, scan *vulnerability.
 func (s *ImagePatchService) PatchFlaggedImages(ctx context.Context, envID string, user common.User) (patched, skipped int, err error) {
 	var scans []vulnerability.VulnerabilityScanRecord
 	if err := s.db.WithContext(ctx).
-		Where("status = ? AND total_count > 0 AND report_path IS NOT NULL", vulnerability.ScanStatusCompleted).
+		Where("status = ? AND fixable_count > 0", vulnerability.ScanStatusCompleted).
+		Where("id IN (?)", s.db.Model(&vulnerability.VulnerabilityReportRecord{}).Select("image_id")).
 		Where("image_name NOT LIKE 'sha256:%' AND image_name NOT LIKE '%<none>%' AND image_name <> id").
 		Find(&scans).Error; err != nil {
 		return 0, 0, errors.WrapIf(err, "failed to list vulnerability scans")
@@ -650,12 +623,6 @@ func (s *ImagePatchService) PatchFlaggedImages(ctx context.Context, envID string
 
 	for i := range scans {
 		scan := &scans[i]
-
-		// Only patch images whose scan found at least one fixable vulnerability.
-		if fixableVulnerabilityCountInternal(ctx, scan) == 0 {
-			skipped++
-			continue
-		}
 
 		if _, isPatchOutput := patchedRefs[scan.ImageName]; isPatchOutput {
 			skipped++

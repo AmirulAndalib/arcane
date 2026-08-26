@@ -31,7 +31,7 @@
 	let showIgnored = $state(false);
 
 	function withIgnoredFilter(options: SearchPaginationSortRequest, show: boolean): SearchPaginationSortRequest {
-		const filters = { ...(options.filters ?? {}) };
+		const filters = { ...options.filters };
 		if (show) {
 			filters['ignored'] = 'true';
 		} else {
@@ -68,9 +68,7 @@
 		data: [],
 		pagination: { totalPages: 0, totalItems: 0, currentPage: 1, itemsPerPage: 20 }
 	});
-	let patchRequestOptions = $state<SearchPaginationSortRequest>({
-		pagination: { page: 1, limit: 20 }
-	});
+	let patchRequestOptions = $state<SearchPaginationSortRequest>(untrack(() => data.patchRequestOptions));
 	async function loadPatches() {
 		try {
 			const response = await imageService.listPatchTargets(patchRequestOptions);

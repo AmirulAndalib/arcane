@@ -81,9 +81,9 @@
 	}
 
 	const columns = $derived([
-		{ accessorKey: 'imageRef', title: m.common_image(), cell: ImageCell },
-		{ accessorKey: 'fixableCount', title: m.security_fixable(), cell: FixableCell },
-		{ accessorKey: 'scanTime', title: m.security_last_scanned(), cell: ScannedCell },
+		{ id: 'imageName', accessorKey: 'imageRef', title: m.common_image(), sortable: true, cell: ImageCell },
+		{ accessorKey: 'fixableCount', title: m.security_fixable(), sortable: true, cell: FixableCell },
+		{ accessorKey: 'scanTime', title: m.security_last_scanned(), sortable: true, cell: ScannedCell },
 		{ id: 'lastPatch', title: m.security_last_patch(), cell: LastPatchCell },
 		{ id: 'patchedRef', title: m.security_patched_ref(), cell: PatchedRefCell }
 	] satisfies ColumnSpec<PatchTargetRow>[]);
