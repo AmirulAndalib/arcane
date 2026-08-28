@@ -883,7 +883,7 @@ func setupVolumeBackupLifecycleTestInternal(t *testing.T, handler http.Handler) 
 	db := &database.DB{DB: gormDB}
 	dockerService := docker.NewDockerClientService(t.Context(), db, &config.Config{}, nil).WithClient(dockerClient)
 	eventService := event.NewEventService(db, &config.Config{}, nil)
-	containerService := containerdomain.NewContainerService(t.Context(), eventService, dockerService, nil, nil, nil)
+	containerService := containerdomain.NewContainerService(eventService, dockerService, nil, nil, nil)
 	return &VolumeService{containerService: containerService}, dockerClient
 }
 
