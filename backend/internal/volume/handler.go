@@ -173,6 +173,7 @@ type ListBackupsInput struct {
 	Order         string `query:"order" default:"asc" doc:"Sort direction"`
 	Start         int    `query:"start" default:"0" doc:"Start index"`
 	Limit         int    `query:"limit" default:"20" doc:"Limit"`
+	Type          string `query:"type" doc:"Management origin filter"`
 }
 
 type VolumeBackupPaginatedResponse struct {
@@ -949,6 +950,9 @@ func (h *VolumeHandler) ListBackups(ctx context.Context, input *ListBackupsInput
 		Order:  pagination.SortOrder(input.Order),
 		Start:  input.Start,
 		Limit:  input.Limit,
+		Filters: map[string]string{
+			"type": input.Type,
+		},
 	}
 
 	if params.Limit == 0 {

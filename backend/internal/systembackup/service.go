@@ -1504,29 +1504,27 @@ func (s *SystemBackupService) UpdatePolicies(ctx context.Context, updates []back
 	if err != nil {
 		return nil, err
 	}
-	reconcile := backup.PolicyReconciliation[SystemBackupPolicy]{
+	reconcile := backup.PolicyReconciliation[SystemBackupPolicy, backuptypes.UpdateSystemBackupPolicy]{
 		Domain:   "system",
 		DB:       s.db,
 		Existing: existing,
 		ID:       func(policy *SystemBackupPolicy) string { return policy.ID },
+		UpdateID: func(update backuptypes.UpdateSystemBackupPolicy) string { return update.ID },
 		New:      func() SystemBackupPolicy { return SystemBackupPolicy{} },
-		Apply: func(policy *SystemBackupPolicy, update backuptypes.UpdateBackupPolicy) {
-			policy.Enabled, policy.Schedule, policy.RetentionCount = update.Enabled, update.Schedule, update.RetentionCount
-			policy.LocalEnabled, policy.S3Enabled, policy.S3DestinationID = update.LocalEnabled, update.S3Enabled, update.S3DestinationID
-		},
-		ValidateUpdate: func(update backuptypes.UpdateBackupPolicy) error {
+		Build: func(ctx context.Context, policy *SystemBackupPolicy, update backuptypes.UpdateSystemBackupPolicy) error {
+			normalized, normalizeErr := backup.ValidatePolicyUpdate(ctx, "system", update, s.s3Destinations)
+			if normalizeErr != nil {
+				return normalizeErr
+			}
+			update = normalized
 			if update.Enabled && !configured {
 				return errors.New("configure a recovery key before enabling scheduled system backups")
 			}
 			if update.Enabled && !s.SupportedDatabaseProvider() {
 				return errors.New("scheduled system backups require the SQLite database provider")
 			}
-			return nil
-		},
-		S3Configured: func(ctx context.Context, destinationID string) error {
-			if _, err := s.s3Destinations.Configuration(ctx, destinationID); err != nil {
-				return errors.New("select a valid S3 destination for system backups")
-			}
+			policy.Enabled, policy.Schedule, policy.RetentionCount = update.Enabled, update.Schedule, update.RetentionCount
+			policy.LocalEnabled, policy.S3Enabled, policy.S3DestinationID = update.LocalEnabled, update.S3Enabled, update.S3DestinationID
 			return nil
 		},
 		Unregister: s.jobs.Unregister,
@@ -1612,7 +1610,17 @@ func (s *SystemBackupService) RegisterBackupJobOnStartup(ctx context.Context) {
 	for i := range policies {
 		s.rescheduleSystemBackupPolicyInternal(ctx, &policies[i])
 	}
-	slog.InfoContext(ctx, "Registered scheduled Arcane system backup jobs", "count", len(policies))
+	volumePolicyCount := 0
+	volumePolicies, configErr := s.loadSystemVolumeBackupPoliciesInternal()
+	if configErr != nil {
+		slog.ErrorContext(ctx, "Failed to load system-managed volume backup policies", "error", configErr)
+	} else {
+		volumePolicyCount = len(volumePolicies.Policies)
+		for i := range volumePolicies.Policies {
+			s.rescheduleSystemVolumeBackupInternal(ctx, &volumePolicies.Policies[i])
+		}
+	}
+	slog.InfoContext(ctx, "Registered backup schedules", "systemPolicies", len(policies), "volumePolicies", volumePolicyCount)
 }
 
 func (s *SystemBackupService) applyRetentionInternal(ctx context.Context, policyID string, keep int) error {

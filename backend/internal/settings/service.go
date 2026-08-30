@@ -304,7 +304,8 @@ func DefaultSettingsConfig() *Settings {
 		ApnsChannelID:  SettingVariable{Value: ""},
 		ApnsSigningKey: SettingVariable{Value: ""},
 
-		InstanceID: SettingVariable{Value: ""},
+		InstanceID:               SettingVariable{Value: ""},
+		SystemVolumeBackupConfig: SettingVariable{Value: `{"policies":[]}`},
 	}
 }
 
