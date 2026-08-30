@@ -40,7 +40,7 @@
 		{ accessorKey: 'trigger', title: m.volume_backup_trigger(), sortable: true, cell: TriggerCell },
 		{ accessorKey: 'destination', title: m.backups_destination_label(), sortable: true, cell: DestinationCell },
 		{ accessorKey: 'size', title: m.common_size(), sortable: true, cell: SizeCell },
-		{ accessorKey: 'createdAt', title: m.common_created(), sortable: true, cell: CreatedCell },
+		{ accessorKey: 'createdAt', title: m.common_created(), sortable: true, cellComponent: CreatedAtCell },
 		{ accessorKey: 'error', title: m.common_error(), sortable: false, cell: ErrorCell }
 	] satisfies ColumnSpec<SystemBackupRun>[];
 	const mobileFields = [
@@ -56,7 +56,6 @@
 {#snippet TriggerCell({ item }: { item: SystemBackupRun })}<BackupTriggerCell trigger={item.trigger} />{/snippet}
 {#snippet DestinationCell({ item }: { item: SystemBackupRun })}<BackupDestinationCell {item} />{/snippet}
 {#snippet SizeCell({ item }: { item: SystemBackupRun })}<BackupSizeCell size={item.size} />{/snippet}
-{#snippet CreatedCell({ item }: { item: SystemBackupRun })}<CreatedAtCell value={item.createdAt} />{/snippet}
 {#snippet ErrorCell({ item }: { item: SystemBackupRun })}<span class="max-w-72 truncate text-red-500">{item.error || '-'}</span
 	>{/snippet}
 
