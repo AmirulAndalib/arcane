@@ -1139,6 +1139,24 @@ func entriesNeedDirectorySyncInternal(entries []string, allowed map[string]struc
 	return false
 }
 
+// buildSwarmStackDeployRequestInternal assembles the deploy request for a Git Sync that targets
+// a Swarm stack. WithRegistryAuth is always set so the Git Sync path resolves stored registry
+// credentials the same way a direct stack deploy does. Resolution happens per image at deploy
+// time and yields nothing unless a configured container registry matches that image's host, so
+// stacks built only from public images are unaffected.
+func buildSwarmStackDeployRequestInternal(sync *projectpkg.GitOpsSync, source *preparedSyncSource, overrideContent string, envContent string, swarmFiles []swarmtypes.SyncFile) swarmtypes.StackDeployRequest {
+	return swarmtypes.StackDeployRequest{
+		Name:             sync.ProjectName,
+		ComposeContent:   source.composeContent,
+		OverrideContent:  overrideContent,
+		EnvContent:       envContent,
+		Files:            swarmFiles,
+		Prune:            true,
+		WithRegistryAuth: true,
+		WorkingDir:       filepath.Dir(filepath.Join(source.repoPath, sync.ComposePath)),
+	}
+}
+
 // performSwarmStackSyncInternal executes a single file sync targeted at a Swarm Stack
 func (s *GitOpsSyncService) performSwarmStackSyncInternal(ctx context.Context, sync *projectpkg.GitOpsSync, id string, actor common.User, result *gitops.SyncResult, source *preparedSyncSource) (*gitops.SyncResult, error) {
 	slog.InfoContext(ctx, "Deploying Swarm Stack from GitOps sync", "syncId", id, "stackName", sync.ProjectName)
@@ -1176,15 +1194,7 @@ func (s *GitOpsSyncService) performSwarmStackSyncInternal(ctx context.Context, s
 		syncedFiles = append(syncedFiles, f.RelativePath)
 	}
 
-	req := swarmtypes.StackDeployRequest{
-		Name:            sync.ProjectName,
-		ComposeContent:  source.composeContent,
-		OverrideContent: overrideContent,
-		EnvContent:      envContent,
-		Files:           swarmFiles,
-		Prune:           true,
-		WorkingDir:      filepath.Dir(filepath.Join(source.repoPath, sync.ComposePath)),
-	}
+	req := buildSwarmStackDeployRequestInternal(sync, source, overrideContent, envContent, swarmFiles)
 
 	if _, err := s.swarmService.DeployStack(ctx, sync.EnvironmentID, req); err != nil {
 		return result, s.failSync(ctx, id, result, sync, actor, "Failed to deploy swarm stack", err.Error())

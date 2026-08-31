@@ -1846,13 +1846,18 @@ func (s *SwarmService) UpdateStackSource(ctx context.Context, environmentID, sta
 	// push the updated spec to the running services so the edit takes effect.
 	// The saved source is the full stack spec, so services removed from it
 	// must also be removed from the swarm.
+	// WithRegistryAuth is always set, the same as the Git Sync deploy path:
+	// resolution is per image and yields nothing unless a configured container
+	// registry matches the image host. Without it, a service added in the edit
+	// has no previous spec to fall back on and private images fail to pull.
 	if _, err := deployStackAfterSourceUpdateInternal(s, ctx, environmentID, swarmtypes.StackDeployRequest{
-		Name:            stackName,
-		ComposeContent:  req.ComposeContent,
-		OverrideContent: req.OverrideContent,
-		EnvContent:      req.EnvContent,
-		Files:           req.Files,
-		Prune:           true,
+		Name:             stackName,
+		ComposeContent:   req.ComposeContent,
+		OverrideContent:  req.OverrideContent,
+		EnvContent:       req.EnvContent,
+		Files:            req.Files,
+		Prune:            true,
+		WithRegistryAuth: true,
 	}); err != nil {
 		// Roll back the persisted source so reads never return an edit that
 		// was never successfully deployed.
