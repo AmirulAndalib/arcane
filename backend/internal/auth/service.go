@@ -43,6 +43,7 @@ const (
 
 type TokenPair struct {
 	AccessToken  string    `json:"accessToken"`
+	BrowserToken string    `json:"-"`
 	RefreshToken string    `json:"refreshToken"`
 	ExpiresAt    time.Time `json:"expiresAt"`
 }
@@ -60,16 +61,17 @@ type verifiedTokenEntry struct {
 }
 
 type AuthService struct {
-	userService     *user.UserService
-	settingsService *settings.SettingsService
-	eventService    *event.EventService
-	sessionService  *session.SessionService
-	roleService     *role.RoleService
-	signingKeyMu    sync.Mutex
-	signingKey      *mldsa.PrivateKey
-	refreshExpiry   time.Duration
-	config          *config.Config
-	errorHandler    emperror.ErrorHandler
+	userService       *user.UserService
+	settingsService   *settings.SettingsService
+	eventService      *event.EventService
+	sessionService    *session.SessionService
+	roleService       *role.RoleService
+	signingKeyMu      sync.Mutex
+	signingKey        *mldsa.PrivateKey
+	browserSigningKey []byte
+	refreshExpiry     time.Duration
+	config            *config.Config
+	errorHandler      emperror.ErrorHandler
 	// tokenCache is a per-process in-memory cache for parsed user/token data.
 	// Cached entries still revalidate persisted session state so revocation
 	// performed by another process takes effect immediately.
@@ -703,6 +705,26 @@ func (s *AuthService) signingKeyInternal(ctx context.Context) (*mldsa.PrivateKey
 	return key, nil
 }
 
+func (s *AuthService) browserSigningKeyInternal(ctx context.Context) ([]byte, error) {
+	s.signingKeyMu.Lock()
+	defer s.signingKeyMu.Unlock()
+	if len(s.browserSigningKey) == browserSessionSigningKeySize {
+		return s.browserSigningKey, nil
+	}
+	if s.settingsService == nil {
+		return nil, common.Classify(common.ErrUnavailable, errors.New("browser session signing key is not configured"))
+	}
+	key, err := s.settingsService.EnsureBrowserSessionSigningKey(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(key) != browserSessionSigningKeySize {
+		return nil, common.Classify(common.ErrUnavailable, errors.New("browser session signing key has invalid length"))
+	}
+	s.browserSigningKey = key
+	return key, nil
+}
+
 func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string, meta auth.SessionMeta) (*TokenPair, error) {
 	signingKey, err := s.signingKeyInternal(ctx)
 	if err != nil {
@@ -754,7 +776,33 @@ func (s *AuthService) VerifyToken(ctx context.Context, accessToken string) (*com
 	if err != nil {
 		return nil, "", err
 	}
+	return s.verifyTokenClaimsInternal(ctx, accessToken, claims)
+}
 
+func (s *AuthService) VerifyBrowserToken(ctx context.Context, browserToken string) (*common.User, string, error) {
+	algorithm, ok := signedTokenAlgorithmInternal(browserToken)
+	if !ok {
+		return nil, "", common.ErrInvalidToken
+	}
+	switch algorithm {
+	case jwa.HS512().String():
+		key, err := s.browserSigningKeyInternal(ctx)
+		if err != nil {
+			return nil, "", err
+		}
+		claims, err := parseBrowserTokenInternal(ctx, browserToken, key)
+		if err != nil {
+			return nil, "", err
+		}
+		return s.verifyTokenClaimsInternal(ctx, browserToken, claims)
+	case jwa.MLDSA87().String():
+		return s.VerifyToken(ctx, browserToken)
+	default:
+		return nil, "", common.ErrInvalidToken
+	}
+}
+
+func (s *AuthService) verifyTokenClaimsInternal(ctx context.Context, rawToken string, claims *accessTokenClaims) (*common.User, string, error) {
 	if claims.AppVersion != "" && claims.AppVersion != config.Version {
 		slog.InfoContext(ctx, "Token version mismatch detected", "tokenVersion", claims.AppVersion, "currentVersion", config.Version, "user", claims.Username)
 		return nil, "", common.ErrTokenVersionMismatch
@@ -763,7 +811,7 @@ func (s *AuthService) VerifyToken(ctx context.Context, accessToken string) (*com
 		return nil, "", common.Classify(common.ErrUnavailable, errors.New("Session service is not configured"))
 	}
 
-	tokenHash := hashTokenInternal(accessToken)
+	tokenHash := hashTokenInternal(rawToken)
 	if cached, ok, _ := s.tokenCache.Get(tokenHash); ok {
 		if cached.User.ID != claims.UserID || cached.SessionID != claims.SessionID {
 			s.tokenCache.Delete(tokenHash)
@@ -975,8 +1023,32 @@ func (s *AuthService) buildTokenPairInternal(ctx context.Context, user *common.U
 		return nil, err
 	}
 
+	browserSigningKey, err := s.browserSigningKeyInternal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	browserBuilder := jwt.NewBuilder().
+		JwtID(uuid.New().String()).
+		Subject(browserTokenSubject).
+		IssuedAt(now).
+		Expiration(accessTokenExpiry).
+		Claim(claimSessionID, session.ID).
+		Claim(claimUserID, user.ID)
+	if config.Version != "" {
+		browserBuilder.Claim(claimAppVersion, config.Version)
+	}
+	browserToken, err := browserBuilder.Build()
+	if err != nil {
+		return nil, err
+	}
+	browserTokenBytes, err := jwt.Sign(browserToken, jwt.WithKey(jwa.HS512(), browserSigningKey))
+	if err != nil {
+		return nil, err
+	}
+
 	return &TokenPair{
 		AccessToken:  string(accessTokenBytes),
+		BrowserToken: string(browserTokenBytes),
 		RefreshToken: string(refreshTokenBytes),
 		ExpiresAt:    accessTokenExpiry,
 	}, nil
