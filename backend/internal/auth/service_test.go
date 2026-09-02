@@ -591,10 +591,10 @@ func TestVerifyToken_RejectsRevokedCachedSession(t *testing.T) {
 
 	_, _, err = s.VerifyToken(context.Background(), token)
 	require.NoError(t, err)
-	require.NoError(t, session.NewSessionService(db).RevokeSession(context.Background(), sessionRecord.ID))
+	require.NoError(t, s.RevokeSession(context.Background(), sessionRecord.ID))
 
 	_, _, err = s.VerifyToken(context.Background(), token)
-	require.ErrorIs(t, err, common.ErrSessionRevoked, "expected cached access token to be rejected after cross-process revocation, got %v", err)
+	require.ErrorIs(t, err, common.ErrSessionRevoked, "expected cached access token to be rejected after revocation, got %v", err)
 }
 
 func TestRefreshToken_RotatesJTI(t *testing.T) {
