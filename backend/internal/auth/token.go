@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/mldsa"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/lestrrat-go/jwx/v4/jwa"
@@ -34,6 +35,7 @@ type accessTokenClaims struct {
 	SessionID  string
 	Username   string
 	AppVersion string
+	ExpiresAt  time.Time
 }
 
 type refreshTokenClaims struct {
@@ -79,7 +81,8 @@ func parseAccessTokenInternal(ctx context.Context, rawToken string, key *mldsa.P
 	if errors.Is(usernameErr, jwt.ClaimTypeMismatchError{}) || errors.Is(appVersionErr, jwt.ClaimTypeMismatchError{}) {
 		return nil, common.ErrTokenValidation
 	}
-	return new(accessTokenClaims{UserID: userID, SessionID: sessionID, Username: username, AppVersion: appVersion}), nil
+	expiresAt, _ := token.Expiration()
+	return new(accessTokenClaims{UserID: userID, SessionID: sessionID, Username: username, AppVersion: appVersion, ExpiresAt: expiresAt}), nil
 }
 
 func parseBrowserTokenInternal(ctx context.Context, rawToken string, key []byte) (*accessTokenClaims, error) {
@@ -107,7 +110,8 @@ func parseBrowserTokenInternal(ctx context.Context, rawToken string, key []byte)
 	if errors.Is(appVersionErr, jwt.ClaimTypeMismatchError{}) {
 		return nil, common.ErrTokenValidation
 	}
-	return new(accessTokenClaims{UserID: userID, SessionID: sessionID, AppVersion: appVersion}), nil
+	expiresAt, _ := token.Expiration()
+	return new(accessTokenClaims{UserID: userID, SessionID: sessionID, AppVersion: appVersion, ExpiresAt: expiresAt}), nil
 }
 
 func signedTokenAlgorithmInternal(rawToken string) (string, bool) {

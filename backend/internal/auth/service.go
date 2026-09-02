@@ -56,8 +56,10 @@ type AuthSettings struct {
 }
 
 type verifiedTokenEntry struct {
-	User      common.User
-	SessionID string
+	User             common.User
+	SessionID        string
+	TokenExpiresAt   time.Time
+	SessionExpiresAt time.Time
 }
 
 type AuthService struct {
@@ -72,9 +74,10 @@ type AuthService struct {
 	refreshExpiry     time.Duration
 	config            *config.Config
 	errorHandler      emperror.ErrorHandler
-	// tokenCache is a per-process in-memory cache for parsed user/token data.
-	// Cached entries still revalidate persisted session state so revocation
-	// performed by another process takes effect immediately.
+	// tokenCache is a per-process in-memory cache for verified tokens. A hit
+	// skips signature verification and the user/session lookups; revocation in
+	// this process purges entries, revocation by another process is visible
+	// once the TTL lapses.
 	tokenCache *hot.HotCache[string, verifiedTokenEntry]
 }
 
@@ -92,7 +95,7 @@ func NewAuthService(userService *user.UserService, settingsService *settings.Set
 		config:          cfg,
 		errorHandler:    errorHandler,
 		tokenCache: hot.NewHotCache[string, verifiedTokenEntry](hot.LRU, 4096).
-			WithTTL(15 * time.Second).
+			WithTTL(60 * time.Second).
 			WithJanitor().
 			Build(),
 	}
@@ -768,6 +771,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string, met
 }
 
 func (s *AuthService) VerifyToken(ctx context.Context, accessToken string) (*common.User, string, error) {
+	tokenHash := hashTokenInternal(accessToken)
+	if user, sessionID, ok := s.cachedVerificationInternal(tokenHash); ok {
+		return user, sessionID, nil
+	}
 	signingKey, err := s.signingKeyInternal(ctx)
 	if err != nil {
 		return nil, "", err
@@ -776,10 +783,14 @@ func (s *AuthService) VerifyToken(ctx context.Context, accessToken string) (*com
 	if err != nil {
 		return nil, "", err
 	}
-	return s.verifyTokenClaimsInternal(ctx, accessToken, claims)
+	return s.verifyTokenClaimsInternal(ctx, tokenHash, claims)
 }
 
 func (s *AuthService) VerifyBrowserToken(ctx context.Context, browserToken string) (*common.User, string, error) {
+	tokenHash := "browser:" + hashTokenInternal(browserToken)
+	if user, sessionID, ok := s.cachedVerificationInternal(tokenHash); ok {
+		return user, sessionID, nil
+	}
 	algorithm, ok := signedTokenAlgorithmInternal(browserToken)
 	if !ok {
 		return nil, "", common.ErrInvalidToken
@@ -794,7 +805,7 @@ func (s *AuthService) VerifyBrowserToken(ctx context.Context, browserToken strin
 		if err != nil {
 			return nil, "", err
 		}
-		return s.verifyTokenClaimsInternal(ctx, browserToken, claims)
+		return s.verifyTokenClaimsInternal(ctx, tokenHash, claims)
 	case jwa.MLDSA87().String():
 		return s.VerifyToken(ctx, browserToken)
 	default:
@@ -802,37 +813,26 @@ func (s *AuthService) VerifyBrowserToken(ctx context.Context, browserToken strin
 	}
 }
 
-func (s *AuthService) verifyTokenClaimsInternal(ctx context.Context, rawToken string, claims *accessTokenClaims) (*common.User, string, error) {
+func (s *AuthService) cachedVerificationInternal(tokenHash string) (*common.User, string, bool) {
+	cached, ok, _ := s.tokenCache.Get(tokenHash)
+	if !ok {
+		return nil, "", false
+	}
+	now := time.Now()
+	if now.After(cached.TokenExpiresAt) || now.After(cached.SessionExpiresAt) {
+		s.tokenCache.Delete(tokenHash)
+		return nil, "", false
+	}
+	return new(cached.User), cached.SessionID, true
+}
+
+func (s *AuthService) verifyTokenClaimsInternal(ctx context.Context, tokenHash string, claims *accessTokenClaims) (*common.User, string, error) {
 	if claims.AppVersion != "" && claims.AppVersion != config.Version {
 		slog.InfoContext(ctx, "Token version mismatch detected", "tokenVersion", claims.AppVersion, "currentVersion", config.Version, "user", claims.Username)
 		return nil, "", common.ErrTokenVersionMismatch
 	}
 	if s.sessionService == nil {
 		return nil, "", common.Classify(common.ErrUnavailable, errors.New("Session service is not configured"))
-	}
-
-	tokenHash := hashTokenInternal(rawToken)
-	if cached, ok, _ := s.tokenCache.Get(tokenHash); ok {
-		if cached.User.ID != claims.UserID || cached.SessionID != claims.SessionID {
-			s.tokenCache.Delete(tokenHash)
-			return nil, "", common.ErrInvalidToken
-		}
-
-		userSession, err := s.sessionService.GetSessionByID(ctx, cached.SessionID)
-		if err != nil {
-			s.tokenCache.Delete(tokenHash)
-			return nil, "", err
-		}
-		if userSession.UserID != cached.User.ID {
-			s.tokenCache.Delete(tokenHash)
-			return nil, "", common.ErrInvalidToken
-		}
-		if err := session.ValidateActive(userSession); err != nil {
-			s.tokenCache.Delete(tokenHash)
-			return nil, "", err
-		}
-
-		return new(cached.User), cached.SessionID, nil
 	}
 
 	// Verify user exists in DB
@@ -857,7 +857,7 @@ func (s *AuthService) verifyTokenClaimsInternal(ctx context.Context, rawToken st
 		return nil, "", err
 	}
 
-	s.tokenCache.Set(tokenHash, verifiedTokenEntry{User: *dbUser, SessionID: userSession.ID})
+	s.tokenCache.Set(tokenHash, verifiedTokenEntry{User: *dbUser, SessionID: userSession.ID, TokenExpiresAt: claims.ExpiresAt, SessionExpiresAt: userSession.ExpiresAt})
 
 	return dbUser, userSession.ID, nil
 }
