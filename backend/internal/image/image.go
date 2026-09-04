@@ -938,10 +938,7 @@ func BuildVolumeUsageMap(containers []container.Summary, projectIDByName map[str
 			continue
 		}
 
-		containerName := ""
-		if len(c.Names) > 0 {
-			containerName = strings.TrimPrefix(c.Names[0], "/")
-		}
+		containerName := dockerutils.ContainerNameFromNames(c.Names)
 		if containerName == "" {
 			containerName = c.ID
 		}

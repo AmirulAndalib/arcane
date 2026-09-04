@@ -13,6 +13,8 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/getarcaneapp/arcane/backend/v2/pkg/utils/httpx"
+
 	"emperror.dev/errors"
 
 	"github.com/cenkalti/backoff/v5"
@@ -81,11 +83,11 @@ func NewTunnelClient(cfg *Config, handler http.Handler) *TunnelClient {
 	}
 
 	managerURL := ""
-	if managerBaseURL := strings.TrimRight(cfg.GetManagerBaseURL(), "/"); managerBaseURL != "" {
+	if managerBaseURL := strings.TrimRight(httpx.ManagerBaseURL(cfg.ManagerApiUrl), "/"); managerBaseURL != "" {
 		// Convert HTTP to WebSocket URL
 		managerURL = HTTPToWebSocketURL(managerBaseURL) + "/api/tunnel/connect"
 	}
-	managerGRPCAddr := cfg.GetManagerGRPCAddr()
+	managerGRPCAddr := httpx.ManagerGRPCAddr(cfg.ManagerApiUrl)
 
 	// Get local port for WebSocket dialing
 	localPort := cfg.Port
@@ -174,10 +176,10 @@ func StartupLogAttrs(cfg *Config) []any {
 	}
 
 	managedSessionTransports := make([]string, 0, 2)
-	if UseGRPCEdgeTransport(cfg) || (UsePollEdgeTransport(cfg) && strings.TrimSpace(cfg.GetManagerGRPCAddr()) != "") {
+	if UseGRPCEdgeTransport(cfg) || (UsePollEdgeTransport(cfg) && strings.TrimSpace(httpx.ManagerGRPCAddr(cfg.ManagerApiUrl)) != "") {
 		managedSessionTransports = append(managedSessionTransports, EdgeTransportGRPC)
 	}
-	if UseWebSocketEdgeTransport(cfg) || (UsePollEdgeTransport(cfg) && strings.TrimSpace(cfg.GetManagerBaseURL()) != "") {
+	if UseWebSocketEdgeTransport(cfg) || (UsePollEdgeTransport(cfg) && strings.TrimSpace(httpx.ManagerBaseURL(cfg.ManagerApiUrl)) != "") {
 		managedSessionTransports = append(managedSessionTransports, EdgeTransportWebSocket)
 	}
 
@@ -190,10 +192,10 @@ func StartupLogAttrs(cfg *Config) []any {
 	if managerAPIURL := strings.TrimSpace(cfg.ManagerApiUrl); managerAPIURL != "" {
 		attrs = append(attrs, "manager_api_url", managerAPIURL)
 	}
-	if managerGRPCAddr := strings.TrimSpace(cfg.GetManagerGRPCAddr()); managerGRPCAddr != "" {
+	if managerGRPCAddr := strings.TrimSpace(httpx.ManagerGRPCAddr(cfg.ManagerApiUrl)); managerGRPCAddr != "" {
 		attrs = append(attrs, "manager_grpc_addr", managerGRPCAddr)
 	}
-	if managerBaseURL := strings.TrimSpace(cfg.GetManagerBaseURL()); managerBaseURL != "" {
+	if managerBaseURL := strings.TrimSpace(httpx.ManagerBaseURL(cfg.ManagerApiUrl)); managerBaseURL != "" {
 		attrs = append(attrs, "manager_base_url", managerBaseURL)
 	}
 
@@ -298,7 +300,7 @@ func (c *TunnelClient) managerWebSocketURLInternal() string {
 	if c.cfg == nil {
 		return ""
 	}
-	managerBaseURL := strings.TrimRight(strings.TrimSpace(c.cfg.GetManagerBaseURL()), "/")
+	managerBaseURL := strings.TrimRight(strings.TrimSpace(httpx.ManagerBaseURL(c.cfg.ManagerApiUrl)), "/")
 	if managerBaseURL == "" {
 		return ""
 	}
@@ -1453,16 +1455,16 @@ func StartTunnelClient(ctx context.Context, runtime *actors.Runtime, cfg *Config
 	}
 
 	if UseGRPCEdgeTransport(cfg) {
-		if cfg.GetManagerGRPCAddr() == "" {
+		if httpx.ManagerGRPCAddr(cfg.ManagerApiUrl) == "" {
 			return nil, errors.New("MANAGER_API_URL with a valid host is required for gRPC transport")
 		}
 	}
 
-	if UseWebSocketEdgeTransport(cfg) && strings.TrimSpace(cfg.GetManagerBaseURL()) == "" {
+	if UseWebSocketEdgeTransport(cfg) && strings.TrimSpace(httpx.ManagerBaseURL(cfg.ManagerApiUrl)) == "" {
 		return nil, errors.New("MANAGER_API_URL is required for websocket transport")
 	}
 
-	if UsePollEdgeTransport(cfg) && strings.TrimSpace(cfg.GetManagerBaseURL()) == "" {
+	if UsePollEdgeTransport(cfg) && strings.TrimSpace(httpx.ManagerBaseURL(cfg.ManagerApiUrl)) == "" {
 		return nil, errors.New("MANAGER_API_URL is required for poll transport")
 	}
 
