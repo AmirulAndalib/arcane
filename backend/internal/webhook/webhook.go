@@ -48,9 +48,15 @@ const (
 	webhookTokenPrefix    = "arc_wh_"
 	webhookTokenLength    = 32 // raw bytes → 64 hex chars
 	webhookTokenPrefixLen = 8  // chars of the hex portion used as lookup prefix
+	// hex length of a generated token's ciphertext: GCM nonce (12) + encrypted secretHex + GCM tag (16)
+	webhookTokenHexLen = 2 * (12 + webhookTokenLength*2 + 16)
 )
 
 type WebhookService struct {
+	tokenWriteMu sync.Mutex
+	tokenMu      sync.RWMutex
+	tokenHashes  map[string]struct{}
+
 	// actions tracks in-flight background webhook actions accepted with a 202
 	// so shutdown can drain them instead of dropping acknowledged work.
 	actions            sync.WaitGroup
@@ -117,6 +123,37 @@ func parseWebhookPrefixInternal(raw string) (string, error) {
 		return "", ErrWebhookInvalid
 	}
 	return webhookTokenPrefix + hexPart[:webhookTokenPrefixLen], nil
+}
+
+// LoadTokenHashes loads the rate-limit index before the server accepts requests.
+func (s *WebhookService) LoadTokenHashes(ctx context.Context) error {
+	s.tokenWriteMu.Lock()
+	defer s.tokenWriteMu.Unlock()
+
+	var hashes []string
+	if err := s.db.WithContext(ctx).Model(&Webhook{}).Pluck("token_hash", &hashes).Error; err != nil {
+		return errors.WrapIf(err, "failed to load webhook token hashes")
+	}
+	s.tokenMu.Lock()
+	defer s.tokenMu.Unlock()
+	s.tokenHashes = make(map[string]struct{}, len(hashes))
+	for _, hash := range hashes {
+		s.tokenHashes[hash] = struct{}{}
+	}
+	return nil
+}
+
+// IsKnownToken checks stored token identity without decrypting or querying the database.
+// TriggerByToken still checks existence and enabled state before accepting an action.
+func (s *WebhookService) IsKnownToken(raw string) bool {
+	if s == nil || len(raw) > len(webhookTokenPrefix)+webhookTokenHexLen || !strings.HasPrefix(raw, webhookTokenPrefix) {
+		return false
+	}
+	hash := hashWebhookTokenInternal(raw)
+	s.tokenMu.RLock()
+	defer s.tokenMu.RUnlock()
+	_, ok := s.tokenHashes[hash]
+	return ok
 }
 
 func defaultWebhookActionTypeInternal(targetType string) (string, error) {
@@ -223,9 +260,18 @@ func (s *WebhookService) CreateWebhook(ctx context.Context, name, targetType, ac
 		Enabled:       true,
 	}
 
+	s.tokenWriteMu.Lock()
+	defer s.tokenWriteMu.Unlock()
 	if err := s.db.WithContext(ctx).Create(wh).Error; err != nil {
 		return nil, "", errors.WrapIf(err, "failed to create webhook")
 	}
+
+	s.tokenMu.Lock()
+	if s.tokenHashes == nil {
+		s.tokenHashes = make(map[string]struct{})
+	}
+	s.tokenHashes[hash] = struct{}{}
+	s.tokenMu.Unlock()
 
 	if s.eventService != nil {
 		_, _ = s.eventService.CreateEvent(ctx, event.CreateEventRequest{
@@ -359,6 +405,8 @@ func (s *WebhookService) DeleteWebhook(ctx context.Context, id, environmentID st
 		return err
 	}
 
+	s.tokenWriteMu.Lock()
+	defer s.tokenWriteMu.Unlock()
 	result := s.db.WithContext(ctx).
 		Where("id = ? AND environment_id = ?", id, environmentID).
 		Delete(&Webhook{})
@@ -368,6 +416,10 @@ func (s *WebhookService) DeleteWebhook(ctx context.Context, id, environmentID st
 	if result.RowsAffected == 0 {
 		return ErrWebhookNotFound
 	}
+
+	s.tokenMu.Lock()
+	delete(s.tokenHashes, wh.TokenHash)
+	s.tokenMu.Unlock()
 
 	if s.eventService != nil {
 		_, _ = s.eventService.CreateEvent(ctx, event.CreateEventRequest{

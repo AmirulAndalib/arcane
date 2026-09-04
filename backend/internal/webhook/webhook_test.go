@@ -8,10 +8,15 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/getarcaneapp/arcane/backend/v2/internal/middleware"
 	"github.com/getarcaneapp/arcane/types/v2"
+	"github.com/labstack/echo/v5"
 	"github.com/libtnb/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,6 +131,109 @@ func TestParseWebhookPrefix_LeadingWhitespaceStripped(t *testing.T) {
 	prefix, err := parseWebhookPrefixInternal(raw)
 	require.NoError(t, err)
 	assert.Equal(t, "arc_wh_01020304", prefix)
+}
+
+func TestIsKnownToken_StoredIdentity(t *testing.T) {
+	ctx := context.Background()
+	db := setupWebhookServiceTestDB(t)
+	svc := newTestWebhookService(db)
+	wh, raw, err := svc.CreateWebhook(ctx, "known", WebhookTargetTypeProject, WebhookActionTypeUpdate, "p1", "env-1", common.User{})
+	require.NoError(t, err)
+	require.True(t, svc.IsKnownToken(raw))
+
+	unstored, _, _, err := generateWebhookTokenInternal()
+	require.NoError(t, err)
+	for _, token := range []string{unstored, "", "arc_wh_bad", " " + raw, raw + " ", strings.ToUpper(raw), raw[:len(raw)-1], webhookTokenPrefix + strings.Repeat("ab", 512*1024)} {
+		require.False(t, svc.IsKnownToken(token))
+	}
+	var unavailable *WebhookService
+	require.False(t, unavailable.IsKnownToken(raw))
+
+	restarted := newTestWebhookService(db)
+	require.NoError(t, restarted.LoadTokenHashes(ctx))
+	require.True(t, restarted.IsKnownToken(raw), "existing tokens must be recognized before their first request after restart")
+	_, err = restarted.UpdateWebhook(ctx, wh.ID, "env-1", false, common.User{})
+	require.NoError(t, err)
+	require.True(t, restarted.IsKnownToken(raw), "disabled tokens retain their independent abuse budget")
+	require.ErrorIs(t, restarted.TriggerByToken(ctx, raw), ErrWebhookDisabled)
+	require.ErrorIs(t, restarted.DeleteWebhook(ctx, wh.ID, "wrong-environment", common.User{}), ErrWebhookNotFound)
+	require.True(t, restarted.IsKnownToken(raw))
+	require.NoError(t, restarted.DeleteWebhook(ctx, wh.ID, "env-1", common.User{}))
+	require.False(t, restarted.IsKnownToken(raw))
+	require.ErrorIs(t, restarted.TriggerByToken(ctx, raw), ErrWebhookNotFound)
+}
+
+func TestKnownTokenRateLimit_ExhaustedIPDoesNotBlockFirstUse(t *testing.T) {
+	ctx := context.Background()
+	db := setupWebhookServiceTestDB(t)
+	svc := newTestWebhookService(db)
+	_, first, err := svc.CreateWebhook(ctx, "first", WebhookTargetTypeProject, WebhookActionTypeUpdate, "p1", "env-1", common.User{})
+	require.NoError(t, err)
+	_, second, err := svc.CreateWebhook(ctx, "second", WebhookTargetTypeProject, WebhookActionTypeUpdate, "p2", "env-1", common.User{})
+	require.NoError(t, err)
+	svc = newTestWebhookService(db)
+	require.NoError(t, svc.LoadTokenHashes(ctx))
+
+	// Closing the database proves admission never queries it, even for unknown tokens.
+	sqlDB, err := db.DB.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+	router := echo.New()
+	router.IPExtractor = echo.ExtractIPDirect()
+	router.Use(middleware.PerTokenRateLimitForPaths([]string{"/trigger/:token"}, 1, 1, svc.IsKnownToken))
+	router.POST("/trigger/:token", func(c *echo.Context) error { return c.NoContent(http.StatusAccepted) })
+	request := func(token string) int {
+		req := httptest.NewRequest(http.MethodPost, "/trigger/"+token, nil)
+		req.RemoteAddr = "192.0.2.10:4000"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code == http.StatusTooManyRequests {
+			require.Equal(t, "60", rec.Header().Get("Retry-After"))
+		}
+		return rec.Code
+	}
+	require.Equal(t, http.StatusAccepted, request(webhookTokenPrefix+strings.Repeat("0", webhookTokenHexLen)))
+	for i := range 200 {
+		require.Equal(t, http.StatusTooManyRequests, request(fmt.Sprintf("%s%0184x", webhookTokenPrefix, i+1)))
+	}
+	require.Equal(t, http.StatusAccepted, request(first))
+	require.Equal(t, http.StatusTooManyRequests, request(first))
+	require.Equal(t, http.StatusAccepted, request(second))
+}
+
+func TestLoadTokenHashes_FailurePreservesIndex(t *testing.T) {
+	ctx := context.Background()
+	db := setupWebhookServiceTestDB(t)
+	svc := newTestWebhookService(db)
+	_, raw, err := svc.CreateWebhook(ctx, "known", WebhookTargetTypeProject, WebhookActionTypeUpdate, "p1", "env-1", common.User{})
+	require.NoError(t, err)
+	require.NoError(t, db.Migrator().DropTable(&Webhook{}))
+	require.Error(t, svc.LoadTokenHashes(ctx))
+	require.True(t, svc.IsKnownToken(raw))
+	_, failed, err := svc.CreateWebhook(ctx, "failed", WebhookTargetTypeProject, WebhookActionTypeUpdate, "p1", "env-1", common.User{})
+	require.Error(t, err)
+	require.Empty(t, failed)
+	require.Len(t, svc.tokenHashes, 1)
+}
+
+func TestKnownTokenIndex_ConcurrentReloadAndCRUD(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestWebhookService(setupWebhookServiceTestDB(t))
+	var workers sync.WaitGroup
+	workers.Go(func() {
+		for range 30 {
+			assert.NoError(t, svc.LoadTokenHashes(ctx))
+			svc.IsKnownToken("arc_wh_unknown")
+		}
+	})
+	for range 30 {
+		wh, raw, err := svc.CreateWebhook(ctx, "known", WebhookTargetTypeProject, WebhookActionTypeUpdate, "p1", "env-1", common.User{})
+		require.NoError(t, err)
+		require.True(t, svc.IsKnownToken(raw))
+		require.NoError(t, svc.DeleteWebhook(ctx, wh.ID, "env-1", common.User{}))
+		require.False(t, svc.IsKnownToken(raw))
+	}
+	workers.Wait()
 }
 
 // --- CreateWebhook ---
