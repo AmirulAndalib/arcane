@@ -25,6 +25,7 @@ import (
 	"github.com/getarcaneapp/arcane/backend/v2/internal/registry"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/settings"
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/libarcane"
+	"github.com/getarcaneapp/arcane/backend/v2/pkg/utils"
 	"github.com/getarcaneapp/arcane/types/v2/version"
 	"github.com/samber/hot"
 	"go.getarcane.app/sys/cgroup"
@@ -331,7 +332,7 @@ func (s *VersionService) GetAppVersionInfo(ctx context.Context) *version.Info {
 		GoVersion:        config.GoVersion(),
 		NodeVersion:      config.NodeVersion,
 		SvelteKitVersion: config.SvelteKitVersion,
-		EnabledFeatures:  append(parseEnabledFeatures(), apns.FeatureName),
+		EnabledFeatures:  append(utils.UniqueNonEmptyStrings(strings.Split(strings.ToLower(buildables.EnabledFeatures), ",")), apns.FeatureName),
 		BuildTime:        config.BuildTime,
 		IsSemverVersion:  isSemver,
 		UpdateAvailable:  false,
@@ -397,28 +398,6 @@ func (s *VersionService) storedOrDigestBasedUpdateInternal(ctx context.Context, 
 	}
 
 	return false, ""
-}
-
-func parseEnabledFeatures() []string {
-	raw := strings.TrimSpace(buildables.EnabledFeatures)
-	if raw == "" {
-		return nil
-	}
-	parts := strings.Split(raw, ",")
-	features := make([]string, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
-		feature := strings.ToLower(strings.TrimSpace(part))
-		if feature == "" {
-			continue
-		}
-		if _, exists := seen[feature]; exists {
-			continue
-		}
-		seen[feature] = struct{}{}
-		features = append(features, feature)
-	}
-	return features
 }
 
 // detectCurrentImageInfo attempts to detect the current container's image tag and digest

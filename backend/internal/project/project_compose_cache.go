@@ -17,7 +17,6 @@ import (
 	"github.com/getarcaneapp/arcane/backend/v2/internal/common"
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/projects"
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/utils"
-	"github.com/moby/moby/client"
 	"github.com/samber/hot"
 	"github.com/samber/mo"
 	"gorm.io/gorm"
@@ -238,16 +237,7 @@ func (s *ProjectService) loadComposeProjectForProjectInternal(ctx context.Contex
 	}
 	projectsDirectory := getProjectsDirectoryOrDefaultInternal(ctx, cfg)
 
-	var dockerClient *client.Client
-	if s.dockerService != nil {
-		dockerClient, _ = s.dockerService.GetClient(ctx)
-	}
-	pathMapper := projects.NewPathMapperForConfiguredDirectory(
-		ctx,
-		s.settingsService.GetStringSetting(ctx, "projectsDirectory", "/app/data/projects"),
-		"/app/data/projects",
-		dockerClient,
-	)
+	pathMapper := s.projectPathMapperInternal(ctx)
 
 	composeProject, loadErr := projects.LoadComposeProject(ctx, composeFileFullPath, projects.NormalizeProjectName(proj.Name), projectsDirectory, utils.BoolOrDefault(cfg.AutoInjectEnv.Value, false), pathMapper, nil, nil, false)
 	if loadErr != nil {

@@ -123,16 +123,7 @@ func (s *ProjectService) ValidateComposeDirectory(ctx context.Context, projectNa
 	if err != nil {
 		return 0, err
 	}
-	var dockerClient *client.Client
-	if s.dockerService != nil {
-		dockerClient, _ = s.dockerService.GetClient(ctx)
-	}
-	pathMapper := projects.NewPathMapperForConfiguredDirectory(
-		ctx,
-		s.settingsService.GetStringSetting(ctx, "projectsDirectory", "/app/data/projects"),
-		"/app/data/projects",
-		dockerClient,
-	)
+	pathMapper := s.projectPathMapperInternal(ctx)
 	composeProject, err := projects.LoadComposeProject(
 		ctx,
 		filepath.Join(projectPath, composeFileName),
@@ -414,4 +405,17 @@ func (s *ProjectService) EnsureProjectPathUnderRoot(ctx context.Context, proj *P
 		}
 	}
 	return nil
+}
+
+func (s *ProjectService) projectPathMapperInternal(ctx context.Context) *projects.PathMapper {
+	var dockerClient *client.Client
+	if s.dockerService != nil {
+		dockerClient, _ = s.dockerService.GetClient(ctx)
+	}
+	return projects.NewPathMapperForConfiguredDirectory(
+		ctx,
+		s.settingsService.GetStringSetting(ctx, "projectsDirectory", "/app/data/projects"),
+		"/app/data/projects",
+		dockerClient,
+	)
 }

@@ -7366,3 +7366,19 @@ func TestProjectService_MapProjectToDto_SeedsHasBuildDirectiveFromPersistedRefs(
 		})
 	}
 }
+
+func TestProjectPathMapperUsesCurrentSettingsInternal(t *testing.T) {
+	db := setupProjectTestDB(t)
+	settingsService, err := newSettingsServiceForTestInternal(t, t.Context(), db)
+	require.NoError(t, err)
+	service := &ProjectService{settingsService: settingsService}
+	containerDir := t.TempDir()
+	for _, hostDir := range []string{t.TempDir(), t.TempDir()} {
+		require.NoError(t, settingsService.SetStringSetting(t.Context(), "projectsDirectory", containerDir+":"+hostDir))
+		mapper := service.projectPathMapperInternal(t.Context())
+		require.NotNil(t, mapper)
+		mapped, err := mapper.ContainerToHost(filepath.Join(containerDir, "data"))
+		require.NoError(t, err)
+		require.Equal(t, filepath.Join(hostDir, "data"), mapped)
+	}
+}
