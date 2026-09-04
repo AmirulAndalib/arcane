@@ -199,6 +199,10 @@ export interface LoginCredentials {
 
 export type AuthenticationStatus = 'authenticated' | 'mfa_required';
 
+export type PasskeyLoginAvailability = {
+	available: boolean;
+};
+
 export type PasskeyChallenge = {
 	ceremonyId: string;
 	transactionId?: string;

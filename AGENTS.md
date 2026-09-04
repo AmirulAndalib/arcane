@@ -20,6 +20,7 @@ headless agent modes, and a Cobra CLI.
 - Name every unexported Go function with an `Internal` suffix.
 - Put public/shared Go types in the top-level `types/` module.
 - Put reusable helper utilities under `backend/pkg/utils/` in the appropriate package.
+- Do not add tests for handlers. Test business logic at the service layer instead.
 - After any change, run `just format all`, then `just lint all`, and fix every issue.
   Never revert formatter output.
 
