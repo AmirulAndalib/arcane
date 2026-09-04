@@ -114,9 +114,7 @@
 		queryKey: ['updates', 'projects', 'details', envId, projectUpdatedImageRefs],
 		queryFn: () =>
 			projectUpdatedImageRefs.length > 0 ? imageService.getUpdateInfoByRefs(projectUpdatedImageRefs) : Promise.resolve({}),
-		initialData: {},
-		enabled: projectUpdatedImageRefs.length > 0,
-		refetchOnMount: false
+		enabled: projectUpdatedImageRefs.length > 0
 	}));
 
 	const checkUpdatesMutation = createMutation(() => ({
