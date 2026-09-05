@@ -1,3 +1,66 @@
+## v2.10.2
+
+### Bug fixes
+
+* surface container shell close reasons and drop websocket compression([30e1bb5](https://github.com/getarcaneapp/arcane/commit/30e1bb590a34d9aeded744a71d39e8709b3b7b33) by @kmendell)
+* surface container shell close reasons and drop websocket compression ([#3814](https://github.com/getarcaneapp/arcane/pull/3814) by @kmendell)
+* skip overlapping cron job runs([51cf6bb](https://github.com/getarcaneapp/arcane/commit/51cf6bb6a1049a01596a5933ddb2508de6938dea) by @kmendell)
+* skip overlapping cron job runs ([#3815](https://github.com/getarcaneapp/arcane/pull/3815) by @kmendell)
+* refactor image digest inspection logic ([#3826](https://github.com/getarcaneapp/arcane/pull/3826) by @jdrouhard)
+* keep first-login password dialog open and clear the flag on admin password change ([#3831](https://github.com/getarcaneapp/arcane/pull/3831) by @kmendell)
+* let the frontend recover from stale chunks after a redeploy([8c294a7](https://github.com/getarcaneapp/arcane/commit/8c294a7316f3616a704edfec366f4adccd91a577) by @kmendell)
+* keep edge agents on gRPC after a manager restart([4febf6d](https://github.com/getarcaneapp/arcane/commit/4febf6d0dcf64997b53cba7743d082b4c7550979) by @kmendell)
+* show digest-pinned image references ([#3836](https://github.com/getarcaneapp/arcane/pull/3836) by @kmendell)
+* hide passkey login when no credentials are registered([b7b568e](https://github.com/getarcaneapp/arcane/commit/b7b568e1a6911bf1b8369de129af792fb0f23e4e) by @kmendell)
+* honor SSH usernames in Git repository URLs([837fe10](https://github.com/getarcaneapp/arcane/commit/837fe10c92ddbb2391d7b13475d475a68f7fca2c) by @kmendell)
+* support host memory accounting for Docker inside LXC ([#3846](https://github.com/getarcaneapp/arcane/pull/3846) by @kmendell)
+* load project digests automatically on page entry([8d5eaeb](https://github.com/getarcaneapp/arcane/commit/8d5eaeb9dda0072736eb67272de4d7d781d7472b) by @kmendell)
+* sort environments by name with current selection first([4e0f1dc](https://github.com/getarcaneapp/arcane/commit/4e0f1dcfc074a4562b59ef03ee49dabbd68f40f5) by @kmendell)
+* rate-limit webhook triggers by token instead of client IP ([#3742](https://github.com/getarcaneapp/arcane/pull/3742) by @ohOgil)
+* run backups in an activity instead of locking the ui ([#3847](https://github.com/getarcaneapp/arcane/pull/3847) by @kmendell)
+
+### Performance improvements
+
+* serve cached auth token state([65fcfa6](https://github.com/getarcaneapp/arcane/commit/65fcfa637919992c81b373396265455a1f08ae3c) by @kmendell)
+* serve cached auth token state ([#3816](https://github.com/getarcaneapp/arcane/pull/3816) by @kmendell)
+* route docker deamon calls through singleflight callers ([#3818](https://github.com/getarcaneapp/arcane/pull/3818) by @kmendell)
+* shared one stream producer across all clients ([#3819](https://github.com/getarcaneapp/arcane/pull/3819) by @kmendell)
+* lookup copa targets by digest vs db queries ([#3821](https://github.com/getarcaneapp/arcane/pull/3821) by @kmendell)
+* validate metadata cache by file mtime and resolve in parallel ([#3823](https://github.com/getarcaneapp/arcane/pull/3823) by @kmendell)
+* serve the CVE list from a normalized table ([#3825](https://github.com/getarcaneapp/arcane/pull/3825) by @kmendell)
+* bound scheduled scans, skip unchanged images, stop remounting on navigation ([#3829](https://github.com/getarcaneapp/arcane/pull/3829) by @kmendell)
+* dispatch notification providers concuurently ([#3820](https://github.com/getarcaneapp/arcane/pull/3820) by @kmendell)
+
+### Dependencies
+
+* bump ky from 2.0.2 to 2.1.0([5700fb7](https://github.com/getarcaneapp/arcane/commit/5700fb7f52a95e3e21ab0fce8d5a7e453cb0201c) by @dependabot[bot])
+* bump ky from 2.0.2 to 2.1.0 ([#3802](https://github.com/getarcaneapp/arcane/pull/3802) by @kmendell)
+* bump the tanstack-table group across 1 directory with 2 updates([f58bc47](https://github.com/getarcaneapp/arcane/commit/f58bc47404cbc61ca0c2a62a4d48436e5b2b5688) by @dependabot[bot])
+* bump the tanstack-table group across 1 directory with 2 updates ([#3799](https://github.com/getarcaneapp/arcane/pull/3799) by @kmendell)
+* bump svelte from 5.56.10 to 5.57.0([3db4f4a](https://github.com/getarcaneapp/arcane/commit/3db4f4a591fd43aff54d5d9ca679780f6d9c5e35) by @dependabot[bot])
+* bump svelte from 5.56.10 to 5.57.0 ([#3808](https://github.com/getarcaneapp/arcane/pull/3808) by @kmendell)
+* bump react-email from 6.9.2 to 6.9.3([0cbb259](https://github.com/getarcaneapp/arcane/commit/0cbb2590792d935ff2c7a20468e91edc3b318304) by @dependabot[bot])
+* bump react-email from 6.9.2 to 6.9.3 ([#3806](https://github.com/getarcaneapp/arcane/pull/3806) by @kmendell)
+* bump @tanstack/svelte-query from 6.1.43 to 6.1.48([917e6c2](https://github.com/getarcaneapp/arcane/commit/917e6c267748da315f93855dadbea3444466f12c) by @dependabot[bot])
+* bump @tanstack/svelte-query from 6.1.43 to 6.1.48 ([#3807](https://github.com/getarcaneapp/arcane/pull/3807) by @kmendell)
+* bump pnpm to v12.2.1([7d33837](https://github.com/getarcaneapp/arcane/commit/7d33837fd5a2d8bfd9617dabe7347f1ea06ca1c2) by @kmendell)
+* bump @xyflow/svelte from 1.6.3 to 1.6.5 ([#3810](https://github.com/getarcaneapp/arcane/pull/3810) by @dependabot[bot])
+* bump github.com/nicholas-fedor/shoutrrr from 0.18.0 to 0.19.0 in /backend ([#3840](https://github.com/getarcaneapp/arcane/pull/3840) by @dependabot[bot])
+* bump golang.org/x/crypto from 0.55.0 to 0.56.0 in /backend ([#3844](https://github.com/getarcaneapp/arcane/pull/3844) by @dependabot[bot])
+* bump github.com/coreos/go-oidc/v3 from 3.20.0 to 3.21.0 in /backend ([#3845](https://github.com/getarcaneapp/arcane/pull/3845) by @dependabot[bot])
+* bump github.com/pressly/goose/v3 from 3.27.3 to 3.28.0 in /backend ([#3841](https://github.com/getarcaneapp/arcane/pull/3841) by @dependabot[bot])
+* bump github.com/klauspost/compress from 1.19.2 to 1.20.0 in /backend ([#3843](https://github.com/getarcaneapp/arcane/pull/3843) by @dependabot[bot])
+* bump github.com/mattn/go-runewidth from 0.0.28 to 0.0.29 in /cli ([#3838](https://github.com/getarcaneapp/arcane/pull/3838) by @dependabot[bot])
+
+### Other
+
+* allow choosing the registries for arcane-tools and trivy dbs ([#3830](https://github.com/getarcaneapp/arcane/pull/3830) by @kmendell)
+* cleanup duplicate http client logic([8a74c1b](https://github.com/getarcaneapp/arcane/commit/8a74c1b729e6bd0b02e1bcf17a824cc445cb2eb3) by @kmendell)
+
+
+
+**Full Changelog**: https://github.com/getarcaneapp/arcane/compare/v2.10.1...v2.10.2
+
 ## v2.10.1
 
 ### Bug fixes
