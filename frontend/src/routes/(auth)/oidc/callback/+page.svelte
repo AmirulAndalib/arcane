@@ -16,8 +16,6 @@
 	import OidcStatusPanel from '#lib/components/oidc-status-panel.svelte';
 	import { createMutation, useQueryClient } from '@tanstack/svelte-query';
 
-	let {}: PageProps = $props();
-
 	let error = $state('');
 	let mfaChallenge = $state<MFAChallengeData | null>(null);
 	let pendingRedirect = $state('');

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { LayoutProps } from './$types';
 	import { browser, dev } from '$app/env';
 	import { refreshAll } from '$app/navigation';
 	import { navigating, page } from '$app/state';

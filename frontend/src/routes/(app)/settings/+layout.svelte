@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { LayoutProps } from './$types';
 	import { page } from '$app/state';
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { setContext } from 'svelte';

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { PageProps } from './$types';
 	import * as AlertDialog from '#lib/components/ui/alert-dialog';
 	import { z } from 'zod/v4';
 	import { getContext } from 'svelte';

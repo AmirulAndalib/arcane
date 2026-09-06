@@ -2,7 +2,7 @@
 	"extends": "$app/tsconfig",
 	"include": ["src"],
 	"compilerOptions": {
-		"target": "ES2022",
+		"target": "ES2025",
 		"verbatimModuleSyntax": true,
 		"allowJs": true,
 		"checkJs": false,

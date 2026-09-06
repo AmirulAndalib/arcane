@@ -26,8 +26,6 @@
 	import { toast } from 'svelte-sonner';
 	import EasyJoinDialog from './easy-join-dialog.svelte';
 
-	let {}: PageProps = $props();
-
 	const currentEnvId = $derived(environmentStore.selected?.id);
 	const canManageSwarm = $derived(hasPermission('swarm:nodes', currentEnvId));
 	const canEasyJoin = $derived(hasPermission('swarm:nodes', currentEnvId) && hasPermission('swarm:unlock', currentEnvId));

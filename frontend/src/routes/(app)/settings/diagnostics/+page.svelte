@@ -28,8 +28,6 @@
 	import DiagnosticLeakPanel from './diagnostic-leak-panel.svelte';
 	import { formatTime } from '#lib/utils/formatting';
 
-	let {}: PageProps = $props();
-
 	type DiagnosticsTab = 'overview' | 'connections' | 'logs' | 'profiling';
 
 	let diag = $state<Diagnostics | null>(null);

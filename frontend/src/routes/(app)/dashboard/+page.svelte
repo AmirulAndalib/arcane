@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { PageProps } from './$types';
 	import { createSubscriber } from 'svelte/reactivity';
 	import { get } from 'svelte/store';
 	import DashboardAllEnvironmentsView from './dashboard-all-environments-view.svelte';

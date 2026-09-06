@@ -24,8 +24,6 @@
 	import AccountApiKeysPanel from './account-api-keys-panel.svelte';
 	import AccountSecurityPanel from './account-security-panel.svelte';
 
-	let {}: PageProps = $props();
-
 	type AccountTab = 'account' | 'preferences';
 
 	const accountTabItems = $derived.by(

@@ -7,8 +7,6 @@
 	import OidcStatusPanel from '#lib/components/oidc-status-panel.svelte';
 	import { createMutation } from '@tanstack/svelte-query';
 
-	let {}: PageProps = $props();
-
 	let error = $state('');
 
 	const oidcLoginMutation = createMutation(() => ({

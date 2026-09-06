@@ -1,7 +1,5 @@
 <script lang="ts" module>
 	import type { FormPathLeaves as _FormPathLeaves } from 'sveltekit-superforms';
-	type T = Record<string, unknown>;
-	type U = _FormPathLeaves<T>;
 </script>
 
 <script lang="ts" generics="T extends Record<string, unknown>, U extends _FormPathLeaves<T>">

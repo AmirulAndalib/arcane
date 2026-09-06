@@ -26,8 +26,6 @@
 		type MobilePasskeyCredential
 	} from './passkey-bridge';
 
-	let {}: PageProps = $props();
-
 	type CeremonyStatus = 'preparing' | 'ready' | 'working' | 'returning' | 'error';
 	type PageError = 'invalid_request' | 'callback_failed';
 

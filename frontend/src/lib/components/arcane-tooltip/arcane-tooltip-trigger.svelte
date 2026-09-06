@@ -10,7 +10,7 @@
 
 	let {
 		children,
-		child,
+		child: childSnippet,
 		class: className,
 		disabledChild = false
 	}: TooltipPrimitive.TriggerProps & { disabledChild?: boolean } = $props();
@@ -154,8 +154,8 @@
 {#if ctx.isTouch}
 	<Popover.Trigger>
 		{#snippet child({ props }: ChildProps)}
-			{#if child && !disabledChild}
-				{@render child({ props: getDirectTouchProps(props) })}
+			{#if childSnippet && !disabledChild}
+				{@render childSnippet({ props: getDirectTouchProps(props) })}
 			{:else}
 				<div
 					{...props}
@@ -169,8 +169,8 @@
 					data-disabled-child={disabledChild ? '' : undefined}
 					tabindex="0"
 				>
-					{#if child}
-						{@render child({ props: {} })}
+					{#if childSnippet}
+						{@render childSnippet({ props: {} })}
 					{:else}
 						{@render children?.()}
 					{/if}
@@ -181,8 +181,8 @@
 {:else}
 	<Tooltip.Trigger>
 		{#snippet child({ props }: ChildProps)}
-			{#if child && !disabledChild}
-				{@render child({ props: getDirectTooltipProps(props) })}
+			{#if childSnippet && !disabledChild}
+				{@render childSnippet({ props: getDirectTooltipProps(props) })}
 			{:else}
 				<div
 					{...props}
@@ -191,8 +191,8 @@
 					tabindex="0"
 					class={cn('inline-flex max-w-full min-w-0 cursor-pointer', className)}
 				>
-					{#if child}
-						{@render child({ props: {} })}
+					{#if childSnippet}
+						{@render childSnippet({ props: {} })}
 					{:else}
 						{@render children?.()}
 					{/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { PageProps } from './$types';
 	import {
 		AlertIcon,
 		VolumesIcon,
@@ -10,7 +11,8 @@
 		SettingsIcon,
 		ContainersIcon,
 		ArrowUpIcon,
-		ArrowDownIcon
+		ArrowDownIcon,
+		type IconType
 	} from '#lib/icons';
 	import * as Alert from '#lib/components/ui/alert';
 	import { Badge } from '#lib/components/ui/badge';
@@ -114,6 +116,18 @@
 		}
 	]);
 </script>
+
+{#snippet keyValueSection(title: string, icon: IconType, values: Record<string, string> | null | undefined)}
+	{#if values && Object.keys(values).length > 0}
+		<DetailSection {title} {icon}>
+			<KeyValueGrid>
+				{#each Object.entries(values) as [key, value] (key)}
+					<KeyValueCard label={key} valueTitle={m.common_click_to_select()}>{value}</KeyValueCard>
+				{/each}
+			</KeyValueGrid>
+		</DetailSection>
+	{/if}
+{/snippet}
 
 <ResourceDetailLayout
 	backUrl="/networks"
@@ -327,25 +341,8 @@
 				</DetailSection>
 			{/if}
 
-			{#if network.labels && Object.keys(network.labels).length > 0}
-				<DetailSection title={m.common_labels()} icon={TagIcon}>
-					<KeyValueGrid>
-						{#each Object.entries(network.labels) as [key, value] (key)}
-							<KeyValueCard label={key} valueTitle={m.common_click_to_select()}>{value}</KeyValueCard>
-						{/each}
-					</KeyValueGrid>
-				</DetailSection>
-			{/if}
-
-			{#if network.options && Object.keys(network.options).length > 0}
-				<DetailSection title={m.networks_options_title()} icon={SettingsIcon}>
-					<KeyValueGrid>
-						{#each Object.entries(network.options) as [key, value] (key)}
-							<KeyValueCard label={key} valueTitle={m.common_click_to_select()}>{value}</KeyValueCard>
-						{/each}
-					</KeyValueGrid>
-				</DetailSection>
-			{/if}
+			{@render keyValueSection(m.common_labels(), TagIcon, network.labels)}
+			{@render keyValueSection(m.networks_options_title(), SettingsIcon, network.options)}
 		</div>
 	{:else}
 		<div class="flex flex-col items-center justify-center px-4 py-16 text-center">

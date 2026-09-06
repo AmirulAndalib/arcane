@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { PageProps } from './$types';
 	import {
 		browserSupportsWebAuthn,
 		startAuthentication,

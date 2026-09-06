@@ -1,8 +1,6 @@
 <script lang="ts">
 	import ErrorView from '#lib/components/error.svelte';
 	import { m } from '#lib/paraglide/messages';
-
-	let {}: PageProps = $props();
 </script>
 
 <ErrorView

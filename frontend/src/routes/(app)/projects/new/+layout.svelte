@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { LayoutProps } from './$types';
 	import { m } from '#lib/paraglide/messages';
 
 	let { children }: LayoutProps = $props();

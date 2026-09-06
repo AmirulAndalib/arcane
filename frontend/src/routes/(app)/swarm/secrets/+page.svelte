@@ -6,8 +6,6 @@
 	import { environmentStore } from '#lib/stores/environment.store.svelte';
 	import { hasPermission } from '#lib/utils/auth';
 
-	let {}: PageProps = $props();
-
 	const currentEnvId = $derived(environmentStore.selected?.id);
 	const canManageSecrets = $derived(hasPermission('swarm:secrets', currentEnvId));
 

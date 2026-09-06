@@ -37,8 +37,6 @@
 		isGitBuildContextSource
 	} from './image-build-history';
 
-	let {}: PageProps = $props();
-
 	const buildsRoot = $derived((($settingsStore?.buildsDirectory ?? '/builds') as string).trim() || '/builds');
 	const buildsRootLabel = $derived.by(() => {
 		const raw = buildsRoot.trim();
