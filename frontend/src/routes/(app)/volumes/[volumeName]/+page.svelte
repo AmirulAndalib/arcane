@@ -50,7 +50,7 @@
 		remapSelectedWorkspaceFileKey,
 		remapWorkspaceFileRecord,
 		removeWorkspaceFileRecord,
-		readWorkspaceTextUpload,
+		readWorkspaceUpload,
 		validateWorkspaceFileName,
 		workspaceFileBasename,
 		workspaceFileLanguage,
@@ -105,6 +105,8 @@
 	let workspaceFileLoadErrors = $state<Record<string, string>>({});
 	let workspaceFileLoading = $state<Record<string, boolean>>({});
 	let workspaceRestoreRecords = $state<Record<string, true>>({});
+	let workspaceStagedFiles = $state<Record<string, File>>({});
+	let workspaceStagedUploadedText = $state<Record<string, string>>({});
 	const workspaceFileLoadVersions = new Map<string, number>();
 	let selectedWorkspaceFile = $state('');
 	let openWorkspaceTabs = $state<string[]>([]);
@@ -367,6 +369,8 @@
 		workspaceFileContents = remapWorkspaceFileRecord(workspaceFileContents, oldPath, newPath);
 		loadedWorkspaceFileContents = remapWorkspaceFileRecord(loadedWorkspaceFileContents, oldPath, newPath);
 		workspaceFileMetadata = remapWorkspaceFileRecord(workspaceFileMetadata, oldPath, newPath);
+		workspaceStagedFiles = remapWorkspaceFileRecord(workspaceStagedFiles, oldPath, newPath);
+		workspaceStagedUploadedText = remapWorkspaceFileRecord(workspaceStagedUploadedText, oldPath, newPath);
 		workspaceFileLoadErrors = remapWorkspaceFileRecord(workspaceFileLoadErrors, oldPath, newPath);
 		workspaceFileLoading = remapWorkspaceFileRecord(workspaceFileLoading, oldPath, newPath);
 		workspaceRestoreRecords = remapWorkspaceFileRecord(workspaceRestoreRecords, oldPath, newPath);
@@ -408,6 +412,8 @@
 		workspaceFileContents = removeWorkspaceFileRecord(workspaceFileContents, relativePath);
 		loadedWorkspaceFileContents = removeWorkspaceFileRecord(loadedWorkspaceFileContents, relativePath);
 		workspaceFileMetadata = removeWorkspaceFileRecord(workspaceFileMetadata, relativePath);
+		workspaceStagedFiles = removeWorkspaceFileRecord(workspaceStagedFiles, relativePath);
+		workspaceStagedUploadedText = removeWorkspaceFileRecord(workspaceStagedUploadedText, relativePath);
 		workspaceFileLoadErrors = removeWorkspaceFileRecord(workspaceFileLoadErrors, relativePath);
 		workspaceFileLoading = removeWorkspaceFileRecord(workspaceFileLoading, relativePath);
 		workspaceRestoreRecords = removeWorkspaceFileRecord(workspaceRestoreRecords, relativePath);
@@ -427,10 +433,32 @@
 		const relativePath = joinWorkspaceFilePath(parentPath, file.name);
 		const existing = visibleWorkspaceFiles.find((entry) => entry.relativePath === relativePath);
 		if (existing?.isDirectory) return;
-		const upload = await readWorkspaceTextUpload(file, volumeWorkspaceMaxFileSizeMb);
+		const upload = await readWorkspaceUpload(file, volumeWorkspaceMaxFileSizeMb);
 		if (upload.error) return upload.error;
+		if (upload.binary) {
+			workspaceFileChanges = [...workspaceFileChanges, { operation: overwrite ? 'update_file' : 'create_file', relativePath }];
+			workspaceStagedFiles = { ...workspaceStagedFiles, [relativePath]: file };
+			workspaceFileContents = removeWorkspaceFileRecord(workspaceFileContents, relativePath);
+			workspaceStagedUploadedText = removeWorkspaceFileRecord(workspaceStagedUploadedText, relativePath);
+			workspaceFileMetadata = {
+				...workspaceFileMetadata,
+				[relativePath]: {
+					path: `/${relativePath}`,
+					relativePath,
+					name: file.name,
+					size: file.size,
+					mimeType: file.type || 'application/octet-stream',
+					editable: false,
+					readOnlyReason: 'binary'
+				}
+			};
+			openWorkspaceFile(`file:${relativePath}`);
+			return;
+		}
 		const uploadedText = upload.content ?? '';
 		workspaceFileChanges = [...workspaceFileChanges, { operation: overwrite ? 'update_file' : 'create_file', relativePath }];
+		workspaceStagedFiles = { ...workspaceStagedFiles, [relativePath]: file };
+		workspaceStagedUploadedText = { ...workspaceStagedUploadedText, [relativePath]: uploadedText };
 		workspaceFileMetadata = {
 			...workspaceFileMetadata,
 			[relativePath]: {
@@ -443,9 +471,6 @@
 			}
 		};
 		workspaceFileContents = { ...workspaceFileContents, [relativePath]: uploadedText };
-		if (loadedWorkspaceFileContents[relativePath] === undefined) {
-			loadedWorkspaceFileContents = { ...loadedWorkspaceFileContents, [relativePath]: '' };
-		}
 		openWorkspaceFile(`file:${relativePath}`);
 	}
 
@@ -490,6 +515,8 @@
 		workspaceFileContents = {};
 		loadedWorkspaceFileContents = {};
 		workspaceFileMetadata = {};
+		workspaceStagedFiles = {};
+		workspaceStagedUploadedText = {};
 		workspaceFileLoadErrors = {};
 		workspaceFileLoading = {};
 		workspaceRestoreRecords = {};
@@ -507,7 +534,13 @@
 
 	async function handleSaveVolumeWorkspace() {
 		if (!workspaceQuery.data || !canSaveWorkspace) return;
-		const update = buildWorkspaceMultipartUpdate(workspaceFileChanges, workspaceFileContents, loadedWorkspaceFileContents);
+		const update = buildWorkspaceMultipartUpdate(
+			workspaceFileChanges,
+			workspaceFileContents,
+			loadedWorkspaceFileContents,
+			workspaceStagedFiles,
+			workspaceStagedUploadedText
+		);
 		handleApiResultWithCallbacks({
 			result: await tryCatch(
 				volumeWorkspaceService.updateWorkspace(

@@ -26,7 +26,9 @@ type WorkspaceDisplayFileChange = Omit<WorkspaceFileChangeDto, 'operation'> & {
 export function buildWorkspaceMultipartUpdate<T extends WorkspaceDisplayFileChange>(
 	draftChanges: T[],
 	fileContents: Record<string, string>,
-	loadedFileContents: Record<string, string>
+	loadedFileContents: Record<string, string>,
+	stagedFiles: Record<string, File> = {},
+	stagedUploadedText: Record<string, string> = {}
 ): { fileChanges: T[]; files: File[] } {
 	const fileChanges = draftChanges.map(
 		({ uploadIndex: _uploadIndex, baselineIndex: _baselineIndex, ...change }) => ({ ...change }) as T
@@ -41,8 +43,33 @@ export function buildWorkspaceMultipartUpdate<T extends WorkspaceDisplayFileChan
 		files.push(new File([content], workspaceFileBasename(change.relativePath), { type: 'text/plain' }));
 	};
 
+	// Stage the picked file verbatim while its content is untouched, so any
+	// file — including binary — is stored byte-for-byte as uploaded. Text
+	// uploads are compared against their own decoded bytes; a staged binary
+	// replacement is always authoritative.
+	const stageStagedFile = (change: T): boolean => {
+		const staged = stagedFiles[change.relativePath];
+		if (!staged) return false;
+		const uploaded = stagedUploadedText[change.relativePath];
+		if (uploaded !== undefined) {
+			const current = fileContents[change.relativePath];
+			if (current !== undefined && current !== uploaded) return false;
+		}
+		change.uploadIndex = files.length;
+		files.push(staged);
+		return true;
+	};
+
 	for (const change of fileChanges) {
-		if (change.operation === 'create_file') stageText(change, fileContents[change.relativePath] ?? '');
+		if ((change.operation === 'create_file' || change.operation === 'update_file') && change.uploadIndex === undefined) {
+			stageStagedFile(change);
+		}
+	}
+
+	for (const change of fileChanges) {
+		if (change.operation === 'create_file' && change.uploadIndex === undefined) {
+			stageText(change, fileContents[change.relativePath] ?? '');
+		}
 	}
 
 	for (const relativePath of changedPaths) {
@@ -61,6 +88,10 @@ export function buildWorkspaceMultipartUpdate<T extends WorkspaceDisplayFileChan
 			fileChanges.push(change);
 		}
 		if (change.uploadIndex === undefined) stageText(change, fileContents[relativePath] ?? '');
+	}
+
+	for (const change of fileChanges) {
+		if (change.operation === 'update_file' && change.uploadIndex === undefined) stageStagedFile(change);
 	}
 
 	// Every update also carries the content the draft was based on, so the
@@ -156,14 +187,17 @@ export function planWorkspaceFileMove(
 	return newPath;
 }
 
-export async function readWorkspaceTextUpload(file: File, maxFileSizeMb: number): Promise<{ content?: string; error?: string }> {
-	if (file.size > maxFileSizeMb * 1024 * 1024) return { error: m.workspace_upload_too_large({ maxFileSizeMb }) };
+export async function readWorkspaceUpload(
+	file: File,
+	maxFileSizeMb: number
+): Promise<{ content?: string; binary: boolean; error?: string }> {
+	if (file.size > maxFileSizeMb * 1024 * 1024) return { binary: false, error: m.workspace_upload_too_large({ maxFileSizeMb }) };
 	try {
 		const bytes = new Uint8Array(await file.arrayBuffer());
-		if (bytes.includes(0)) return { error: m.workspace_upload_text_required() };
-		return { content: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
+		if (bytes.includes(0)) return { binary: true };
+		return { binary: false, content: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
 	} catch {
-		return { error: m.workspace_upload_text_required() };
+		return { binary: true };
 	}
 }
 
