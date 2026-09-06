@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 /*
 	Installed from @ieedan/shadcn-svelte-extras
 */
@@ -54,15 +55,18 @@ export class UseClipboard {
 			clearTimeout(this.timeout);
 		}
 
-		try {
-			await navigator.clipboard.writeText(text);
+		const operationResult = await tryCatch(
+			(async () => {
+				await navigator.clipboard.writeText(text);
 
-			this.#copiedStatus = 'success';
+				this.#copiedStatus = 'success';
 
-			this.timeout = setTimeout(() => {
-				this.#copiedStatus = undefined;
-			}, this.delay);
-		} catch {
+				this.timeout = setTimeout(() => {
+					this.#copiedStatus = undefined;
+				}, this.delay);
+			})()
+		);
+		if (operationResult.error !== null) {
 			// an error can occur when not in the browser or if the user hasn't given clipboard access
 			this.#copiedStatus = 'failure';
 

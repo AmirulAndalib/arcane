@@ -1,4 +1,6 @@
 <script lang="ts" generics="TPolicy extends BackupPolicy, TUpdate extends { id: string } = BackupPolicyUpdate">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { untrack, type Snippet } from 'svelte';
 	import { ResponsiveDialog } from '#lib/components/ui/responsive-dialog/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
@@ -103,9 +105,16 @@
 	async function loadDestinations() {
 		destinationsLoading = true;
 		try {
-			loadedDestinations = await s3DestinationService.listAll();
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.s3_destinations_load_failed());
+			const operationResult1 = await tryCatch(
+				(async () => {
+					loadedDestinations = await s3DestinationService.listAll();
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const error = operationResult1.error;
+
+				toast.error(error instanceof Error ? error.message : m.s3_destinations_load_failed());
+			}
 		} finally {
 			destinationsLoading = false;
 		}
@@ -140,23 +149,30 @@
 		if (formInvalid) return;
 		saving = true;
 		try {
-			const current = extendUpdate({
-				id: form.id,
-				enabled: form.enabled,
-				schedule: form.schedule,
-				retentionCount: Number(form.retentionCount),
-				...backupPolicyDestinationValues(form.destination, form.s3DestinationId),
-				...(showStopContainers ? { stopContainers: form.stopContainers ?? false } : {})
-			});
-			const existing = policies.map(policyPayload);
-			const next = policyId ? existing.map((policy) => (policy.id === policyId ? current : policy)) : [...existing, current];
-			onSaved(await updatePolicies(next));
-			open = false;
-			toast.success(messages.saved);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : messages.saveFailed;
-			if (/cron|schedule/i.test(message)) form = { ...form, serverError: message };
-			else toast.error(message);
+			const operationResult2 = await tryCatch(
+				(async () => {
+					const current = extendUpdate({
+						id: form.id,
+						enabled: form.enabled,
+						schedule: form.schedule,
+						retentionCount: Number(form.retentionCount),
+						...backupPolicyDestinationValues(form.destination, form.s3DestinationId),
+						...(showStopContainers ? { stopContainers: form.stopContainers ?? false } : {})
+					});
+					const existing = policies.map(policyPayload);
+					const next = policyId ? existing.map((policy) => (policy.id === policyId ? current : policy)) : [...existing, current];
+					onSaved(await updatePolicies(next));
+					open = false;
+					toast.success(messages.saved);
+				})()
+			);
+			if (operationResult2.error !== null) {
+				const error = operationResult2.error;
+
+				const message = error instanceof Error ? error.message : messages.saveFailed;
+				if (/cron|schedule/i.test(message)) form = { ...form, serverError: message };
+				else toast.error(message);
+			}
 		} finally {
 			saving = false;
 		}
@@ -166,11 +182,18 @@
 		if (!policyId) return;
 		deleting = true;
 		try {
-			onSaved(await updatePolicies(policies.filter((policy) => policy.id !== policyId).map(policyPayload)));
-			open = false;
-			toast.success(messages.removed);
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : messages.saveFailed);
+			const operationResult3 = await tryCatch(
+				(async () => {
+					onSaved(await updatePolicies(policies.filter((policy) => policy.id !== policyId).map(policyPayload)));
+					open = false;
+					toast.success(messages.removed);
+				})()
+			);
+			if (operationResult3.error !== null) {
+				const error = operationResult3.error;
+
+				toast.error(error instanceof Error ? error.message : messages.saveFailed);
+			}
 		} finally {
 			deleting = false;
 		}

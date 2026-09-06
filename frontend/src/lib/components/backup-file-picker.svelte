@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import FileTreeRow from '#lib/components/file-tree-row.svelte';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -104,25 +106,29 @@
 		if (current.loading) return;
 		const requestID = ++nextRequestID;
 		updatePageInternal(folder, { ...current, loading: true, error: false, requestID });
-		try {
-			const page = await provider.browse({
-				path: searchActive ? undefined : folder,
-				search: searchActive ? debouncedSearch : undefined,
-				start: start > 0 ? start : undefined
-			});
-			const latest = pages[folder];
-			if (generation !== requestGeneration || latest?.requestID !== requestID) return;
-			const merged = replace ? page.data : [...latest.entries, ...page.data];
-			const unique = Array.from(new Map(merged.map((entry) => [entry.path, entry])).values());
-			const continuationStart = start + page.data.length;
-			updatePageInternal(folder, {
-				entries: unique,
-				continuationStart: continuationStart < page.pagination.totalItems ? continuationStart : undefined,
-				loading: false,
-				error: false,
-				requestID
-			});
-		} catch {
+
+		const requestResult1 = await tryCatch(
+			(async () => {
+				const page = await provider.browse({
+					path: searchActive ? undefined : folder,
+					search: searchActive ? debouncedSearch : undefined,
+					start: start > 0 ? start : undefined
+				});
+				const latest = pages[folder];
+				if (generation !== requestGeneration || latest?.requestID !== requestID) return;
+				const merged = replace ? page.data : [...latest.entries, ...page.data];
+				const unique = Array.from(new Map(merged.map((entry) => [entry.path, entry])).values());
+				const continuationStart = start + page.data.length;
+				updatePageInternal(folder, {
+					entries: unique,
+					continuationStart: continuationStart < page.pagination.totalItems ? continuationStart : undefined,
+					loading: false,
+					error: false,
+					requestID
+				});
+			})()
+		);
+		if (requestResult1.error !== null) {
 			const latest = pages[folder];
 			if (generation !== requestGeneration || latest?.requestID !== requestID) return;
 			updatePageInternal(folder, { ...latest, loading: false, error: true });

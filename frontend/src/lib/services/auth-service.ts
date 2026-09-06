@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { goto, refreshAll } from '$app/navigation';
 import BaseAPIService, { APIError } from './api-service';
 import userStore from '#lib/stores/user-store.js';
@@ -81,8 +82,14 @@ class AuthService extends BaseAPIService {
 
 		if (refreshTime > 0) {
 			this.refreshTimer = setTimeout(() => {
-				this.refreshAccessToken().catch((err) => {
-					console.error('Background token refresh failed:', err);
+				tryCatch(this.refreshAccessToken()).then((result) => {
+					if (result.error !== null) {
+						const err = result.error;
+
+						console.error('Background token refresh failed:', err);
+					} else {
+						return result.data;
+					}
 				});
 			}, refreshTime);
 		}
@@ -105,24 +112,28 @@ class AuthService extends BaseAPIService {
 
 		this.isRefreshing = true;
 
-		try {
-			const response = await this.handleResponse<{
-				token?: string;
-				refreshToken?: string;
-				expiresAt?: string;
-			}>(this.api.post('/auth/refresh', { refreshToken }));
+		const operationResult = await tryCatch(
+			(async () => {
+				const response = await this.handleResponse<{
+					token?: string;
+					refreshToken?: string;
+					expiresAt?: string;
+				}>(this.api.post('/auth/refresh', { refreshToken }));
 
-			if (response.refreshToken && response.expiresAt) {
-				this.storeTokenData(response.refreshToken, response.expiresAt);
-			}
+				if (response.refreshToken && response.expiresAt) {
+					this.storeTokenData(response.refreshToken, response.expiresAt);
+				}
 
-			const token = response.token || null;
-			this.refreshSubscribers.forEach((callback) => callback(token));
-			this.refreshSubscribers = [];
-			this.isRefreshing = false;
+				const token = response.token || null;
+				this.refreshSubscribers.forEach((callback) => callback(token));
+				this.refreshSubscribers = [];
+				this.isRefreshing = false;
 
-			return token;
-		} catch (error) {
+				return token;
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
 			const err = error instanceof Error ? error : new Error('Token refresh failed');
 			console.error('Token refresh failed:', err);
 			// Only drop the stored refresh token when the server definitively rejects it
@@ -135,6 +146,8 @@ class AuthService extends BaseAPIService {
 			this.refreshSubscribers = [];
 			this.isRefreshing = false;
 			throw err;
+		} else {
+			return operationResult.data;
 		}
 	}
 
@@ -168,16 +181,21 @@ class AuthService extends BaseAPIService {
 	}
 
 	async getCurrentUser(): Promise<User | null> {
-		try {
-			const response = await this.api.get('/auth/me');
-			const user = (response.data.user as User) || (response.data.data as User);
+		const operationResult = await tryCatch(
+			(async () => {
+				const response = await this.api.get('/auth/me');
+				const user = (response.data.user as User) || (response.data.data as User);
 
-			userStore.setUser(user);
+				userStore.setUser(user);
 
-			return user;
-		} catch {
+				return user;
+			})()
+		);
+		if (operationResult.error !== null) {
 			userStore.clearUser();
 			return null;
+		} else {
+			return operationResult.data;
 		}
 	}
 
@@ -229,13 +247,9 @@ class AuthService extends BaseAPIService {
 	 * @returns The auto-login config, or null if the request fails
 	 */
 	async getAutoLoginConfig(): Promise<AutoLoginConfig | null> {
-		try {
-			const response = await this.handleResponse<AutoLoginConfig>(this.api.get('/auth/auto-login-config'));
-			return response;
-		} catch {
-			// Silently fail - auto-login is optional
-			return null;
-		}
+		const result = await tryCatch(this.handleResponse<AutoLoginConfig>(this.api.get('/auth/auto-login-config')));
+		// Silently fail - auto-login is optional.
+		return result.data;
 	}
 
 	/**
@@ -244,14 +258,10 @@ class AuthService extends BaseAPIService {
 	 * @returns The user if login succeeded, null otherwise
 	 */
 	async attemptAutoLogin(): Promise<User | null> {
-		try {
-			const data = await this.handleResponse<AuthenticationResponse>(this.api.post('/auth/auto-login'));
-			if (data.status === 'mfa_required') return null;
-			return this.completeAuthentication(data);
-		} catch {
-			// Silently fail - fall back to normal login flow
-			return null;
-		}
+		const result = await tryCatch(this.handleResponse<AuthenticationResponse>(this.api.post('/auth/auto-login')));
+		// Silently fail - fall back to normal login flow.
+		if (result.error !== null || result.data.status === 'mfa_required') return null;
+		return this.completeAuthentication(result.data);
 	}
 }
 

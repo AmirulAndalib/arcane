@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -26,12 +28,19 @@
 
 		loading = true;
 		try {
-			const result = await onCreate(folderName);
-			toast.success(m.common_create_success({ resource: folderName }), activityToastOptions(extractActivityId(result)));
-			open = false;
-			folderName = '';
-		} catch (e: any) {
-			toast.error(e.message || m.common_create_failed({ resource: folderName }));
+			const operationResult1 = await tryCatch(
+				(async () => {
+					const result = await onCreate(folderName);
+					toast.success(m.common_create_success({ resource: folderName }), activityToastOptions(extractActivityId(result)));
+					open = false;
+					folderName = '';
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const e = operationResult1.error;
+
+				toast.error(e.message || m.common_create_failed({ resource: folderName }));
+			}
 		} finally {
 			loading = false;
 		}

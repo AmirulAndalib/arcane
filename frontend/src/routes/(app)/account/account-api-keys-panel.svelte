@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import ApiKeyFormSheet from '#lib/components/sheets/api-key-form-sheet.svelte';
@@ -20,9 +22,14 @@
 	async function loadApiKeys() {
 		apiKeysLoading = true;
 		try {
-			apiKeys = await apiKeyService.listMine();
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.common_refresh_failed({ resource: m.api_key_page_title() }));
+			const operationResult = await tryCatch((async () => apiKeyService.listMine())());
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.common_refresh_failed({ resource: m.api_key_page_title() }));
+			} else {
+				apiKeys = operationResult.data;
+			}
 		} finally {
 			apiKeysLoading = false;
 		}
@@ -37,16 +44,23 @@
 	}) {
 		creatingKey = true;
 		try {
-			const payload: CreateUserApiKey = {
-				name: apiKey.name,
-				description: apiKey.description,
-				expiresAt: apiKey.expiresAt
-			};
-			createdKey = await apiKeyService.createMine(payload);
-			showCreateKeyForm = false;
-			await loadApiKeys();
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.api_key_create_failed({ name: apiKey.name }));
+			const operationResult = await tryCatch(
+				(async () => {
+					const payload: CreateUserApiKey = {
+						name: apiKey.name,
+						description: apiKey.description,
+						expiresAt: apiKey.expiresAt
+					};
+					createdKey = await apiKeyService.createMine(payload);
+					showCreateKeyForm = false;
+					await loadApiKeys();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.api_key_create_failed({ name: apiKey.name }));
+			}
 		} finally {
 			creatingKey = false;
 		}

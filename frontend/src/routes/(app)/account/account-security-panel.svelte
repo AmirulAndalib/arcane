@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { fromStore } from 'svelte/store';
 	import { toast } from 'svelte-sonner';
 	import PasskeySettings from '#lib/components/auth/passkey-settings.svelte';
@@ -26,13 +28,20 @@
 		if (!passwordValid || passwordSaving) return;
 		passwordSaving = true;
 		try {
-			await userService.changePassword({ currentPassword, newPassword });
-			toast.success(m.account_password_updated());
-			currentPassword = '';
-			newPassword = '';
-			confirmPassword = '';
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.common_update_failed({ resource: m.common_password() }));
+			const operationResult = await tryCatch(
+				(async () => {
+					await userService.changePassword({ currentPassword, newPassword });
+					toast.success(m.account_password_updated());
+					currentPassword = '';
+					newPassword = '';
+					confirmPassword = '';
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.common_update_failed({ resource: m.common_password() }));
+			}
 		} finally {
 			passwordSaving = false;
 		}
@@ -42,10 +51,17 @@
 		if (revokingAll) return;
 		revokingAll = true;
 		try {
-			await userService.logoutAllOtherSessions();
-			toast.success(m.account_sessions_signed_out());
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.common_action_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					await userService.logoutAllOtherSessions();
+					toast.success(m.account_sessions_signed_out());
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.common_action_failed());
+			}
 		} finally {
 			revokingAll = false;
 		}

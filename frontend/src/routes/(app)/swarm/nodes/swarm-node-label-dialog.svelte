@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import * as ResponsiveDialog from '#lib/components/ui/responsive-dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -25,10 +27,17 @@
 		if (!key.trim() || isReservedPrefix) return;
 		isSubmitting = true;
 		try {
-			await onAdd(key.trim(), value.trim());
-			handleCancel();
-		} catch (err) {
-			toast.error(m.common_update_failed({ resource: m.common_labels() }) + ': ' + extractApiErrorMessage(err));
+			const operationResult = await tryCatch(
+				(async () => {
+					await onAdd(key.trim(), value.trim());
+					handleCancel();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const err = operationResult.error;
+
+				toast.error(m.common_update_failed({ resource: m.common_labels() }) + ': ' + extractApiErrorMessage(err));
+			}
 		} finally {
 			isSubmitting = false;
 		}

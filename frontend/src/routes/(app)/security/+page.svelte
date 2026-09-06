@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ResourcePageLayout, type ActionButton } from '#lib/layouts/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { vulnerabilityService } from '#lib/services/vulnerability-service.js';
@@ -70,10 +72,15 @@
 	});
 	let patchRequestOptions = $derived<SearchPaginationSortRequest>(data.patchRequestOptions);
 	async function loadPatches() {
-		try {
-			const response = await imageService.listPatchTargets(patchRequestOptions);
-			patchTargets = { ...response, data: (response.data ?? []).map((t) => ({ ...t, id: t.imageId })) };
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const response = await imageService.listPatchTargets(patchRequestOptions);
+				patchTargets = { ...response, data: (response.data ?? []).map((t) => ({ ...t, id: t.imageId })) };
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Failed to load image patch targets:', error);
 			toast.error(m.common_refresh_failed({ resource: m.patches() }));
 		}
@@ -226,58 +233,69 @@
 		scanProgress = { current: 0, total: 0 };
 
 		try {
-			// Fetch all images with a high limit to get all of them
-			const imagesResponse = await imageService.getImages({ pagination: { page: 1, limit: 1000 } });
-			const images = imagesResponse.data ?? [];
+			const operationResult = await tryCatch(
+				(async () => {
+					// Fetch all images with a high limit to get all of them
+					const imagesResponse = await imageService.getImages({ pagination: { page: 1, limit: 1000 } });
+					const images = imagesResponse.data ?? [];
 
-			if (images.length === 0) {
-				toast.info(m.security_no_images_to_scan());
-				isLoading.scanningAll = false;
-				return;
+					if (images.length === 0) {
+						toast.info(m.security_no_images_to_scan());
+						isLoading.scanningAll = false;
+						return;
+					}
+
+					scanProgress = { current: 0, total: images.length };
+
+					const BATCH_SIZE = 3;
+					let succeeded = 0;
+					let failed = 0;
+
+					for (let i = 0; i < images.length; i += BATCH_SIZE) {
+						const batch = images.slice(i, i + BATCH_SIZE);
+
+						await Promise.all(
+							batch.map(async (image) => {
+								const operationResult = await tryCatch(
+									(async () => {
+										const result = await vulnerabilityService.scanImage(image.id);
+										if (result.status === 'completed' || result.status === 'scanning' || result.status === 'pending') {
+											succeeded++;
+										} else {
+											failed++;
+										}
+									})()
+								);
+								if (operationResult.error !== null) {
+									const error = operationResult.error;
+
+									console.error(`Failed to scan image ${image.id}:`, error);
+									failed++;
+								}
+								scanProgress.current++;
+							})
+						);
+					}
+
+					// Show summary toast (scans run in background; this reflects requests started, not completed)
+					if (failed === 0) {
+						toast.success(m.security_scan_all_success({ count: succeeded }));
+					} else if (succeeded === 0) {
+						toast.error(m.security_scan_all_failed({ count: failed }));
+					} else {
+						toast.warning(m.security_scan_all_partial({ succeeded, failed }));
+					}
+
+					// Refresh the vulnerability data and keep polling for updates as scans complete
+					await refreshAll();
+					startScanPolling(images.length);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+				console.error('Error during scan all:', error);
+				toast.error(m.security_scan_all_error());
 			}
-
-			scanProgress = { current: 0, total: images.length };
-
-			const BATCH_SIZE = 3;
-			let succeeded = 0;
-			let failed = 0;
-
-			for (let i = 0; i < images.length; i += BATCH_SIZE) {
-				const batch = images.slice(i, i + BATCH_SIZE);
-
-				await Promise.all(
-					batch.map(async (image) => {
-						try {
-							const result = await vulnerabilityService.scanImage(image.id);
-							if (result.status === 'completed' || result.status === 'scanning' || result.status === 'pending') {
-								succeeded++;
-							} else {
-								failed++;
-							}
-						} catch (error) {
-							console.error(`Failed to scan image ${image.id}:`, error);
-							failed++;
-						}
-						scanProgress.current++;
-					})
-				);
-			}
-
-			// Show summary toast (scans run in background; this reflects requests started, not completed)
-			if (failed === 0) {
-				toast.success(m.security_scan_all_success({ count: succeeded }));
-			} else if (succeeded === 0) {
-				toast.error(m.security_scan_all_failed({ count: failed }));
-			} else {
-				toast.warning(m.security_scan_all_partial({ succeeded, failed }));
-			}
-
-			// Refresh the vulnerability data and keep polling for updates as scans complete
-			await refreshAll();
-			startScanPolling(images.length);
-		} catch (error) {
-			console.error('Error during scan all:', error);
-			toast.error(m.security_scan_all_error());
 		} finally {
 			isLoading.scanningAll = false;
 			scanProgress = { current: 0, total: 0 };

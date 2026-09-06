@@ -6,7 +6,7 @@
 	import RemoveMenuItem from '#lib/components/arcane-table/cells/remove-menu-item.svelte';
 	import { toast } from 'svelte-sonner';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import type { Paginated, SearchPaginationSortRequest } from '#lib/types/shared.js';
 	import type { GitRepository } from '#lib/types/automation.js';
 	import type { ColumnSpec, BulkAction } from '#lib/components/arcane-table/index.js';
@@ -112,7 +112,7 @@
 		isLoading.testing = true;
 		const safeName = name ?? m.common_unknown();
 		const result = await tryCatch(gitRepositoryService.testRepository(id));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.common_test_failed({ resource: safeName }),
 			setLoadingState: () => {},

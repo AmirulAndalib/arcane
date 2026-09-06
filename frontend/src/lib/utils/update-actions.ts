@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { toast } from 'svelte-sonner';
 import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 import { m } from '#lib/paraglide/messages.js';
@@ -81,13 +82,9 @@ const SELF_UPGRADE_MAX_WAIT_MS = 5 * 60 * 1000;
 async function disarmWhenBackendResponds() {
 	const deadline = Date.now() + SELF_UPGRADE_MAX_WAIT_MS;
 	for (;;) {
-		try {
-			await userService.getCurrentUser();
-			break;
-		} catch {
-			if (Date.now() >= deadline) break;
-			await new Promise((resolve) => setTimeout(resolve, SELF_UPGRADE_PROBE_INTERVAL_MS));
-		}
+		const result = await tryCatch(userService.getCurrentUser());
+		if (result.error === null || Date.now() >= deadline) break;
+		await new Promise((resolve) => setTimeout(resolve, SELF_UPGRADE_PROBE_INTERVAL_MS));
 	}
 	BaseAPIService.setUpgradeInProgress(false);
 }
@@ -113,11 +110,17 @@ export function confirmAndApplyAllUpdates({ setLoading, onRefresh }: ConfirmAndA
 				const restartsThisBackend = envId === MANAGER_ENVIRONMENT_ID;
 				if (restartsThisBackend) BaseAPIService.setUpgradeInProgress(true);
 				try {
-					summarizeUpdateResult(await imageService.runAutoUpdate());
-					await onRefresh?.();
-				} catch (error) {
-					console.error('Update all failed:', error);
-					toast.error(m.updates_apply_all_failed());
+					const operationResult = await tryCatch(
+						(async () => {
+							summarizeUpdateResult(await imageService.runAutoUpdate());
+							await onRefresh?.();
+						})()
+					);
+					if (operationResult.error !== null) {
+						const error = operationResult.error;
+						console.error('Update all failed:', error);
+						toast.error(m.updates_apply_all_failed());
+					}
 				} finally {
 					if (restartsThisBackend) void disarmWhenBackendResponds();
 					setLoading?.(false);

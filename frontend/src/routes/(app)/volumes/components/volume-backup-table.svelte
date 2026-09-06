@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { backupRunColumns, backupRunMobileFields } from '#lib/components/arcane-table/backup-columns.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { volumeBackupService, type VolumeBackupListResponse } from '#lib/services/volume-backup-service.js';
@@ -116,14 +118,21 @@
 	let selectedPaths = $state<string[]>([]);
 	let selectAllBackupFiles = $state(false);
 	async function loadData(options: SearchPaginationSortRequest): Promise<VolumeBackupListResponse> {
-		try {
-			const result = await volumeBackupService.listBackups(volumeName, options);
-			backupsPaginated = result;
-			backupWarnings = result.warnings ?? [];
-			return result;
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const result = await volumeBackupService.listBackups(volumeName, options);
+				backupsPaginated = result;
+				backupWarnings = result.warnings ?? [];
+				return result;
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			toast.error(error instanceof Error ? error.message : m.volumes_backup_load_failed());
 			return backupsPaginated;
+		} else {
+			return operationResult.data;
 		}
 	}
 
@@ -169,17 +178,29 @@
 		if (creating || backupActivity.activeIds.length) return false;
 		creating = true;
 		try {
-			const result = await volumeBackupService.createBackup(volumeName, request);
-			showS3DestinationDialog = false;
-			onDemandS3DestinationId = '';
-			creating = false;
-			backupActivity.accepted(canReadActivities ? extractActivityId(result) : result.id);
-			toast.success(m.backups_started(), canReadActivities ? activityToastOptions(extractActivityId(result), false) : undefined);
-			void loadData(requestOptions);
-			return true;
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.common_failed());
-			return false;
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await volumeBackupService.createBackup(volumeName, request);
+					showS3DestinationDialog = false;
+					onDemandS3DestinationId = '';
+					creating = false;
+					backupActivity.accepted(canReadActivities ? extractActivityId(result) : result.id);
+					toast.success(
+						m.backups_started(),
+						canReadActivities ? activityToastOptions(extractActivityId(result), false) : undefined
+					);
+					void loadData(requestOptions);
+					return true;
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.common_failed());
+				return false;
+			} else {
+				return operationResult.data;
+			}
 		} finally {
 			creating = false;
 		}
@@ -211,14 +232,19 @@
 				label: m.common_remove(),
 				destructive: true,
 				action: async () => {
-					try {
-						const result = await volumeBackupService.deleteBackup(backup.id);
-						toast.success(
-							m.common_delete_success({ resource: m.volumes_workspace_backup() }),
-							activityToastOptions(extractActivityId(result))
-						);
-						await loadData(requestOptions);
-					} catch (error) {
+					const operationResult = await tryCatch(
+						(async () => {
+							const result = await volumeBackupService.deleteBackup(backup.id);
+							toast.success(
+								m.common_delete_success({ resource: m.volumes_workspace_backup() }),
+								activityToastOptions(extractActivityId(result))
+							);
+							await loadData(requestOptions);
+						})()
+					);
+					if (operationResult.error !== null) {
+						const error = operationResult.error;
+
 						toast.error(extractApiErrorMessage(error));
 						await loadData(requestOptions);
 					}
@@ -251,11 +277,18 @@
 	async function handleUpload(backup: BackupEntry, s3DestinationId: string) {
 		uploadingBackupId = backup.id;
 		try {
-			const result = await volumeBackupService.uploadBackup(backup.id, s3DestinationId);
-			toast.success(m.backups_upload_s3_success(), activityToastOptions(extractActivityId(result)));
-			await loadData(requestOptions);
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.backups_upload_s3_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await volumeBackupService.uploadBackup(backup.id, s3DestinationId);
+					toast.success(m.backups_upload_s3_success(), activityToastOptions(extractActivityId(result)));
+					await loadData(requestOptions);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.backups_upload_s3_failed());
+			}
 		} finally {
 			uploadingBackupId = null;
 		}
@@ -273,12 +306,15 @@
 	async function handleRestore(backup: BackupEntry) {
 		// Check if volume is in use
 		let usageWarning = '';
-		try {
-			const usage = await volumeService.getVolumeUsage(volumeName);
-			if (usage.inUse && usage.containers?.length > 0) {
-				usageWarning = m.volumes_backup_restore_in_use_warning({ count: usage.containers.length });
-			}
-		} catch {
+		const operationResult = await tryCatch(
+			(async () => {
+				const usage = await volumeService.getVolumeUsage(volumeName);
+				if (usage.inUse && usage.containers?.length > 0) {
+					usageWarning = m.volumes_backup_restore_in_use_warning({ count: usage.containers.length });
+				}
+			})()
+		);
+		if (operationResult.error !== null) {
 			// Ignore errors checking usage
 		}
 
@@ -292,12 +328,17 @@
 				label: m.volumes_backups_restore(),
 				destructive: !!usageWarning || hasWorkspaceChanges,
 				action: async () => {
-					try {
-						const result = await volumeBackupService.restoreBackup(volumeName, backup.id);
-						await onWorkspaceRestored?.();
-						toast.success(m.volumes_backup_restore_success(), activityToastOptions(extractActivityId(result)));
-						await loadData(requestOptions);
-					} catch (error) {
+					const operationResult = await tryCatch(
+						(async () => {
+							const result = await volumeBackupService.restoreBackup(volumeName, backup.id);
+							await onWorkspaceRestored?.();
+							toast.success(m.volumes_backup_restore_success(), activityToastOptions(extractActivityId(result)));
+							await loadData(requestOptions);
+						})()
+					);
+					if (operationResult.error !== null) {
+						const error = operationResult.error;
+
 						toast.error(error instanceof Error ? error.message : m.common_failed());
 					}
 				}
@@ -312,15 +353,22 @@
 		const selection = { paths: [...selectedPaths], selectAll: selectAllBackupFiles };
 		restoringFiles = true;
 		try {
-			const result = await volumeBackupService.restoreBackupFiles(volumeName, restoreTarget.id, {
-				...selection,
-				search: selection.selectAll ? backupFilesSearch.trim() : undefined
-			});
-			await onWorkspaceRestored?.();
-			toast.success(m.volumes_backup_restore_selection_success(), activityToastOptions(extractActivityId(result)));
-			showRestoreFiles = false;
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.common_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await volumeBackupService.restoreBackupFiles(volumeName, restoreTarget.id, {
+						...selection,
+						search: selection.selectAll ? backupFilesSearch.trim() : undefined
+					});
+					await onWorkspaceRestored?.();
+					toast.success(m.volumes_backup_restore_selection_success(), activityToastOptions(extractActivityId(result)));
+					showRestoreFiles = false;
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.common_failed());
+			}
 		} finally {
 			restoringFiles = false;
 		}
@@ -333,7 +381,9 @@
 	onMount(async () => {
 		const [collection, destinations] = await Promise.all([
 			volumeBackupService.getPolicies(volumeName),
-			canBackupVolume ? s3DestinationService.listAll().catch(() => []) : Promise.resolve([]),
+			canBackupVolume
+				? tryCatch(s3DestinationService.listAll()).then((result) => (result.error ? [] : result.data))
+				: Promise.resolve([]),
 			loadData(requestOptions)
 		]);
 		backupPolicies = collection.policies;

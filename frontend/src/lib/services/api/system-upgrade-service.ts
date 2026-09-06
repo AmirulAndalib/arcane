@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { apiClient } from '../api-service';
 import type { AppVersionInformation } from '#lib/types/settings.js';
 
@@ -107,14 +108,19 @@ async function getUpdateAllStatus(): Promise<UpdateAllJob> {
  * @returns Promise with health check result
  */
 async function checkHealth(environmentId: string = '0'): Promise<HealthCheckResult> {
-	try {
-		const endpoint = environmentId === '0' ? '/health' : `/environments/${environmentId}/system/health`;
-		const res = await apiClient.head(endpoint, {
-			timeout: 3000
-		});
-		return { healthy: res.status === 200 };
-	} catch {
+	const operationResult = await tryCatch(
+		(async () => {
+			const endpoint = environmentId === '0' ? '/health' : `/environments/${environmentId}/system/health`;
+			const res = await apiClient.head(endpoint, {
+				timeout: 3000
+			});
+			return { healthy: res.status === 200 };
+		})()
+	);
+	if (operationResult.error !== null) {
 		return { healthy: false };
+	} else {
+		return operationResult.data;
 	}
 }
 

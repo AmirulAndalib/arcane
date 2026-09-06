@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { eventService } from '#lib/services/event-service.js';
 import { queryKeys } from '#lib/query/query-keys.js';
 import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
@@ -21,19 +22,25 @@ export const load: PageLoad = async ({ parent }) => {
 
 	let events;
 	let eventStats;
-	try {
-		[events, eventStats] = await Promise.all([
-			queryClient.fetchQuery({
-				queryKey: queryKeys.events.listGlobal(eventRequestOptions),
-				queryFn: () => eventService.getEvents(eventRequestOptions)
-			}),
-			queryClient.fetchQuery({
-				queryKey: queryKeys.events.statsGlobal(),
-				queryFn: () => eventService.getEventStats()
-			})
-		]);
-	} catch (err) {
+	const operationResult = await tryCatch(
+		(async () =>
+			Promise.all([
+				queryClient.fetchQuery({
+					queryKey: queryKeys.events.listGlobal(eventRequestOptions),
+					queryFn: () => eventService.getEvents(eventRequestOptions)
+				}),
+				queryClient.fetchQuery({
+					queryKey: queryKeys.events.statsGlobal(),
+					queryFn: () => eventService.getEventStats()
+				})
+			]))()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		throwPageLoadError(err, 'Failed to load events');
+	} else {
+		[events, eventStats] = operationResult.data;
 	}
 
 	return { events, eventStats, eventRequestOptions };

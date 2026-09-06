@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { toast } from 'svelte-sonner';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
@@ -95,17 +97,24 @@
 	});
 
 	async function handleConfirmUpgradeInternal() {
-		try {
-			const result = await systemUpgradeService.triggerUpgrade(environment.id);
-			if (!result.success) {
-				throw new Error(result.error || result.message || m.common_unknown());
-			}
-			toast.success(m.upgrade_success());
-			await onRefreshRequested?.();
-			return { upToDate: result.upToDate };
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const result = await systemUpgradeService.triggerUpgrade(environment.id);
+				if (!result.success) {
+					throw new Error(result.error || result.message || m.common_unknown());
+				}
+				toast.success(m.upgrade_success());
+				await onRefreshRequested?.();
+				return { upToDate: result.upToDate };
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			toastUpgradeError(error, m.upgrade_failed);
 			throw error;
+		} else {
+			return operationResult.data;
 		}
 	}
 </script>

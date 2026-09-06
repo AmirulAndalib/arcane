@@ -27,7 +27,7 @@
 	import type { PruneType, SystemPruneRequest } from '#lib/types/automation.js';
 	import type { AppVersionInformation, Settings } from '#lib/types/settings.js';
 	import { extractApiErrorMessage, handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { isEnvironmentOnline } from '#lib/utils/docker.js';
 	import { activityToastOptions, extractActivityId } from '#lib/utils/activity-toast.js';
 	import { createStatsWebSocket, type ReconnectingWebSocket } from '#lib/utils/ws.js';
@@ -215,9 +215,14 @@
 			return;
 		}
 
-		dockerInfoPromise = loadDockerInfo(environment).catch((error) => {
-			dockerInfoError = extractApiErrorMessage(error);
-			throw error;
+		dockerInfoPromise = tryCatch(loadDockerInfo(environment)).then((result) => {
+			if (result.error) {
+				const error: Error = result.error;
+
+				dockerInfoError = extractApiErrorMessage(error);
+				throw error;
+			}
+			return result.data;
 		});
 		dockerInfoPromiseByEnvironmentId[environment.id] = dockerInfoPromise;
 	}
@@ -378,10 +383,15 @@
 			return;
 		}
 
-		try {
-			await environmentStore.setEnvironment(environment);
-			toast.success(m.environments_switched_to({ name: environment.name }));
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				await environmentStore.setEnvironment(environment);
+				toast.success(m.environments_switched_to({ name: environment.name }));
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Failed to switch environment:', error);
 			toast.error(m.common_update_failed({ resource: m.resource_environment() }));
 		}
@@ -518,11 +528,13 @@
 		pruneEnvironment = item;
 		pruneDefaultsLoadingId = environmentId;
 		try {
-			// Pre-fill the dialog with this environment's configured prune defaults.
-			pruneDefaults = await settingsService.getSettingsForEnvironment(environmentId);
-		} catch {
-			// Fall back to the dialog's built-in defaults if settings can't be loaded.
-			pruneDefaults = null;
+			const operationResult = await tryCatch((async () => settingsService.getSettingsForEnvironment(environmentId))());
+			if (operationResult.error !== null) {
+				// Fall back to the dialog's built-in defaults if settings can't be loaded.
+				pruneDefaults = null;
+			} else {
+				pruneDefaults = operationResult.data;
+			}
 		} finally {
 			pruneDefaultsLoadingId = null;
 		}
@@ -563,7 +575,7 @@
 
 		pruningEnvironmentId = environmentId;
 
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(systemService.pruneAllForEnvironment(environmentId, pruneRequest)),
 			message: m.dashboard_prune_failed({ types: typesString }),
 			setLoadingState: (value) => {

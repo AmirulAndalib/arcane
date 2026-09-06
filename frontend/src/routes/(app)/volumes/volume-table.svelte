@@ -7,7 +7,7 @@
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import InUseStatus from '#lib/components/arcane-table/cells/in-use-status.svelte';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { formatDateTimeShort, truncateString } from '#lib/utils/formatting.js';
 	import type { Paginated, SearchPaginationSortRequest } from '#lib/types/shared.js';
 	import type { VolumeSummaryDto, VolumeSizeInfo } from '#lib/types/docker.js';
@@ -116,19 +116,25 @@
 				sizesLoading = true;
 			}
 			try {
-				const sizes = await volumeService.getVolumeSizes(environmentId);
-				if (currentEnvId !== environmentId || columnVisibility['size'] === false) return;
+				const operationResult = await tryCatch(
+					(async () => {
+						const sizes = await volumeService.getVolumeSizes(environmentId);
+						if (currentEnvId !== environmentId || columnVisibility['size'] === false) return;
 
-				sizesMap.clear();
-				for (const s of sizes) {
-					sizesMap.set(s.name, s);
-				}
+						sizesMap.clear();
+						for (const s of sizes) {
+							sizesMap.set(s.name, s);
+						}
 
-				if (requestOptions?.sort?.column === 'size') {
-					await refreshVolumes(requestOptions, false);
+						if (requestOptions?.sort?.column === 'size') {
+							await refreshVolumes(requestOptions, false);
+						}
+					})()
+				);
+				if (operationResult.error !== null) {
+					const error = operationResult.error;
+					console.error('Failed to load volume sizes:', error);
 				}
-			} catch (error) {
-				console.error('Failed to load volume sizes:', error);
 			} finally {
 				sizeLoadPromises.delete(environmentId);
 				if (currentEnvId === environmentId) {
@@ -152,7 +158,7 @@
 				destructive: true,
 				action: async () => {
 					isLoading.removing = true;
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(volumeService.deleteVolume(safeName)),
 						message: m.common_remove_failed({ resource: `${m.resource_volume()} "${safeName}"` }),
 						setLoadingState: (value) => (isLoading.removing = value),
@@ -179,7 +185,7 @@
 		if (!volumeToRename) return;
 		const oldName = volumeToRename.name;
 		isLoading.renaming = true;
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(volumeService.renameVolume(oldName, { name: newName }, renameEnvironmentId)),
 			message: m.volumes_rename_failed({ name: oldName }),
 			setLoadingState: (value) => (isLoading.renaming = value),

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { mode } from 'mode-watcher';
 	import ThemeModeSelector from '#lib/components/theme-mode/theme-mode-selector.svelte';
 	import LocalePicker from '#lib/components/locale-picker.svelte';
@@ -56,10 +58,15 @@
 	async function savePreferences(patch: Partial<UserPreferences>) {
 		const previous = currentUser;
 		if (!previous) return;
-		try {
-			const updated = await userService.updateMyProfile({ preferences: patch });
-			await userStore.setUser(updated);
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const updated = await userService.updateMyProfile({ preferences: patch });
+				await userStore.setUser(updated);
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			toast.error(error instanceof Error ? error.message : m.common_update_failed({ resource: m.account_preferences() }));
 			await userStore.setUser(previous);
 		}

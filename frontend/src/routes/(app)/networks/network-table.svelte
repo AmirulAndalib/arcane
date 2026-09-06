@@ -8,7 +8,7 @@
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { DEFAULT_NETWORK_NAMES } from '#lib/constants.js';
 	import InUseStatus from '#lib/components/arcane-table/cells/in-use-status.svelte';
 	import type { SearchPaginationSortRequest, Paginated } from '#lib/types/shared.js';
@@ -66,7 +66,8 @@
 				label: m.common_delete(),
 				destructive: true,
 				action: async () => {
-					handleApiResultWithCallbacks({
+					isLoading.remove = true;
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(networkService.deleteNetwork(id)),
 						message: m.common_delete_failed({ resource: `${m.resource_network()} "${safeName}"` }),
 						setLoadingState: (value) => (isLoading.remove = value),

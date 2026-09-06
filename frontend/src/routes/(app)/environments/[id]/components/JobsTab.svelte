@@ -4,7 +4,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { jobScheduleService } from '#lib/services/job-schedule-service.js';
 	import { containerService } from '#lib/services/container-service.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import JobCard from '#lib/components/job-card/job-card.svelte';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import { m } from '#lib/paraglide/messages.js';

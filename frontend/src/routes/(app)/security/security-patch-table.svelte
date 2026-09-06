@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import ArcaneTable from '#lib/components/arcane-table/arcane-table.svelte';
 	import RowActionsMenu from '#lib/components/arcane-table/row-actions-menu.svelte';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -44,12 +46,17 @@
 	}
 
 	async function handlePatchImage(item: PatchTargetRow) {
-		try {
-			// The fixable counts come from the stored scan, so patch from that report.
-			const record = await imageService.patchImage(item.imageId, { scanId: item.imageId });
-			toast.info(m.images_patch_started({ patchedRef: record.patchedRef }), activityToastOptions(record.activityId));
-			await refreshPatchTargets(requestOptions);
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				// The fixable counts come from the stored scan, so patch from that report.
+				const record = await imageService.patchImage(item.imageId, { scanId: item.imageId });
+				toast.info(m.images_patch_started({ patchedRef: record.patchedRef }), activityToastOptions(record.activityId));
+				await refreshPatchTargets(requestOptions);
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Failed to patch image:', error);
 			toast.error(m.images_patch_failed());
 		}

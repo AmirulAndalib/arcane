@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	// Dozzle reference: the grouped row shell and left-side timestamp treatment here were
 	// informed by amir20/dozzle's LogItem.vue and GroupedLogItem.vue.
 	import { dev } from '$app/env';
@@ -207,20 +209,27 @@
 		const sessionId = ++streamSession;
 		currentStreamSession = sessionId;
 		try {
-			shouldBeStreaming = true;
-			error = null;
-			await startWebSocketStream(sessionId);
-			// Only notify after successful start
-			isStreaming = true;
-			onStart?.();
-			return;
-		} catch (err) {
-			console.error('Failed to start log stream:', err);
-			error = m.log_stream_failed_connect({ type: humanType });
-			isStreaming = false;
-			shouldBeStreaming = false;
-			if (currentStreamSession === sessionId) {
-				currentStreamSession = 0;
+			const requestResult1 = await tryCatch(
+				(async () => {
+					shouldBeStreaming = true;
+					error = null;
+					await startWebSocketStream(sessionId);
+					// Only notify after successful start
+					isStreaming = true;
+					onStart?.();
+					return;
+				})()
+			);
+			if (requestResult1.error !== null) {
+				const err = requestResult1.error;
+
+				console.error('Failed to start log stream:', err);
+				error = m.log_stream_failed_connect({ type: humanType });
+				isStreaming = false;
+				shouldBeStreaming = false;
+				if (currentStreamSession === sessionId) {
+					currentStreamSession = 0;
+				}
 			}
 		} finally {
 			connecting = false;

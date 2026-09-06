@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { userPrefersMode, setMode } from 'mode-watcher';
 	import { m } from '#lib/paraglide/messages.js';
 	import { SunIcon, MoonIcon, MonitorIcon } from '#lib/icons/index.js';
@@ -26,10 +28,16 @@
 	async function selectMode(value: 'light' | 'dark' | 'system') {
 		setMode(value);
 		if (!$userStore) return;
-		try {
-			const updated = await userService.updateMyProfile({ preferences: { themeMode: value } });
-			await userStore.setUser(updated);
-		} catch (err) {
+
+		const operationResult1 = await tryCatch(
+			(async () => {
+				const updated = await userService.updateMyProfile({ preferences: { themeMode: value } });
+				await userStore.setUser(updated);
+			})()
+		);
+		if (operationResult1.error !== null) {
+			const err = operationResult1.error;
+
 			console.error('Failed to save theme mode', err);
 		}
 	}

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -41,13 +43,20 @@
 		targets = {};
 		results = [];
 		try {
-			const candidateData = await swarmService.getSwarmJoinCandidates(managerEnvironmentId);
-			candidates = targetEnvironmentId
-				? candidateData.filter((candidate) => candidate.environmentId === targetEnvironmentId)
-				: candidateData;
-			if (targetEnvironmentId && candidates[0]) toggleCandidate(candidates[0], true);
-		} catch (error) {
-			errorMessage = extractApiErrorMessage(error);
+			const operationResult = await tryCatch(
+				(async () => {
+					const candidateData = await swarmService.getSwarmJoinCandidates(managerEnvironmentId);
+					candidates = targetEnvironmentId
+						? candidateData.filter((candidate) => candidate.environmentId === targetEnvironmentId)
+						: candidateData;
+					if (targetEnvironmentId && candidates[0]) toggleCandidate(candidates[0], true);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				errorMessage = extractApiErrorMessage(error);
+			}
 		} finally {
 			isLoading = false;
 		}
@@ -86,11 +95,21 @@
 		errorMessage = '';
 		results = [];
 		try {
-			const response = await swarmService.joinEnvironments({ remoteAddrs: [], targets: selectedTargets }, managerEnvironmentId);
-			results = response.results;
-			await onComplete?.();
-		} catch (error) {
-			errorMessage = extractApiErrorMessage(error);
+			const operationResult = await tryCatch(
+				(async () => {
+					const response = await swarmService.joinEnvironments(
+						{ remoteAddrs: [], targets: selectedTargets },
+						managerEnvironmentId
+					);
+					results = response.results;
+					await onComplete?.();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				errorMessage = extractApiErrorMessage(error);
+			}
 		} finally {
 			isLoading = false;
 		}

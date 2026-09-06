@@ -2,7 +2,7 @@
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import type { UpdateRole, CreateRole } from '#lib/types/auth.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { roleService } from '#lib/services/role-service.js';
@@ -15,7 +15,7 @@
 	async function handleSubmit(payload: UpdateRole) {
 		isLoading = true;
 		const safeName = payload.name?.trim() || data.role.name || m.common_unknown();
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(roleService.update(data.role.id, payload)),
 			message: m.common_update_failed({ resource: `${m.resource_role()} "${safeName}"` }),
 			setLoadingState: (value) => (isLoading = value),
@@ -35,7 +35,7 @@
 		};
 
 		const result = await tryCatch(roleService.create(clonePayload));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.roles_clone_failed(),
 			setLoadingState: (value) => (isLoading = value),

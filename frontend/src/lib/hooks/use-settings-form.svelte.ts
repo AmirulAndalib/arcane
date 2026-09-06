@@ -2,7 +2,7 @@ import { getContext } from 'svelte';
 import settingsStore from '#lib/stores/config-store.js';
 import { settingsService } from '#lib/services/settings-service.js';
 import type { Settings } from '#lib/types/settings.js';
-import { tryCatch } from '#lib/utils/api.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 import type { Readable } from 'svelte/store';
 
 type SettingsFormState = {

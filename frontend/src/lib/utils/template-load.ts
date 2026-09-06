@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { queryKeys } from '#lib/query/query-keys.js';
 import { templateService } from '#lib/services/template-service.js';
 import { variableService } from '#lib/services/variable-service.js';
@@ -21,46 +22,70 @@ export async function loadTemplateAuthoringData(parent: ParentWithQueryClient) {
 	const client = queryClient as QueryClientLike;
 
 	const [defaultTemplates, templates, globalVariables] = await Promise.all([
-		client
-			.fetchQuery({
+		tryCatch(
+			client.fetchQuery({
 				queryKey: queryKeys.templates.defaults(),
 				queryFn: () => templateService.getDefaultTemplates()
 			})
-			.catch((err) => {
+		).then((result) => {
+			if (result.error !== null) {
+				const err = result.error;
+
 				console.warn('Failed to load default templates:', err);
 				return { composeTemplate: '', envTemplate: '' };
-			}),
-		client
-			.fetchQuery({
+			} else {
+				return result.data;
+			}
+		}),
+		tryCatch(
+			client.fetchQuery({
 				queryKey: queryKeys.templates.allTemplates(),
 				queryFn: () => templateService.getAllTemplates()
 			})
-			.catch((err) => {
+		).then((result) => {
+			if (result.error !== null) {
+				const err = result.error;
+
 				console.warn('Failed to load templates:', err);
 				return [];
-			}),
-		client
-			.fetchQuery({
+			} else {
+				return result.data;
+			}
+		}),
+		tryCatch(
+			client.fetchQuery({
 				queryKey: queryKeys.variables.list(),
 				queryFn: () => variableService.list()
 			})
-			.catch((err) => {
+		).then((result) => {
+			if (result.error !== null) {
+				const err = result.error;
+
 				console.warn('Failed to load global variables:', err);
 				return [];
-			})
+			} else {
+				return result.data;
+			}
+		})
 	]);
 
 	return { defaultTemplates, templates, globalVariables };
 }
 
 export async function loadTemplateContent(client: QueryClientLike, templateId: string) {
-	return client
-		.fetchQuery({
+	return tryCatch(
+		client.fetchQuery({
 			queryKey: queryKeys.templates.content(templateId),
 			queryFn: () => templateService.getTemplateContent(templateId)
 		})
-		.catch((err) => {
+	).then((result) => {
+		if (result.error !== null) {
+			const err = result.error;
+
 			console.warn('Failed to load selected template:', err);
 			return null;
-		});
+		} else {
+			return result.data;
+		}
+	});
 }

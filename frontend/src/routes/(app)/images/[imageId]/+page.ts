@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { imageService } from '#lib/services/image-service.js';
 import { environmentStore } from '#lib/stores/environment.store.svelte.js';
 import type { ImageDetailSummaryDto } from '#lib/types/docker.js';
@@ -17,35 +18,42 @@ export const load: PageLoad = async ({ params, parent }): Promise<ImageDetailDat
 
 	const { imageId } = params;
 
-	try {
-		const image = await queryClient.fetchQuery({
-			queryKey: queryKeys.images.detail(envId, imageId),
-			queryFn: () => imageService.getImageForEnvironment(envId, imageId)
-		});
+	const operationResult = await tryCatch(
+		(async () => {
+			const image = await queryClient.fetchQuery({
+				queryKey: queryKeys.images.detail(envId, imageId),
+				queryFn: () => imageService.getImageForEnvironment(envId, imageId)
+			});
 
-		if (!image) {
-			throw error(404, 'Image not found');
-		}
-
-		let repo = '<none>';
-		let tag = '<none>';
-		const rawTags = image.repoTags ?? image.RepoTags;
-		if (rawTags && rawTags.length > 0 && rawTags[0] !== '<none>:<none>') {
-			({ repo, tag } = parseImageRef(rawTags[0]));
-		}
-
-		return {
-			image: {
-				...image,
-				repo,
-				tag
+			if (!image) {
+				throw error(404, 'Image not found');
 			}
-		};
-	} catch (err: any) {
+
+			let repo = '<none>';
+			let tag = '<none>';
+			const rawTags = image.repoTags ?? image.RepoTags;
+			if (rawTags && rawTags.length > 0 && rawTags[0] !== '<none>:<none>') {
+				({ repo, tag } = parseImageRef(rawTags[0]));
+			}
+
+			return {
+				image: {
+					...image,
+					repo,
+					tag
+				}
+			};
+		})()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		console.error('Failed to load image:', err);
-		if (err.status === 404) {
+		if ('status' in err && err.status === 404) {
 			throw err;
 		}
 		throw error(500, err.message || 'Failed to load image details');
+	} else {
+		return operationResult.data;
 	}
 };

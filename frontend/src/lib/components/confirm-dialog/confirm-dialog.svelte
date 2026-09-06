@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { AlertIcon } from '#lib/icons/index.js';
 	import { confirmDialogStore } from './store';
@@ -22,19 +23,16 @@
 		}
 	});
 
-	function handleConfirm() {
+	async function handleConfirm() {
 		const action = $confirmDialogStore.confirm.action;
 		const states = $state.snapshot(checkboxStates);
 		$confirmDialogStore.open = false;
-		// The dialog is already closed, so a throwing action would otherwise be an
-		// unhandled rejection the user never sees — surface it instead. Invoke
-		// inside the chain so synchronous throws also land in the catch.
-		Promise.resolve()
-			.then(() => action(states))
-			.catch((error) => {
-				console.error('Confirm action failed:', error);
-				toast.error(m.unexpected_error());
-			});
+		// Keep synchronous action failures inside the promise boundary.
+		const result = await tryCatch(Promise.resolve().then(() => action(states)));
+		if (result.error !== null) {
+			console.error('Confirm action failed:', result.error);
+			toast.error(m.unexpected_error());
+		}
 	}
 </script>
 

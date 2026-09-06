@@ -2,28 +2,8 @@ import { error as kitError } from '@sveltejs/kit';
 import { toast } from 'svelte-sonner';
 import { APIError, extractServerMessage } from '#lib/services/api-service.js';
 
-// --- Result wrapper ---
-
-type Success<T> = {
-	data: T;
-	error: null;
-};
-
-type Failure<E> = {
-	data: null;
-	error: E;
-};
-
-export type Result<T, E = Error> = Success<T> | Failure<E>;
-
-export async function tryCatch<T, E = Error>(promise: Promise<T>): Promise<Result<T, E>> {
-	try {
-		const data = await promise;
-		return { data, error: null };
-	} catch (error) {
-		return { data: null, error: error as E };
-	}
-}
+import type { Result } from '#lib/types/result.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 
 // --- API error extraction ---
 
@@ -155,7 +135,7 @@ export async function parallelRefresh<T extends Record<string, RefreshTask<any>>
 			const task = tasks[key as keyof T];
 			if (!task) return;
 
-			handleApiResultWithCallbacks({
+			await handleApiResultWithCallbacks({
 				result: await tryCatch(task.fetch()),
 				message: task.errorMessage,
 				setLoadingState: (value) => updateLoading(key, value),
@@ -173,11 +153,17 @@ export async function simpleRefresh<T>(
 ): Promise<void> {
 	setLoading(true);
 	try {
-		const data = await fetch();
-		onSuccess(data);
-	} catch (error) {
-		console.error('Refresh failed:', error);
-		toast.error(errorMessage);
+		const operationResult = await tryCatch(
+			(async () => {
+				const data = await fetch();
+				onSuccess(data);
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+			console.error('Refresh failed:', error);
+			toast.error(errorMessage);
+		}
 	} finally {
 		setLoading(false);
 	}

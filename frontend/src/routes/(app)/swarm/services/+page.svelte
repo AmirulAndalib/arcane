@@ -3,7 +3,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { swarmService } from '#lib/services/swarm-service.js';
 	import { toast } from 'svelte-sonner';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { ResourcePageLayout, type StatCardConfig } from '#lib/layouts/index.js';
 	import { useEnvironmentRefresh } from '#lib/hooks/use-environment-refresh.svelte.js';
@@ -40,7 +40,8 @@
 
 	async function handleCreateService(payload: { spec: Record<string, unknown>; options?: Record<string, unknown> }) {
 		const spec = payload.spec as unknown as SwarmServiceCreateSpec;
-		handleApiResultWithCallbacks({
+		isLoading.creating = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(swarmService.createService({ spec })),
 			message: m.common_create_failed({ resource: `${m.swarm_service()} "${spec.Name}"` }),
 			setLoadingState: (v) => (isLoading.creating = v),

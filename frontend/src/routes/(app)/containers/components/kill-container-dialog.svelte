@@ -6,7 +6,8 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { toast } from 'svelte-sonner';
 	import { containerService } from '#lib/services/container-service.js';
-	import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { activityToastOptions, extractActivityId } from '#lib/utils/activity-toast.js';
 
 	type Props = {
@@ -26,7 +27,7 @@
 	async function handleConfirm() {
 		if (!containerId) return;
 		isSubmitting = true;
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(containerService.killContainer(containerId, signal)),
 			message: m.containers_kill_failed({ name: containerName }),
 			setLoadingState: (value) => {

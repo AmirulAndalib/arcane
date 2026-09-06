@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as ScrollArea from '#lib/components/ui/scroll-area/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
@@ -209,89 +211,95 @@
 				}
 			}
 
-			try {
-				const info = await systemUpgradeService.getVersionInfo(envId);
-				successfulPolls += 1;
+			const requestResult1 = await tryCatch(
+				(async () => {
+					const info = await systemUpgradeService.getVersionInfo(envId);
+					successfulPolls += 1;
 
-				// Promote a hung trigger to "resolved" once the agent has answered
-				// at least 2 unrelated requests successfully. The agent is alive and
-				// has had time to act on our POST — its response just never came back.
-				if (triggerResolvedAt === null && successfulPolls >= 2) {
-					triggerResolvedAt = performance.now();
-					log('trigger-implicit-resolved', {
-						reason: 'agent-answered-poll-without-trigger-response',
+					// Promote a hung trigger to "resolved" once the agent has answered
+					// at least 2 unrelated requests successfully. The agent is alive and
+					// has had time to act on our POST — its response just never came back.
+					if (triggerResolvedAt === null && successfulPolls >= 2) {
+						triggerResolvedAt = performance.now();
+						log('trigger-implicit-resolved', {
+							reason: 'agent-answered-poll-without-trigger-response',
+							successfulPolls
+						});
+					}
+
+					const expVer = expectedVersion?.trim();
+					const expDig = expectedDigest?.trim();
+					const ok = matchesExpected(info);
+					const changed = versionInfoChanged(baselineVersionInfo, info);
+
+					const triggerSettledAt = triggerResolvedAt;
+					const sinceTriggerMs = triggerSettledAt === null ? null : performance.now() - triggerSettledAt;
+
+					log('version-check', {
+						currentVersion: info.currentVersion,
+						currentDigest: short(info.currentDigest),
+						revision: short(info.revision, 8),
+						baselineVersion: baselineVersionInfo?.currentVersion,
+						baselineDigest: short(baselineVersionInfo?.currentDigest),
+						expVer,
+						expDig: short(expDig),
+						ok,
+						changed,
+						sinceTriggerMs,
 						successfulPolls
 					});
-				}
 
-				const expVer = expectedVersion?.trim();
-				const expDig = expectedDigest?.trim();
-				const ok = matchesExpected(info);
-				const changed = versionInfoChanged(baselineVersionInfo, info);
-
-				const triggerSettledAt = triggerResolvedAt;
-				const sinceTriggerMs = triggerSettledAt === null ? null : performance.now() - triggerSettledAt;
-
-				log('version-check', {
-					currentVersion: info.currentVersion,
-					currentDigest: short(info.currentDigest),
-					revision: short(info.revision, 8),
-					baselineVersion: baselineVersionInfo?.currentVersion,
-					baselineDigest: short(baselineVersionInfo?.currentDigest),
-					expVer,
-					expDig: short(expDig),
-					ok,
-					changed,
-					sinceTriggerMs,
-					successfulPolls
-				});
-
-				const verified = expVer || expDig ? ok : !!baselineVersionInfo && changed;
-				if (verified) {
-					log('verified', {
-						mode: expVer || expDig ? 'expected' : 'baseline-change',
-						currentVersion: info.currentVersion,
-						currentDigest: short(info.currentDigest)
-					});
-					upgradeStatus = 'ready';
-					if (isRemoteEnvironment) {
-						setTimeout(() => (upgradeStatus = 'complete'), 1500);
-					} else {
-						reloadPage();
-					}
-					return;
-				}
-
-				// no-op detection: trigger API has returned successfully,
-				// the agent has had NO_OP_GRACE_MS to begin a restart, and the version
-				// has not moved from baseline. Conclusion: there was nothing to do.
-				if (
-					!expVer &&
-					!expDig &&
-					!!baselineVersionInfo &&
-					!changed &&
-					sinceTriggerMs !== null &&
-					(reportedUpToDate || sinceTriggerMs >= NO_OP_GRACE_MS)
-				) {
-					log('no-op-detected', {
-						reportedUpToDate,
-						sinceTriggerMs,
-						currentDigest: short(info.currentDigest),
-						baselineDigest: short(baselineVersionInfo?.currentDigest)
-					});
-					upgradeStatus = 'ready';
-					setTimeout(() => {
+					const verified = expVer || expDig ? ok : !!baselineVersionInfo && changed;
+					if (verified) {
+						log('verified', {
+							mode: expVer || expDig ? 'expected' : 'baseline-change',
+							currentVersion: info.currentVersion,
+							currentDigest: short(info.currentDigest)
+						});
+						upgradeStatus = 'ready';
 						if (isRemoteEnvironment) {
-							upgradeStatus = 'complete';
+							setTimeout(() => (upgradeStatus = 'complete'), 1500);
 						} else {
-							closeAfterComplete();
+							reloadPage();
 						}
-					}, 600);
-					return;
-				}
-			} catch (err) {
+						return true;
+					}
+
+					// no-op detection: trigger API has returned successfully,
+					// the agent has had NO_OP_GRACE_MS to begin a restart, and the version
+					// has not moved from baseline. Conclusion: there was nothing to do.
+					if (
+						!expVer &&
+						!expDig &&
+						!!baselineVersionInfo &&
+						!changed &&
+						sinceTriggerMs !== null &&
+						(reportedUpToDate || sinceTriggerMs >= NO_OP_GRACE_MS)
+					) {
+						log('no-op-detected', {
+							reportedUpToDate,
+							sinceTriggerMs,
+							currentDigest: short(info.currentDigest),
+							baselineDigest: short(baselineVersionInfo?.currentDigest)
+						});
+						upgradeStatus = 'ready';
+						setTimeout(() => {
+							if (isRemoteEnvironment) {
+								upgradeStatus = 'complete';
+							} else {
+								closeAfterComplete();
+							}
+						}, 600);
+						return true;
+					}
+				})()
+			);
+			if (requestResult1.error !== null) {
+				const err = requestResult1.error;
+
 				log('version-endpoint-error', err);
 			}
+			if (requestResult1.data) return;
 
 			await new Promise((r) => setTimeout(r, 2000));
 		}
@@ -313,21 +321,26 @@
 	}
 
 	async function captureBaseline() {
-		try {
-			baselineVersionInfo = await queryClient.fetchQuery({
-				queryKey: queryKeys.system.versionInfo(environmentId ?? '0'),
-				queryFn: () => systemUpgradeService.getVersionInfo(environmentId ?? '0'),
-				staleTime: 0
-			});
-			if (!baselineVersionInfo) return;
+		const requestResult2 = await tryCatch(
+			(async () => {
+				baselineVersionInfo = await queryClient.fetchQuery({
+					queryKey: queryKeys.system.versionInfo(environmentId ?? '0'),
+					queryFn: () => systemUpgradeService.getVersionInfo(environmentId ?? '0'),
+					staleTime: 0
+				});
+				if (!baselineVersionInfo) return;
 
-			const baseline = baselineVersionInfo;
-			log('baseline', {
-				currentVersion: baseline.currentVersion,
-				currentDigest: short(baseline.currentDigest),
-				revision: short(baseline.revision, 8)
-			});
-		} catch (err) {
+				const baseline = baselineVersionInfo;
+				log('baseline', {
+					currentVersion: baseline.currentVersion,
+					currentDigest: short(baseline.currentDigest),
+					revision: short(baseline.revision, 8)
+				});
+			})()
+		);
+		if (requestResult2.error !== null) {
+			const err = requestResult2.error;
+
 			log('baseline-error', err);
 			baselineVersionInfo = null;
 		}
@@ -362,17 +375,21 @@
 		triggerResolvedAt = null;
 		reportedUpToDate = false;
 		let triggerErrored = false;
-		const triggerPromise = Promise.resolve()
-			.then(() => onConfirm())
-			.then((result) => {
-				triggerResolvedAt = performance.now();
-				reportedUpToDate = !!result && result.upToDate === true;
-				log('trigger-resolved', { upToDate: reportedUpToDate });
-			})
-			.catch((err) => {
-				log('trigger-error', err);
+		const triggerPromise = (async () => {
+			const result = await tryCatch(
+				Promise.resolve()
+					.then(() => onConfirm())
+					.then((result) => {
+						triggerResolvedAt = performance.now();
+						reportedUpToDate = !!result && result.upToDate === true;
+						log('trigger-resolved', { upToDate: reportedUpToDate });
+					})
+			);
+			if (result.error !== null) {
+				log('trigger-error', result.error);
 				triggerErrored = true;
-			});
+			}
+		})();
 
 		await Promise.race([triggerPromise, new Promise((r) => setTimeout(r, 1500))]);
 

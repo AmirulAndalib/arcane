@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { toast } from 'svelte-sonner';
 import { z } from 'zod/v4';
 import { UseSettingsForm } from '#lib/hooks/use-settings-form.svelte.js';
@@ -52,13 +53,19 @@ export function createSettingsForm<T extends z.ZodType<any, any>>(config: Settin
 		settingsForm.setLoading(true);
 
 		try {
-			await settingsForm.updateSettings(data);
-			toast.success(successMessage);
-			onSuccess?.();
-		} catch (error) {
-			console.error('Failed to save settings:', error);
-			const message = error instanceof Error ? error.message : errorMessage;
-			toast.error(message);
+			const operationResult = await tryCatch(
+				(async () => {
+					await settingsForm.updateSettings(data);
+					toast.success(successMessage);
+					onSuccess?.();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+				console.error('Failed to save settings:', error);
+				const message = error instanceof Error ? error.message : errorMessage;
+				toast.error(message);
+			}
 		} finally {
 			settingsForm.setLoading(false);
 		}

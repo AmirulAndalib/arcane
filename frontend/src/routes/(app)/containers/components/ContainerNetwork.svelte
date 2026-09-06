@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Card from '#lib/components/ui/card/index.js';
 	import { PortBadge } from '#lib/components/badges/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
@@ -15,7 +17,7 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { refreshAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { extractApiErrorMessage } from '#lib/utils/api.js';
+	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 
 	interface Props {
 		container: ContainerDetailsDto;
@@ -52,22 +54,25 @@
 		if (!connectNetwork) return;
 		connectPending = true;
 		try {
-			const aliases = connectAliases
-				.split(',')
-				.map((alias) => alias.trim())
-				.filter(Boolean);
-			await networkService.connectContainer(connectNetwork, {
-				containerId: container.id,
-				aliases: aliases.length > 0 ? aliases : undefined,
-				ipv4Address: connectIp.trim() || undefined
-			});
-			toast.success(m.network_connect_success());
-			connectNetwork = '';
-			connectAliases = '';
-			connectIp = '';
-			await refreshAll();
-		} catch (error) {
-			toast.error(m.network_connect_failed(), { description: extractApiErrorMessage(error) });
+			const operationResult = await tryCatch(
+				(async () => {
+					const aliases = connectAliases
+						.split(',')
+						.map((alias) => alias.trim())
+						.filter(Boolean);
+					await networkService.connectContainer(connectNetwork, {
+						containerId: container.id,
+						aliases: aliases.length > 0 ? aliases : undefined,
+						ipv4Address: connectIp.trim() || undefined
+					});
+					toast.success(m.network_connect_success());
+					connectNetwork = '';
+					connectAliases = '';
+					connectIp = '';
+					await refreshAll();
+				})()
+			);
+			await handleApiResultWithCallbacks({ result: operationResult, message: m.network_connect_failed() });
 		} finally {
 			connectPending = false;
 		}
@@ -83,11 +88,14 @@
 				action: async () => {
 					disconnectPending[networkName] = true;
 					try {
-						await networkService.disconnectContainer(networkId || networkName, { containerId: container.id, force: false });
-						toast.success(m.network_disconnect_success());
-						await refreshAll();
-					} catch (error) {
-						toast.error(m.network_disconnect_failed(), { description: extractApiErrorMessage(error) });
+						const operationResult = await tryCatch(
+							(async () => {
+								await networkService.disconnectContainer(networkId || networkName, { containerId: container.id, force: false });
+								toast.success(m.network_disconnect_success());
+								await refreshAll();
+							})()
+						);
+						await handleApiResultWithCallbacks({ result: operationResult, message: m.network_disconnect_failed() });
 					} finally {
 						disconnectPending[networkName] = false;
 					}

@@ -10,7 +10,8 @@
 	import { TrashIcon } from '#lib/icons/index.js';
 	import { ResourcePageLayout, type ActionButton, type StatCardConfig } from '#lib/layouts/index.js';
 	import { m } from '#lib/paraglide/messages.js';
-	import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { decodeBase64ToText, encodeTextToBase64, formatSwarmTimestamp, getSwarmSpecName } from '#lib/utils/swarm-kv.js';
 	import { onMount, type Component } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -130,7 +131,8 @@
 			Data: encodeTextToBase64(createData)
 		};
 
-		handleApiResultWithCallbacks({
+		isLoading.create = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(createItem(spec)),
 			message: messages.createFailed,
 			setLoadingState: (value) => (isLoading.create = value),
@@ -153,7 +155,8 @@
 				label: m.common_delete(),
 				destructive: true,
 				action: async () => {
-					handleApiResultWithCallbacks({
+					isLoading.delete = true;
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(removeItem(item.id)),
 						message: messages.deleteFailed(name),
 						setLoadingState: (value) => (isLoading.delete = value),

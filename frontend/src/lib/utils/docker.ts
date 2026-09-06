@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { m } from '#lib/paraglide/messages.js';
 import type { ContainerStats, ContainerSummaryDto } from '#lib/types/docker.js';
 import type { Environment, EnvironmentStatus } from '#lib/types/environment.js';
@@ -298,17 +299,19 @@ export function startVulnerabilityScanPolling(
 	const run = async () => {
 		if (cancelled) return;
 		attempts += 1;
-		try {
-			const summary = await fetchSummary(imageId);
-			onUpdate?.(summary);
-
-			const isScanning = isVulnerabilityScanInProgress(summary?.status);
-			if (!isScanning) {
-				onComplete?.(summary);
-				return;
-			}
-		} catch (error) {
-			onError?.(error);
+		const result = await tryCatch(
+			(async () => {
+				const summary = await fetchSummary(imageId);
+				onUpdate?.(summary);
+				const isScanning = isVulnerabilityScanInProgress(summary?.status);
+				if (!isScanning) onComplete?.(summary);
+				return isScanning;
+			})()
+		);
+		if (result.error !== null) {
+			onError?.(result.error);
+		} else if (!result.data) {
+			return;
 		}
 
 		if (maxAttempts > 0 && attempts >= maxAttempts) {

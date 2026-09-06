@@ -3,7 +3,9 @@ import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 import { streamCacheBuster } from '#lib/utils/streaming.js';
 import { markActivityToastShown } from '#lib/components/activity/activity-completion-toasts.js';
 import { runWithActivityBatchId } from '#lib/services/api-service.js';
-import { handleApiResultWithCallbacks, tryCatch, type Result } from '#lib/utils/api.js';
+import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
+import type { Result } from '#lib/types/result.js';
 import { activityToastOptions, extractActivityId } from '#lib/utils/activity-toast.js';
 
 /**

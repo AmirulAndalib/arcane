@@ -4,7 +4,7 @@ import { m } from '#lib/paraglide/messages.js';
 import { containerService, type ContainersPaginatedResponse } from '#lib/services/container-service.js';
 import type { ContainerSummaryDto } from '#lib/types/docker.js';
 import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-import { tryCatch } from '#lib/utils/api.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { activityToastOptions, extractActivityId } from '#lib/utils/activity-toast.js';
 import { bulkConfirmAndRun } from '#lib/utils/bulk-actions.js';
 import {
@@ -77,19 +77,24 @@ export function createContainerActions({
 		const config = containerActionConfigs[action];
 		actionStatus[id] = config.status;
 
-		try {
-			handleApiResultWithCallbacks({
-				result: await tryCatch(config.run(id)),
-				message: config.failure(),
-				setLoadingState: (value) => {
-					actionStatus[id] = value ? config.status : '';
-				},
-				async onSuccess(data) {
-					toast.success(config.success(), activityToastOptions(extractActivityId(data)));
-					await reloadContainers();
-				}
-			});
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				await handleApiResultWithCallbacks({
+					result: await tryCatch(config.run(id)),
+					message: config.failure(),
+					setLoadingState: (value) => {
+						actionStatus[id] = value ? config.status : '';
+					},
+					async onSuccess(data) {
+						toast.success(config.success(), activityToastOptions(extractActivityId(data)));
+						await reloadContainers();
+					}
+				});
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Container action failed:', error);
 			toast.error(m.containers_action_error());
 			actionStatus[id] = '';
@@ -130,7 +135,7 @@ export function createContainerActions({
 				destructive: false,
 				action: async () => {
 					actionStatus[container.id] = 'redeploying';
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(containerService.redeployContainer(container.id)),
 						message: m.container_redeploy_failed(),
 						setLoadingState: (value) => {

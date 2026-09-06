@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import { toast } from 'svelte-sonner';
@@ -116,10 +118,15 @@
 		mutationFn: async ({ files, requestedEnvId }: { files: File[]; requestedEnvId: string }) => {
 			for (const file of files) {
 				try {
-					await imageService.uploadImage(file, requestedEnvId, (progress) => (uploadProgress = progress));
-					toast.success(m.images_upload_success());
-				} catch {
-					toast.error(m.images_upload_failed());
+					const operationResult = await tryCatch(
+						(async () => {
+							await imageService.uploadImage(file, requestedEnvId, (progress) => (uploadProgress = progress));
+							toast.success(m.images_upload_success());
+						})()
+					);
+					if (operationResult.error !== null) {
+						toast.error(m.images_upload_failed());
+					}
 				} finally {
 					uploadProgress = null;
 				}

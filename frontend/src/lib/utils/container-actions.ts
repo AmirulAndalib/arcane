@@ -1,7 +1,8 @@
 import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 import { m } from '#lib/paraglide/messages.js';
 import { containerService } from '#lib/services/container-service.js';
-import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { activityToastOptions, extractActivityId } from '#lib/utils/activity-toast.js';
 import { toast } from 'svelte-sonner';
 
@@ -67,19 +68,23 @@ export async function runContainerLifecycleAction({
 	const config = containerLifecycleActionConfigs[action];
 	setStatus(config.status);
 
-	try {
-		handleApiResultWithCallbacks({
-			result: await tryCatch(config.run(containerId)),
-			message: config.failure(),
-			setLoadingState: (value) => {
-				setStatus(value ? config.status : '');
-			},
-			async onSuccess(data) {
-				toast.success(config.success(), activityToastOptions(extractActivityId(data)));
-				await onRefresh?.();
-			}
-		});
-	} catch (error) {
+	const operationResult = await tryCatch(
+		(async () => {
+			await handleApiResultWithCallbacks({
+				result: await tryCatch(config.run(containerId)),
+				message: config.failure(),
+				setLoadingState: (value) => {
+					setStatus(value ? config.status : '');
+				},
+				async onSuccess(data) {
+					toast.success(config.success(), activityToastOptions(extractActivityId(data)));
+					await onRefresh?.();
+				}
+			});
+		})()
+	);
+	if (operationResult.error !== null) {
+		const error = operationResult.error;
 		console.error('Container action failed:', error);
 		toast.error(m.containers_action_error());
 		setStatus('');
@@ -113,7 +118,7 @@ export function confirmAndRemoveContainer({
 				const force = !!checkboxStates['force'];
 				const volumes = !!checkboxStates['volumes'];
 				setStatus('removing');
-				handleApiResultWithCallbacks({
+				await handleApiResultWithCallbacks({
 					result: await tryCatch(containerService.deleteContainer(containerId, { force, volumes })),
 					message: m.containers_remove_failed(),
 					setLoadingState: (value) => {
@@ -166,29 +171,35 @@ export function confirmAndUpdateContainer({
 			action: async () => {
 				setLoading?.(true);
 				try {
-					if (showPullingToast) {
-						toast.info(m.containers_update_pulling_image());
+					const operationResult = await tryCatch(
+						(async () => {
+							if (showPullingToast) {
+								toast.info(m.containers_update_pulling_image());
+							}
+
+							const result = (await containerService.updateContainer(containerId)) as ContainerUpdateResult;
+							const toastOptions = useActivityToast ? activityToastOptions(extractActivityId(result)) : undefined;
+
+							if ((result.failed ?? 0) > 0) {
+								const failedItem = result.items?.find((item) => item.status === 'failed');
+								toast.error(
+									m.containers_update_failed({ name: containerName }) + (failedItem?.error ? `: ${failedItem.error}` : ''),
+									toastOptions
+								);
+							} else if ((result.updated ?? 0) > 0) {
+								toast.success(m.containers_update_success({ name: containerName }), toastOptions);
+							} else {
+								toast.info(m.image_update_up_to_date_title(), toastOptions);
+							}
+
+							await onRefresh?.();
+						})()
+					);
+					if (operationResult.error !== null) {
+						const error = operationResult.error;
+						console.error('Container update failed:', error);
+						toast.error(m.containers_update_failed({ name: containerName }));
 					}
-
-					const result = (await containerService.updateContainer(containerId)) as ContainerUpdateResult;
-					const toastOptions = useActivityToast ? activityToastOptions(extractActivityId(result)) : undefined;
-
-					if ((result.failed ?? 0) > 0) {
-						const failedItem = result.items?.find((item) => item.status === 'failed');
-						toast.error(
-							m.containers_update_failed({ name: containerName }) + (failedItem?.error ? `: ${failedItem.error}` : ''),
-							toastOptions
-						);
-					} else if ((result.updated ?? 0) > 0) {
-						toast.success(m.containers_update_success({ name: containerName }), toastOptions);
-					} else {
-						toast.info(m.image_update_up_to_date_title(), toastOptions);
-					}
-
-					await onRefresh?.();
-				} catch (error) {
-					console.error('Container update failed:', error);
-					toast.error(m.containers_update_failed({ name: containerName }));
 				} finally {
 					setLoading?.(false);
 				}

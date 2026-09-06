@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Switch } from '#lib/components/ui/switch/index.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -32,11 +34,16 @@
 	async function handleAutoUpdateToggle(checked: boolean) {
 		autoUpdateToggling = true;
 		try {
-			await containerService.setAutoUpdate(container.id, checked);
-			onAutoUpdateChange?.(checked);
-			toast.success(checked ? m.auto_update_enabled_toast() : m.auto_update_disabled_toast());
-		} catch {
-			toast.error(m.auto_update_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					await containerService.setAutoUpdate(container.id, checked);
+					onAutoUpdateChange?.(checked);
+					toast.success(checked ? m.auto_update_enabled_toast() : m.auto_update_disabled_toast());
+				})()
+			);
+			if (operationResult.error !== null) {
+				toast.error(m.auto_update_failed());
+			}
 		} finally {
 			autoUpdateToggling = false;
 		}

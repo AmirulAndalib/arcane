@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { onMount } from 'svelte';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { TabBar, type TabItem } from '#lib/components/tab-bar/index.js';
@@ -440,22 +442,34 @@
 	});
 
 	async function refreshRuntimeEnvironment() {
-		try {
-			const latestEnvironment = await environmentManagementService.get(environment.id);
-			if (latestEnvironment.id === environment.id) {
-				refreshedEnvironment = latestEnvironment;
-			}
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const latestEnvironment = await environmentManagementService.get(environment.id);
+				if (latestEnvironment.id === environment.id) {
+					refreshedEnvironment = latestEnvironment;
+				}
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.debug('Failed to refresh environment runtime state:', error);
 		}
 	}
 
 	async function fetchVersion() {
 		try {
-			isLoadingVersion = true;
-			remoteVersion = await environmentManagementService.getVersion(environment.id);
-		} catch (err) {
-			console.error('Failed to fetch environment version:', err);
+			const operationResult = await tryCatch(
+				(async () => {
+					isLoadingVersion = true;
+					remoteVersion = await environmentManagementService.getVersion(environment.id);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const err = operationResult.error;
+
+				console.error('Failed to fetch environment version:', err);
+			}
 		} finally {
 			isLoadingVersion = false;
 		}
@@ -464,13 +478,20 @@
 	async function refreshEnvironment() {
 		if (isRefreshing) return;
 		try {
-			isRefreshing = true;
-			statusOverride = null;
-			remoteVersion = null;
-			await refreshAll();
-		} catch (err) {
-			console.error('Failed to refresh environment:', err);
-			toast.error(m.common_refresh_failed({ resource: m.resource_environment() }));
+			const operationResult = await tryCatch(
+				(async () => {
+					isRefreshing = true;
+					statusOverride = null;
+					remoteVersion = null;
+					await refreshAll();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const err = operationResult.error;
+
+				console.error('Failed to refresh environment:', err);
+				toast.error(m.common_refresh_failed({ resource: m.resource_environment() }));
+			}
 		} finally {
 			isRefreshing = false;
 		}
@@ -479,12 +500,19 @@
 	async function syncEnvironment() {
 		if (isSyncing) return;
 		try {
-			isSyncing = true;
-			await environmentManagementService.sync(environment.id);
-			toast.success(m.sync_environment_success());
-		} catch (error) {
-			console.error('Failed to sync environment:', error);
-			toast.error(m.sync_environment_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					isSyncing = true;
+					await environmentManagementService.sync(environment.id);
+					toast.success(m.sync_environment_success());
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Failed to sync environment:', error);
+				toast.error(m.sync_environment_failed());
+			}
 		} finally {
 			isSyncing = false;
 		}
@@ -493,27 +521,34 @@
 	async function testConnection() {
 		if (isTestingConnection) return;
 		try {
-			isTestingConnection = true;
-			const customUrl = $formInputs.apiUrl.value !== environment.apiUrl ? $formInputs.apiUrl.value : undefined;
-			const result = await environmentManagementService.testConnection(environment.id, customUrl);
+			const operationResult = await tryCatch(
+				(async () => {
+					isTestingConnection = true;
+					const customUrl = $formInputs.apiUrl.value !== environment.apiUrl ? $formInputs.apiUrl.value : undefined;
+					const result = await environmentManagementService.testConnection(environment.id, customUrl);
 
-			const nextStatus = result.status as EnvironmentStatus;
-			statusOverride = customUrl && !environment.isEdge ? nextStatus : null;
+					const nextStatus = result.status as EnvironmentStatus;
+					statusOverride = customUrl && !environment.isEdge ? nextStatus : null;
 
-			if (result.status === 'online') {
-				toast.success(m.environments_test_connection_success());
-			} else {
-				toast.error(m.environments_test_connection_error());
+					if (result.status === 'online') {
+						toast.success(m.environments_test_connection_success());
+					} else {
+						toast.error(m.environments_test_connection_error());
+					}
+
+					// If testing with saved URL (not custom), refresh to get backend's updated status
+					if (!customUrl) {
+						await refreshAll();
+					}
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				statusOverride = environment.isEdge ? null : 'offline';
+				toast.error(m.environments_test_connection_failed());
+				console.error(error);
 			}
-
-			// If testing with saved URL (not custom), refresh to get backend's updated status
-			if (!customUrl) {
-				await refreshAll();
-			}
-		} catch (error) {
-			statusOverride = environment.isEdge ? null : 'offline';
-			toast.error(m.environments_test_connection_failed());
-			console.error(error);
 		} finally {
 			isTestingConnection = false;
 		}
@@ -521,23 +556,30 @@
 
 	async function handleRegenerateApiKey() {
 		try {
-			isRegeneratingKey = true;
+			const operationResult = await tryCatch(
+				(async () => {
+					isRegeneratingKey = true;
 
-			// Delete the old API key and create a new one
-			const result = await environmentManagementService.update(environment.id, {
-				regenerateApiKey: true
-			});
+					// Delete the old API key and create a new one
+					const result = await environmentManagementService.update(environment.id, {
+						regenerateApiKey: true
+					});
 
-			if (result.apiKey) {
-				regeneratedApiKey = result.apiKey;
-				toast.success(m.environments_regenerate_key_success());
-				await refreshAll();
-			} else {
+					if (result.apiKey) {
+						regeneratedApiKey = result.apiKey;
+						toast.success(m.environments_regenerate_key_success());
+						await refreshAll();
+					} else {
+						toast.error(m.environments_regenerate_key_failed());
+					}
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Failed to regenerate API key:', error);
 				toast.error(m.environments_regenerate_key_failed());
 			}
-		} catch (error) {
-			console.error('Failed to regenerate API key:', error);
-			toast.error(m.environments_regenerate_key_failed());
 		} finally {
 			isRegeneratingKey = false;
 			showRegenerateDialog = false;

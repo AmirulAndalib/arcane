@@ -29,7 +29,8 @@
 		type NotificationSettingsByProvider,
 		updateNotificationProviderFormState
 	} from '#lib/utils/notification-providers.js';
-	import { extractApiErrorMessage, handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+	import { extractApiErrorMessage, handleApiResultWithCallbacks } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { apnsService } from '#lib/services/apns-service.js';
 	import type { ApnsDevice } from '#lib/types/apns.js';
 	import { formatRelativeTime } from '#lib/utils/formatting.js';
@@ -116,38 +117,51 @@
 		isLoading = true;
 
 		try {
-			const errors: string[] = [];
-			for (const provider of changedProviders) {
-				try {
-					const settings = notificationProviderFormValuesToSettings(provider, providerValues[provider]);
-					const saved = await notificationService.updateSettings(provider, settings);
-					savedSettings = { ...savedSettings, [provider]: saved };
-					providerBaselines = updateNotificationProviderFormState(providerBaselines, provider, providerValues[provider]);
-				} catch (error) {
-					errors.push(
-						m.notifications_saved_failed({
-							provider: getNotificationProviderDefinition(provider).label(),
-							error: extractApiErrorMessage(error)
-						})
-					);
-				}
-			}
+			const operationResult = await tryCatch(
+				(async () => {
+					const errors: string[] = [];
+					for (const provider of changedProviders) {
+						const operationResult = await tryCatch(
+							(async () => {
+								const settings = notificationProviderFormValuesToSettings(provider, providerValues[provider]);
+								const saved = await notificationService.updateSettings(provider, settings);
+								savedSettings = { ...savedSettings, [provider]: saved };
+								providerBaselines = updateNotificationProviderFormState(providerBaselines, provider, providerValues[provider]);
+							})()
+						);
+						if (operationResult.error !== null) {
+							const error = operationResult.error;
 
-			if (errors.length === 0) {
-				toast.success(m.general_settings_saved());
-			} else {
-				errors.forEach((err) => toast.error(err));
+							errors.push(
+								m.notifications_saved_failed({
+									provider: getNotificationProviderDefinition(provider).label(),
+									error: extractApiErrorMessage(error)
+								})
+							);
+						}
+					}
+
+					if (errors.length === 0) {
+						toast.success(m.general_settings_saved());
+					} else {
+						errors.forEach((err) => toast.error(err));
+					}
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Error saving notification settings:', error);
+				toast.error(m.settings_notifications_save_error());
 			}
-		} catch (error) {
-			console.error('Error saving notification settings:', error);
-			toast.error(m.settings_notifications_save_error());
 		} finally {
 			isLoading = false;
 		}
 	}
 
 	async function handleMobilePushToggle(enabled: boolean) {
-		handleApiResultWithCallbacks<Settings>({
+		savingMobilePush = true;
+		await handleApiResultWithCallbacks<Settings>({
 			result: await tryCatch(settingsService.updateSettings({ apnsEnabled: enabled })),
 			message: m.common_update_failed({ resource: m.settings() }),
 			setLoadingState: (value) => (savingMobilePush = value),
@@ -205,14 +219,21 @@
 	async function executeTest(provider: NotificationProviderKey, testType: string = 'simple') {
 		isTesting = true;
 		try {
-			const result = await notificationService.testNotification(provider, testType);
-			if (result?.data?.warning) {
-				toast.warning(m.notifications_test_warning({ warning: result.data.warning }));
-			} else {
-				toast.success(m.notifications_test_success({ provider: getNotificationProviderDefinition(provider).label() }));
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await notificationService.testNotification(provider, testType);
+					if (result?.data?.warning) {
+						toast.warning(m.notifications_test_warning({ warning: result.data.warning }));
+					} else {
+						toast.success(m.notifications_test_success({ provider: getNotificationProviderDefinition(provider).label() }));
+					}
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(m.notifications_test_failed({ error: extractApiErrorMessage(error) }));
 			}
-		} catch (error) {
-			toast.error(m.notifications_test_failed({ error: extractApiErrorMessage(error) }));
 		} finally {
 			isTesting = false;
 		}

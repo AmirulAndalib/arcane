@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -139,16 +141,23 @@
 		if (status.isDownloading || !canDownload) return;
 		status.isDownloading = true;
 		try {
-			const downloadedTemplate = await templateService.download(template.id);
-			toast.success(m.templates_downloaded_success({ name: template.name }));
-			if (downloadedTemplate?.id) {
-				await goto(`/customize/templates/${downloadedTemplate.id}`, { replaceState: true });
-			} else {
-				await refreshAll();
+			const operationResult = await tryCatch(
+				(async () => {
+					const downloadedTemplate = await templateService.download(template.id);
+					toast.success(m.templates_downloaded_success({ name: template.name }));
+					if (downloadedTemplate?.id) {
+						await goto(`/customize/templates/${downloadedTemplate.id}`, { replaceState: true });
+					} else {
+						await refreshAll();
+					}
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Error downloading template:', error);
+				toast.error(error instanceof Error ? error.message : m.templates_download_failed());
 			}
-		} catch (error) {
-			console.error('Error downloading template:', error);
-			toast.error(error instanceof Error ? error.message : m.templates_download_failed());
 		} finally {
 			status.isDownloading = false;
 		}
@@ -164,11 +173,16 @@
 				destructive: true,
 				action: async () => {
 					status.isDeleting = true;
-					try {
-						await templateService.deleteTemplate(template.id);
-						toast.success(m.common_delete_success({ resource: `${m.resource_template()} "${template.name}"` }));
-						await goto('/customize/templates');
-					} catch (error) {
+					const operationResult = await tryCatch(
+						(async () => {
+							await templateService.deleteTemplate(template.id);
+							toast.success(m.common_delete_success({ resource: `${m.resource_template()} "${template.name}"` }));
+							await goto('/customize/templates');
+						})()
+					);
+					if (operationResult.error !== null) {
+						const error = operationResult.error;
+
 						console.error('Error deleting template:', error);
 						toast.error(
 							error instanceof Error

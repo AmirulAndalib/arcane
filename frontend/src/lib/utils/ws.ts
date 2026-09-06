@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import type { SystemStats } from '#lib/types/shared.js';
 import type { Diagnostics, LogEntry } from '#lib/types/diagnostics.js';
 
@@ -48,15 +49,14 @@ export class ReconnectingWebSocket<T = unknown> {
 		}
 
 		this.connecting = true;
-		let url: string;
-		try {
-			url = await this.opts.buildUrl();
-		} catch (err) {
+		const urlResult = await tryCatch((async () => await this.opts.buildUrl())());
+		if (urlResult.error !== null) {
 			this.connecting = false;
 			this.scheduleReconnect();
-			this.opts.onError?.(err as Error);
+			this.opts.onError?.(urlResult.error);
 			return;
 		}
+		const url = urlResult.data;
 
 		let socket: WebSocket;
 		try {

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import type { FileEntry } from '#lib/types/shared.js';
 	import {
 		FolderOpenIcon,
@@ -111,11 +113,16 @@
 				label: m.common_delete(),
 				destructive: true,
 				action: async () => {
-					try {
-						const result = await onDelete(file);
-						toast.success(m.common_delete_success({ resource: file.name }), activityToastOptions(extractActivityId(result)));
-						onRefresh();
-					} catch (e: any) {
+					const operationResult1 = await tryCatch(
+						(async () => {
+							const result = await onDelete(file);
+							toast.success(m.common_delete_success({ resource: file.name }), activityToastOptions(extractActivityId(result)));
+							onRefresh();
+						})()
+					);
+					if (operationResult1.error !== null) {
+						const e = operationResult1.error;
+
 						toast.error(e.message || m.common_delete_failed({ resource: file.name }));
 					}
 				}
@@ -124,9 +131,14 @@
 	}
 
 	async function handleDownload(file: FileEntry) {
-		try {
-			await onDownload(file);
-		} catch (e: any) {
+		const operationResult2 = await tryCatch(
+			(async () => {
+				await onDownload(file);
+			})()
+		);
+		if (operationResult2.error !== null) {
+			const e = operationResult2.error;
+
 			toast.error(e.message || m.common_failed());
 		}
 	}

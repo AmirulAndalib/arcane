@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import Convert from 'ansi-to-html';
 import { Temporal } from 'temporal-polyfill';
 import { z } from 'zod/v4';
@@ -373,10 +374,14 @@ export function formatElapsedTime(value: InstantInput, options: RelativeTimeForm
 }
 
 export async function setLocale(locale: Locale, reload = true) {
-	try {
-		const zodLocale = await import(`../../../node_modules/zod/v4/locales/${locale}.js`);
-		z.config(zodLocale.default());
-	} catch (error) {
+	const operationResult = await tryCatch(
+		(async () => {
+			const zodLocale = await import(`../../../node_modules/zod/v4/locales/${locale}.js`);
+			z.config(zodLocale.default());
+		})()
+	);
+	if (operationResult.error !== null) {
+		const error = operationResult.error;
 		console.warn(`Failed to load zod locale for ${locale}:`, error);
 	}
 

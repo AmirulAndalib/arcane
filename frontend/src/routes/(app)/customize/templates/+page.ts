@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { templateService } from '#lib/services/template-service.js';
 import { queryKeys } from '#lib/query/query-keys.js';
 import type { Template, TemplateRegistry } from '#lib/types/swarm.js';
@@ -20,21 +21,25 @@ export const load: PageLoad = async ({
 	} satisfies SearchPaginationSortRequest);
 
 	const [templates, registries] = await Promise.all([
-		queryClient
-			.fetchQuery({
+		tryCatch(
+			queryClient.fetchQuery({
 				queryKey: queryKeys.templates.list(templateRequestOptions),
 				queryFn: () => templateService.getTemplates(templateRequestOptions)
 			})
-			.catch(() => ({
-				data: [],
-				pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 20 }
-			})),
-		queryClient
-			.fetchQuery({
+		).then((result) =>
+			result.error
+				? {
+						data: [],
+						pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 20 }
+					}
+				: result.data
+		),
+		tryCatch(
+			queryClient.fetchQuery({
 				queryKey: queryKeys.templates.registries(),
 				queryFn: () => templateService.getRegistries()
 			})
-			.catch(() => [])
+		).then((result) => (result.error ? [] : result.data))
 	]);
 
 	return {

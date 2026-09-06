@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { TabBar, type TabItem } from '#lib/components/tab-bar/index.js';
@@ -96,9 +98,12 @@
 			return;
 		}
 		imageSearchTimer = setTimeout(async () => {
-			try {
-				imageSuggestions = (await imageService.searchImages(term)).slice(0, 6);
-			} catch {
+			const operationResult1 = await tryCatch(
+				(async () => {
+					imageSuggestions = (await imageService.searchImages(term)).slice(0, 6);
+				})()
+			);
+			if (operationResult1.error !== null) {
 				imageSuggestions = [];
 			}
 		}, 350);

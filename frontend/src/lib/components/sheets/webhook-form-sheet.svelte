@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as ResponsiveDialog from '#lib/components/ui/responsive-dialog/index.js';
 	import SheetFooterActions from '#lib/components/sheets/sheet-footer-actions.svelte';
 	import FormInput from '#lib/components/form/form-input.svelte';
@@ -103,25 +105,30 @@
 		const generation = ++loadGeneration;
 		targetOptionsLoading = true;
 		try {
-			const envId = await environmentStore.getCurrentEnvironmentId();
-			let options: { label: string; value: string }[] = [];
-			if (type === 'container') {
-				const res = await containerService.getContainersForEnvironment(envId, { pagination: { page: 1, limit: 200 } });
-				options = res.data.map((c) => ({ value: c.id, label: c.names[0]?.replace(/^\//, '') ?? c.id }));
-			} else if (type === 'project') {
-				const res = await projectService.getProjectsForEnvironment(envId, { pagination: { page: 1, limit: 200 } });
-				options = res.data.map((p) => ({ value: p.id, label: p.name }));
-			} else if (type === 'gitops') {
-				const res = await gitOpsSyncService.getSyncs(envId, { pagination: { page: 1, limit: 200 } });
-				options = res.data.map((s) => ({ value: s.id, label: s.name }));
-			}
-			if (generation === loadGeneration) {
-				targetOptions = options;
-				selectedTargetId = options[0]?.value ?? '';
-			}
-		} catch {
-			if (generation === loadGeneration) {
-				targetOptions = [];
+			const operationResult1 = await tryCatch(
+				(async () => {
+					const envId = await environmentStore.getCurrentEnvironmentId();
+					let options: { label: string; value: string }[] = [];
+					if (type === 'container') {
+						const res = await containerService.getContainersForEnvironment(envId, { pagination: { page: 1, limit: 200 } });
+						options = res.data.map((c) => ({ value: c.id, label: c.names[0]?.replace(/^\//, '') ?? c.id }));
+					} else if (type === 'project') {
+						const res = await projectService.getProjectsForEnvironment(envId, { pagination: { page: 1, limit: 200 } });
+						options = res.data.map((p) => ({ value: p.id, label: p.name }));
+					} else if (type === 'gitops') {
+						const res = await gitOpsSyncService.getSyncs(envId, { pagination: { page: 1, limit: 200 } });
+						options = res.data.map((s) => ({ value: s.id, label: s.name }));
+					}
+					if (generation === loadGeneration) {
+						targetOptions = options;
+						selectedTargetId = options[0]?.value ?? '';
+					}
+				})()
+			);
+			if (operationResult1.error !== null) {
+				if (generation === loadGeneration) {
+					targetOptions = [];
+				}
 			}
 		} finally {
 			if (generation === loadGeneration) {

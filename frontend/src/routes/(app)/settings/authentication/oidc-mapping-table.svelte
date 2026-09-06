@@ -6,7 +6,7 @@
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import type { Paginated, SearchPaginationSortRequest } from '#lib/types/shared.js';
 	import type { OidcRoleMapping, Role } from '#lib/types/auth.js';
 	import type { Environment } from '#lib/types/environment.js';
@@ -109,7 +109,7 @@
 				destructive: true,
 				action: async () => {
 					isLoading.removing = true;
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(oidcMappingService.delete(mapping.id)),
 						message: m.oidc_mappings_delete_failed(),
 						setLoadingState: (value) => (isLoading.removing = value),

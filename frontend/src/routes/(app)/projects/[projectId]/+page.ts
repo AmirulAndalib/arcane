@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { projectService } from '#lib/services/project-service.js';
 import { projectWorkspaceService } from '#lib/services/project-workspace-service.js';
 import { variableService } from '#lib/services/variable-service.js';
@@ -8,15 +9,20 @@ import type { QueryClient } from '@tanstack/svelte-query';
 import type { PageLoad } from './$types';
 
 async function loadGlobalVariables(queryClient: QueryClient) {
-	return queryClient
-		.fetchQuery({
+	return tryCatch(
+		queryClient.fetchQuery({
 			queryKey: queryKeys.variables.list(),
 			queryFn: () => variableService.list()
 		})
-		.catch((err) => {
+	).then((result) => {
+		if (result.error) {
+			const err: Error = result.error;
+
 			console.warn('Failed to load global variables:', err);
 			return [];
-		});
+		}
+		return result.data;
+	});
 }
 
 export const load: PageLoad = async ({ params, parent }) => {
@@ -26,13 +32,19 @@ export const load: PageLoad = async ({ params, parent }) => {
 	type ProjectData = Awaited<ReturnType<typeof projectService.getProjectForEnvironment>>;
 
 	let project: ProjectData;
-	try {
-		project = await queryClient.fetchQuery({
-			queryKey: queryKeys.projects.detail(envId, params.projectId),
-			queryFn: () => projectService.getProjectForEnvironment(envId, params.projectId)
-		});
-	} catch (err) {
+	const operationResult = await tryCatch(
+		(async () =>
+			queryClient.fetchQuery({
+				queryKey: queryKeys.projects.detail(envId, params.projectId),
+				queryFn: () => projectService.getProjectForEnvironment(envId, params.projectId)
+			}))()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		throwPageLoadError(err, 'Failed to load project');
+	} else {
+		project = operationResult.data;
 	}
 
 	// Kick off the file-tree walk without awaiting it: on large projects it can

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as ResponsiveDialog from '#lib/components/ui/responsive-dialog/index.js';
 	import * as InputGroup from '#lib/components/ui/input-group/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
@@ -52,10 +54,17 @@
 		isSearching = true;
 		hasSearched = true;
 		try {
-			results = await imageService.searchImages(term);
-		} catch (error) {
-			console.error('Failed to search images:', error);
-			toast.error(m.images_search_failed());
+			const operationResult1 = await tryCatch(
+				(async () => {
+					results = await imageService.searchImages(term);
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const error = operationResult1.error;
+
+				console.error('Failed to search images:', error);
+				toast.error(m.images_search_failed());
+			}
 		} finally {
 			isSearching = false;
 		}

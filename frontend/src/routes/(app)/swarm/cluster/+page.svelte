@@ -22,7 +22,7 @@
 		SwarmUpdateRequest
 	} from '#lib/types/swarm.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { toast } from 'svelte-sonner';
 	import EasyJoinDialog from './easy-join-dialog.svelte';
 
@@ -139,7 +139,8 @@
 		request.autoLockManagers = initForm.autoLockManagers;
 		request.forceNewCluster = initForm.forceNewCluster;
 
-		handleApiResultWithCallbacks({
+		isLoading.init = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(swarmService.initSwarm(request)),
 			message: m.swarm_cluster_init_failed(),
 			setLoadingState: (value) => (isLoading.init = value),
@@ -164,7 +165,8 @@
 		if (joinForm.listenAddr.trim()) request.listenAddr = joinForm.listenAddr.trim();
 		if (joinForm.advertiseAddr.trim()) request.advertiseAddr = joinForm.advertiseAddr.trim();
 
-		handleApiResultWithCallbacks({
+		isLoading.join = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(swarmService.joinSwarm(request)),
 			message: m.swarm_cluster_join_failed(),
 			setLoadingState: (value) => (isLoading.join = value),
@@ -176,7 +178,8 @@
 	}
 
 	async function handleLeave() {
-		handleApiResultWithCallbacks({
+		isLoading.leave = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(swarmService.leaveSwarm({ force: leaveForce })),
 			message: m.swarm_cluster_leave_failed(),
 			setLoadingState: (value) => (isLoading.leave = value),
@@ -194,7 +197,8 @@
 			return;
 		}
 
-		handleApiResultWithCallbacks({
+		isLoading.unlock = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(swarmService.unlockSwarm({ key: unlockInput.trim() })),
 			message: m.swarm_cluster_unlock_failed(),
 			setLoadingState: (value) => (isLoading.unlock = value),
@@ -208,7 +212,8 @@
 	}
 
 	async function handleRotateTokens() {
-		handleApiResultWithCallbacks({
+		isLoading.rotateTokens = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(
 				swarmService.rotateSwarmJoinTokens({
 					rotateManagerToken: true,
@@ -240,7 +245,8 @@
 			request.version = parsedVersion;
 		}
 
-		handleApiResultWithCallbacks({
+		isLoading.updateSpec = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(swarmService.updateSwarmSpec(request)),
 			message: m.swarm_cluster_update_spec_failed(),
 			setLoadingState: (value) => (isLoading.updateSpec = value),

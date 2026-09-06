@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { browser } from '$app/env';
 import { dashboardService } from '#lib/services/dashboard-service.js';
 import { STREAM_CHANNEL_DASHBOARD } from '#lib/services/stream-service.js';
@@ -60,18 +61,24 @@ function createDashboardStore() {
 			}
 		},
 		async fetchSnapshot(environmentId, generation) {
-			try {
-				const snapshot = await dashboardService.getDashboardForEnvironment(environmentId, { debugAllGood });
-				// The environment can be removed while the fetch is in-flight; don't resurrect it.
-				if (!core.isCurrentGeneration(generation) || !core.environmentState(environmentId)) {
-					return;
-				}
-				replaceEnvironmentSnapshotInternal(environmentId, snapshot);
-			} catch (error) {
+			const operationResult = await tryCatch(
+				(async () => {
+					const snapshot = await dashboardService.getDashboardForEnvironment(environmentId, { debugAllGood });
+					// The environment can be removed while the fetch is in-flight; don't resurrect it.
+					if (!core.isCurrentGeneration(generation) || !core.environmentState(environmentId)) {
+						return;
+					}
+					replaceEnvironmentSnapshotInternal(environmentId, snapshot);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
 				if (core.isCurrentGeneration(generation) && core.environmentState(environmentId)) {
 					console.warn('Failed to refresh dashboard snapshot:', error);
 					core.setEnvironmentError(environmentId, error, { errorCode: undefined });
 				}
+			} else {
+				return operationResult.data;
 			}
 		}
 	});

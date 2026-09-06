@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { error, redirect } from '@sveltejs/kit';
 import { roleService } from '#lib/services/role-service.js';
 import { userIsGlobalAdmin } from '#lib/utils/auth.js';
@@ -14,12 +15,12 @@ export const load: PageLoad = async ({ parent, params }) => {
 	}
 
 	const [role, permissionsManifest] = await Promise.all([
-		queryClient
-			.fetchQuery({
+		tryCatch(
+			queryClient.fetchQuery({
 				queryKey: ['roles', 'detail', params.id],
 				queryFn: () => roleService.get(params.id)
 			})
-			.catch(() => null),
+		).then((result) => (result.error ? null : result.data)),
 		queryClient.fetchQuery({
 			queryKey: ['roles', 'permissions-manifest'],
 			queryFn: () => roleService.getPermissionsManifest()

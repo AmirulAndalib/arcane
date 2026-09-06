@@ -6,7 +6,8 @@
 	import TemplateCard from './template-card.svelte';
 	import { toast } from 'svelte-sonner';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
-	import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { templateService } from '#lib/services/template-service.js';
 	import { templateTypeFilters } from '#lib/components/arcane-table/data.js';
 	import { debounced } from '#lib/utils/ws.js';
@@ -109,7 +110,7 @@
 					deletingId = template.id;
 
 					const result = await tryCatch(templateService.deleteTemplate(template.id));
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result,
 						message: m.common_delete_failed({ resource: `${m.resource_template()} "${template.name}"` }),
 						setLoadingState: (value) => (value ? null : (deletingId = null)),
@@ -128,7 +129,7 @@
 		downloadingId = template.id;
 
 		const result = await tryCatch(templateService.download(template.id));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.templates_download_failed(),
 			setLoadingState: (value) => (value ? null : (downloadingId = null)),

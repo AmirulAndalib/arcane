@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import BaseAPIService, { handleUnauthorizedResponseInternal } from './api-service';
 import { streamCacheBuster } from '#lib/utils/streaming.js';
 
@@ -29,7 +30,7 @@ class StreamService extends BaseAPIService {
 		if (response.status === 401) {
 			// Nothing reads this body, so release its connection before deciding
 			// what to do next.
-			await response.body?.cancel().catch(() => {});
+			if (response.body) await tryCatch(response.body.cancel());
 			const action = await handleUnauthorizedResponseInternal('/stream', retry);
 			if (action === 'retry') {
 				return this.openClientStream(signal, channels, params, true);

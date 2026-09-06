@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import SheetFooterActions from '#lib/components/sheets/sheet-footer-actions.svelte';
 	import * as ResponsiveDialog from '#lib/components/ui/responsive-dialog/index.js';
 	import RepoTagFields from '#lib/components/form/repo-tag-fields.svelte';
@@ -43,16 +45,23 @@
 
 		isTagging = true;
 		try {
-			await imageService.tagImage(imageId, {
-				repository: data.repository.trim(),
-				tag: data.tag?.trim() || undefined
-			});
-			toast.success(m.images_tag_success());
-			await onTagged?.();
-			handleOpenChange(false);
-		} catch (error) {
-			console.error('Failed to tag image:', error);
-			toast.error(m.images_tag_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					await imageService.tagImage(imageId, {
+						repository: data.repository.trim(),
+						tag: data.tag?.trim() || undefined
+					});
+					toast.success(m.images_tag_success());
+					await onTagged?.();
+					handleOpenChange(false);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Failed to tag image:', error);
+				toast.error(m.images_tag_failed());
+			}
 		} finally {
 			isTagging = false;
 		}

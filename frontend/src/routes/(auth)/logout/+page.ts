@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import { authService } from '#lib/services/auth-service.js';
@@ -5,12 +6,17 @@ import { authService } from '#lib/services/auth-service.js';
 export const load: PageLoad = async ({ fetch, parent }) => {
 	const { queryClient } = await parent();
 
-	try {
-		await fetch('/api/auth/logout', {
-			method: 'POST',
-			credentials: 'include'
-		});
-	} catch (error) {
+	const operationResult = await tryCatch(
+		(async () => {
+			await fetch('/api/auth/logout', {
+				method: 'POST',
+				credentials: 'include'
+			});
+		})()
+	);
+	if (operationResult.error !== null) {
+		const error = operationResult.error;
+
 		console.error('Logout error:', error);
 	}
 

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import { Badge, type BadgeVariant } from '#lib/components/ui/badge/index.js';
 	import { toast } from 'svelte-sonner';
@@ -167,39 +169,44 @@
 	async function checkImageUpdate() {
 		if (!canCheckUpdate || imageUpdateQuery.isFetching) return;
 
-		try {
-			const result = await imageUpdateQuery.refetch();
-			if (result.data) {
-				onUpdated?.(result.data);
-				const toastOptions = activityToastOptions(extractActivityId(result.data));
+		const requestResult1 = await tryCatch(
+			(async () => {
+				const result = await imageUpdateQuery.refetch();
+				if (result.data) {
+					onUpdated?.(result.data);
+					const toastOptions = activityToastOptions(extractActivityId(result.data));
 
-				if (result.data.error) {
-					toast.error(result.data.error || m.images_update_check_failed(), toastOptions);
-				} else {
-					toast.success(m.images_update_check_completed(), toastOptions);
+					if (result.data.error) {
+						toast.error(result.data.error || m.images_update_check_failed(), toastOptions);
+					} else {
+						toast.success(m.images_update_check_completed(), toastOptions);
+					}
+					return;
 				}
-				return;
-			}
 
-			if (result.error) {
-				const message = result.error instanceof Error ? result.error.message : m.images_update_check_failed();
-				onUpdated?.({
-					hasUpdate: false,
-					updateType: 'error',
-					currentVersion: tag || '',
-					currentDigest: '',
-					latestVersion: '',
-					latestDigest: '',
-					checkTime: nowInstantString(),
-					responseTimeMs: 0,
-					error: message
-				});
-				toast.error(message);
-				return;
-			}
+				if (result.error) {
+					const message = result.error instanceof Error ? result.error.message : m.images_update_check_failed();
+					onUpdated?.({
+						hasUpdate: false,
+						updateType: 'error',
+						currentVersion: tag || '',
+						currentDigest: '',
+						latestVersion: '',
+						latestDigest: '',
+						checkTime: nowInstantString(),
+						responseTimeMs: 0,
+						error: message
+					});
+					toast.error(message);
+					return;
+				}
 
-			toast.error(m.images_update_check_failed());
-		} catch (error) {
+				toast.error(m.images_update_check_failed());
+			})()
+		);
+		if (requestResult1.error !== null) {
+			const error = requestResult1.error;
+
 			console.error('Error checking update:', error);
 			const errorInfo: ImageUpdateData = {
 				hasUpdate: false,

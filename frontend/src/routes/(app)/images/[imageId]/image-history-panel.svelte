@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Card from '#lib/components/ui/card/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
@@ -23,10 +25,15 @@
 		loading = true;
 		error = null;
 		try {
-			history = await imageService.getImageHistory(id);
-		} catch (err) {
-			console.error('Failed to load image history:', err);
-			error = m.images_history_load_failed();
+			const operationResult = await tryCatch((async () => imageService.getImageHistory(id))());
+			if (operationResult.error !== null) {
+				const err = operationResult.error;
+
+				console.error('Failed to load image history:', err);
+				error = m.images_history_load_failed();
+			} else {
+				history = operationResult.data;
+			}
 		} finally {
 			loading = false;
 		}

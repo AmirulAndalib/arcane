@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { error } from '@sveltejs/kit';
 import { swarmService } from '#lib/services/swarm-service.js';
 import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
@@ -29,28 +30,35 @@ export const load: PageLoad = async ({ params }) => {
 		}
 	} satisfies SearchPaginationSortRequest);
 
-	try {
-		const [stack, services, tasks] = await Promise.all([
-			swarmService.getStack(stackName),
-			swarmService.getStackServices(stackName, servicesRequestOptions),
-			swarmService.getStackTasks(stackName, tasksRequestOptions)
-		]);
+	const operationResult = await tryCatch(
+		(async () => {
+			const [stack, services, tasks] = await Promise.all([
+				swarmService.getStack(stackName),
+				swarmService.getStackServices(stackName, servicesRequestOptions),
+				swarmService.getStackTasks(stackName, tasksRequestOptions)
+			]);
 
-		return {
-			stack,
-			stackName,
-			services,
-			tasks,
-			source: null,
-			sourceState: 'loading' as StackSourceState,
-			servicesRequestOptions,
-			tasksRequestOptions
-		};
-	} catch (err: any) {
+			return {
+				stack,
+				stackName,
+				services,
+				tasks,
+				source: null,
+				sourceState: 'loading' as StackSourceState,
+				servicesRequestOptions,
+				tasksRequestOptions
+			};
+		})()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		console.error('Failed to load stack details:', err);
-		if (err.status === 404) {
+		if ('status' in err && err.status === 404) {
 			throw err;
 		}
 		throw error(500, err.message || 'Failed to load stack details');
+	} else {
+		return operationResult.data;
 	}
 };

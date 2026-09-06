@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ResponsiveDialog } from '#lib/components/ui/responsive-dialog/index.js';
 	import SheetFooterActions from '#lib/components/sheets/sheet-footer-actions.svelte';
 	import FormInput from '#lib/components/form/form-input.svelte';
@@ -103,15 +105,22 @@
 		testedConfiguration = null;
 		testing = true;
 		try {
-			if (destination) {
-				await s3DestinationService.test(destination.id, data);
-			} else {
-				await s3DestinationService.testConfiguration(data);
+			const operationResult = await tryCatch(
+				(async () => {
+					if (destination) {
+						await s3DestinationService.test(destination.id, data);
+					} else {
+						await s3DestinationService.testConfiguration(data);
+					}
+					testedConfiguration = testedCandidate;
+					toast.success(m.s3_destination_test_success({ name: data.name }));
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.s3_destination_test_failed({ name: data.name }));
 			}
-			testedConfiguration = testedCandidate;
-			toast.success(m.s3_destination_test_success({ name: data.name }));
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.s3_destination_test_failed({ name: data.name }));
 		} finally {
 			testing = false;
 		}

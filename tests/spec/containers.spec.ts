@@ -137,15 +137,25 @@ test.describe('Containers Page', () => {
 	});
 
 	test('should display stat cards with correct counts', async ({ page }) => {
+		// Aggregate counts can exceed the current page and must not depend on other workers' containers.
+		const counts = { totalContainers: 37, runningContainers: 23, stoppedContainers: 14 };
+		await page.route(
+			(url) => /^\/api\/environments\/[^/]+\/containers$/.test(url.pathname),
+			async (route) => {
+				const response = await route.fetch();
+				const body = (await response.json()) as Record<string, unknown>;
+				await route.fulfill({ response, json: { ...body, counts } });
+			}
+		);
+
 		await navigateToContainers(page);
-
-		const total = containersData.pagination?.totalItems ?? containersData.data.length;
-		const running = containersData.data.filter((c) => c.state === 'running').length;
-		const stopped = containersData.data.filter((c) => c.state !== 'running').length;
-
-		await expect(page.getByText(`${total} Total`)).toBeVisible();
-		await expect(page.getByText(`${running} Running`, { exact: true })).toBeVisible();
-		await expect(page.getByText(`${stopped} Stopped`)).toBeVisible();
+		await expect(page.getByText(`${counts.totalContainers} Total`, { exact: true })).toBeVisible();
+		await expect(
+			page.getByText(`${counts.runningContainers} Running`, { exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByText(`${counts.stoppedContainers} Stopped`, { exact: true })
+		).toBeVisible();
 	});
 
 	test('should display the container table with columns', async ({ page }) => {

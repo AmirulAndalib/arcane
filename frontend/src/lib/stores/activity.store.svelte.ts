@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { activityService } from '#lib/services/activity-service.js';
 import { STREAM_CHANNEL_ACTIVITIES } from '#lib/services/stream-service.js';
 import { LOCAL_DOCKER_ENVIRONMENT_ID } from '#lib/stores/environment.store.svelte.js';
@@ -225,21 +226,28 @@ function createActivityStore() {
 				...state,
 				loading: true
 			}));
-			try {
-				const result = await activityService.getActivities(
-					{ pagination: { page: 1, limit: ACTIVITY_LIST_LIMIT } },
-					environmentId
-				);
-				// The environment can be removed while the fetch is in-flight; don't resurrect it.
-				if (!core.isCurrentGeneration(generation) || !core.environmentState(environmentId)) {
-					return;
-				}
-				replaceEnvironmentSnapshotInternal(environmentId, result.data ?? []);
-			} catch (error) {
+
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await activityService.getActivities(
+						{ pagination: { page: 1, limit: ACTIVITY_LIST_LIMIT } },
+						environmentId
+					);
+					// The environment can be removed while the fetch is in-flight; don't resurrect it.
+					if (!core.isCurrentGeneration(generation) || !core.environmentState(environmentId)) {
+						return;
+					}
+					replaceEnvironmentSnapshotInternal(environmentId, result.data ?? []);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
 				if (core.isCurrentGeneration(generation) && core.environmentState(environmentId)) {
 					console.warn('Failed to refresh activities:', error);
 					core.setEnvironmentError(environmentId, error);
 				}
+			} else {
+				return operationResult.data;
 			}
 		},
 		onEnvironmentRemoved(environmentId) {
@@ -397,29 +405,37 @@ function createActivityStore() {
 		const generation = sessionGeneration;
 		_detailLoadingIds = { ..._detailLoadingIds, [activityId]: true };
 		try {
-			const detail = await activityService.getActivity(
-				activityId,
-				activityEnvironmentIdInternal(activityId),
-				ACTIVITY_DETAIL_LIMIT
+			const operationResult = await tryCatch(
+				(async () => {
+					const detail = await activityService.getActivity(
+						activityId,
+						activityEnvironmentIdInternal(activityId),
+						ACTIVITY_DETAIL_LIMIT
+					);
+					if (generation !== sessionGeneration) {
+						return;
+					}
+					const environmentId = sourceEnvironmentIdInternal(detail.activity);
+					const normalized = {
+						...detail,
+						activity: normalizeActivityInternal(detail.activity, environmentId)
+					};
+					_details = { ..._details, [activityId]: normalized };
+					const nextErrors = { ..._detailErrorIds };
+					delete nextErrors[activityId];
+					_detailErrorIds = nextErrors;
+				})()
 			);
-			if (generation !== sessionGeneration) {
-				return;
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+				if (generation !== sessionGeneration) {
+					return;
+				}
+				console.warn('Failed to load activity detail:', error);
+				_detailErrorIds = { ..._detailErrorIds, [activityId]: true };
+			} else {
+				return operationResult.data;
 			}
-			const environmentId = sourceEnvironmentIdInternal(detail.activity);
-			const normalized = {
-				...detail,
-				activity: normalizeActivityInternal(detail.activity, environmentId)
-			};
-			_details = { ..._details, [activityId]: normalized };
-			const nextErrors = { ..._detailErrorIds };
-			delete nextErrors[activityId];
-			_detailErrorIds = nextErrors;
-		} catch (error) {
-			if (generation !== sessionGeneration) {
-				return;
-			}
-			console.warn('Failed to load activity detail:', error);
-			_detailErrorIds = { ..._detailErrorIds, [activityId]: true };
 		} finally {
 			if (generation === sessionGeneration) {
 				const next = { ..._detailLoadingIds };
@@ -629,11 +645,15 @@ function createActivityStore() {
 			const states = Object.values(core.environmentStates);
 			await Promise.all(
 				states.map(async (state) => {
-					try {
-						const result = await activityService.clearHistory(state.id);
-						deleted += result.deleted ?? 0;
-						succeeded += 1;
-					} catch (error) {
+					const operationResult = await tryCatch(
+						(async () => {
+							const result = await activityService.clearHistory(state.id);
+							deleted += result.deleted ?? 0;
+							succeeded += 1;
+						})()
+					);
+					if (operationResult.error !== null) {
+						const error = operationResult.error;
 						failed.push({
 							environmentId: state.id,
 							environmentName: state.name,

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { goto } from '$app/navigation';
 	import { useBackupActivity } from '#lib/hooks/use-backup-activity.svelte.js';
 	import { activityStore } from '#lib/stores/activity.store.svelte.js';
@@ -141,13 +143,20 @@
 		newRecoveryKey = '';
 		generatingKey = true;
 		try {
-			const generated = await systemBackupService.generateRecoveryKey();
-			await systemBackupService.setRecoveryKey(generated.recoveryKey);
-			newRecoveryKey = generated.recoveryKey;
-			policyCollection = { ...policyCollection, recoveryKeyStored: true };
-			keyOpen = true;
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.system_backups_recovery_key_save_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					const generated = await systemBackupService.generateRecoveryKey();
+					await systemBackupService.setRecoveryKey(generated.recoveryKey);
+					newRecoveryKey = generated.recoveryKey;
+					policyCollection = { ...policyCollection, recoveryKeyStored: true };
+					keyOpen = true;
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.system_backups_recovery_key_save_failed());
+			}
 		} finally {
 			generatingKey = false;
 		}
@@ -217,19 +226,26 @@
 			return;
 		restoringFiles = true;
 		try {
-			const result = await systemBackupService.restoreFiles(restoreFilesTarget.id, restoreFilesRecoveryKey.trim(), {
-				paths: restoreFilesSelectedPaths,
-				selectAll: restoreFilesSelectAll,
-				search: restoreFilesSelectAll ? restoreFilesSearch.trim() : undefined
-			});
-			const projectQueryKey = queryKeys.projects.environment('0');
-			await queryClient.cancelQueries({ queryKey: projectQueryKey });
-			queryClient.removeQueries({ queryKey: projectQueryKey });
-			toast.success(m.system_backups_restore_selection_success(), activityToastOptions(extractActivityId(result)));
-			closeRestoreFiles();
-			await refresh();
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.system_backups_restore_files_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await systemBackupService.restoreFiles(restoreFilesTarget.id, restoreFilesRecoveryKey.trim(), {
+						paths: restoreFilesSelectedPaths,
+						selectAll: restoreFilesSelectAll,
+						search: restoreFilesSelectAll ? restoreFilesSearch.trim() : undefined
+					});
+					const projectQueryKey = queryKeys.projects.environment('0');
+					await queryClient.cancelQueries({ queryKey: projectQueryKey });
+					queryClient.removeQueries({ queryKey: projectQueryKey });
+					toast.success(m.system_backups_restore_selection_success(), activityToastOptions(extractActivityId(result)));
+					closeRestoreFiles();
+					await refresh();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.system_backups_restore_files_failed());
+			}
 		} finally {
 			restoringFiles = false;
 		}
@@ -256,10 +272,17 @@
 		if (systemVolumeOptionsLoading || systemVolumeOptionsLoaded) return;
 		systemVolumeOptionsLoading = true;
 		try {
-			systemVolumeOptions = await systemBackupService.listSystemVolumeOptions();
-			systemVolumeOptionsLoaded = true;
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.system_volume_backups_options_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					systemVolumeOptions = await systemBackupService.listSystemVolumeOptions();
+					systemVolumeOptionsLoaded = true;
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.system_volume_backups_options_failed());
+			}
 		} finally {
 			systemVolumeOptionsLoading = false;
 		}
@@ -276,9 +299,14 @@
 	async function openVolumeBackups(backup: BackupHistoryEntry) {
 		const localEnvironment = environmentStore.getLocalEnvironment();
 		if (!localEnvironment) return;
-		try {
-			await environmentStore.setEnvironment(localEnvironment);
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				await environmentStore.setEnvironment(localEnvironment);
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			toast.error(error instanceof Error ? error.message : m.environments_connect_error());
 			return;
 		}
@@ -293,10 +321,15 @@
 		if (autoDiscovered || !policyCollection.recoveryKeyStored || data.destinations.length === 0) return;
 		autoDiscovered = true;
 		void (async () => {
-			try {
-				const counts = await Promise.all(data.destinations.map((item) => systemBackupService.discover(item.id, '')));
-				if (counts.some((count) => count > 0)) await refresh();
-			} catch (error) {
+			const operationResult = await tryCatch(
+				(async () => {
+					const counts = await Promise.all(data.destinations.map((item) => systemBackupService.discover(item.id, '')));
+					if (counts.some((count) => count > 0)) await refresh();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
 				console.warn('S3 backup discovery failed', error);
 			}
 		})();
@@ -315,67 +348,80 @@
 		if (loading || invalid || (action === 'create' && backupActivity.activeIds.length)) return;
 		loading = true;
 		try {
-			if (action === 'create') {
-				if (backupType === 'system') {
-					const result = await systemBackupService.create(
-						backupConfiguration === 'custom'
-							? { destination, s3DestinationId: destination === 'local' ? '' : s3DestinationId, recoveryKey }
-							: { policyId: backupConfiguration, recoveryKey }
-					);
-					backupActivity.accepted(extractActivityId(result));
-					toast.success(m.backups_started(), activityToastOptions(extractActivityId(result), false));
-				} else {
-					const result = await systemBackupService.runSystemVolumeBackups(
-						backupConfiguration === 'custom'
-							? {
-									custom: {
-										destination,
-										s3DestinationId: destination === 'local' ? '' : s3DestinationId,
-										stopContainers,
-										selectionMode,
-										volumeNames,
-										ignoreAnonymous
-									}
-								}
-							: { policyId: backupConfiguration }
-					);
-					backupActivity.accepted(result.activityId);
-					toast.success(m.backups_started(), activityToastOptions(result.activityId, false));
-				}
-				actionOpen = false;
-				loading = false;
-				void refresh().catch((error) => console.warn('Failed to refresh backup history', error));
-			} else if (action === 'restore' && selected) {
-				await systemBackupService.restore(selected.id, recoveryKey);
-				toast.success(m.system_backups_restore_started());
-			} else if (action === 'upload' && selected) {
-				await systemBackupService.upload(selected.id, s3DestinationId, recoveryKey);
-				toast.success(m.backups_upload_s3_success());
-				await refresh();
-			} else if (action === 'delete' && selected) {
-				await systemBackupService.delete(selected.id, recoveryKey);
-				toast.success(m.system_backups_deleted());
-				await refresh();
-			} else if (action === 'discover') {
-				const count = await systemBackupService.discover(s3DestinationId, recoveryKey);
-				toast.success(m.system_backups_discovered({ count }));
-				await refresh();
+			const operationResult = await tryCatch(
+				(async () => {
+					if (action === 'create') {
+						if (backupType === 'system') {
+							const result = await systemBackupService.create(
+								backupConfiguration === 'custom'
+									? { destination, s3DestinationId: destination === 'local' ? '' : s3DestinationId, recoveryKey }
+									: { policyId: backupConfiguration, recoveryKey }
+							);
+							backupActivity.accepted(extractActivityId(result));
+							toast.success(m.backups_started(), activityToastOptions(extractActivityId(result), false));
+						} else {
+							const result = await systemBackupService.runSystemVolumeBackups(
+								backupConfiguration === 'custom'
+									? {
+											custom: {
+												destination,
+												s3DestinationId: destination === 'local' ? '' : s3DestinationId,
+												stopContainers,
+												selectionMode,
+												volumeNames,
+												ignoreAnonymous
+											}
+										}
+									: { policyId: backupConfiguration }
+							);
+							backupActivity.accepted(result.activityId);
+							toast.success(m.backups_started(), activityToastOptions(result.activityId, false));
+						}
+						actionOpen = false;
+						loading = false;
+						void tryCatch(refresh()).then((result) => {
+							if (result.error) {
+								const error: Error = result.error;
+								return console.warn('Failed to refresh backup history', error);
+							}
+							return result.data;
+						});
+					} else if (action === 'restore' && selected) {
+						await systemBackupService.restore(selected.id, recoveryKey);
+						toast.success(m.system_backups_restore_started());
+					} else if (action === 'upload' && selected) {
+						await systemBackupService.upload(selected.id, s3DestinationId, recoveryKey);
+						toast.success(m.backups_upload_s3_success());
+						await refresh();
+					} else if (action === 'delete' && selected) {
+						await systemBackupService.delete(selected.id, recoveryKey);
+						toast.success(m.system_backups_deleted());
+						await refresh();
+					} else if (action === 'discover') {
+						const count = await systemBackupService.discover(s3DestinationId, recoveryKey);
+						toast.success(m.system_backups_discovered({ count }));
+						await refresh();
+					}
+					actionOpen = false;
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				const fallback =
+					action === 'restore'
+						? m.system_backups_restore_failed()
+						: action === 'delete'
+							? m.system_backups_delete_failed()
+							: action === 'upload'
+								? m.backups_upload_s3_failed()
+								: action === 'discover'
+									? m.system_backups_discover_failed()
+									: backupType === 'volume'
+										? m.system_volume_backups_run_failed()
+										: m.system_backups_create_failed();
+				toast.error(error instanceof Error ? error.message : fallback);
 			}
-			actionOpen = false;
-		} catch (error) {
-			const fallback =
-				action === 'restore'
-					? m.system_backups_restore_failed()
-					: action === 'delete'
-						? m.system_backups_delete_failed()
-						: action === 'upload'
-							? m.backups_upload_s3_failed()
-							: action === 'discover'
-								? m.system_backups_discover_failed()
-								: backupType === 'volume'
-									? m.system_volume_backups_run_failed()
-									: m.system_backups_create_failed();
-			toast.error(error instanceof Error ? error.message : fallback);
 		} finally {
 			loading = false;
 		}

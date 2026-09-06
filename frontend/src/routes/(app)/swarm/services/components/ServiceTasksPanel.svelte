@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Card from '#lib/components/ui/card/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
@@ -23,12 +25,19 @@
 	async function loadTasks() {
 		isLoading = true;
 		try {
-			const result = await swarmService.getServiceTasks(serviceId, {
-				pagination: { page: 1, limit: 100 }
-			});
-			tasks = sortSwarmTasks(result.data ?? []);
-		} catch (err) {
-			console.error(m.swarm_service_tasks_load_failed_log(), err);
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await swarmService.getServiceTasks(serviceId, {
+						pagination: { page: 1, limit: 100 }
+					});
+					tasks = sortSwarmTasks(result.data ?? []);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const err = operationResult.error;
+
+				console.error(m.swarm_service_tasks_load_failed_log(), err);
+			}
 		} finally {
 			isLoading = false;
 			hasLoaded = true;

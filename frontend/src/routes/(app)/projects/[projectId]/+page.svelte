@@ -30,7 +30,7 @@
 	import { page } from '$app/state';
 	import { mode } from 'mode-watcher';
 	import { toast } from 'svelte-sonner';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { z } from 'zod/v4';
 	import { createForm } from '#lib/utils/settings.js';
@@ -757,47 +757,57 @@
 		let workspaceCommitted = false;
 		isLoading.saving = true;
 		try {
-			if (workspaceUpdate.fileChanges.length > 0) {
-				const workspace = await projectWorkspaceService.updateWorkspace(
-					projectId,
-					{
-						fileTreeRevision: projectWorkspaceQuery.data?.fileTreeRevision ?? '',
-						fileChanges: workspaceUpdate.fileChanges
-					},
-					workspaceUpdate.files,
-					envId
-				);
-				workspaceCommitted = true;
-				queryClient.setQueryData(queryKeys.projects.workspace(envId, projectId), workspace);
+			const operationResult = await tryCatch(
+				(async () => {
+					if (workspaceUpdate.fileChanges.length > 0) {
+						const workspace = await projectWorkspaceService.updateWorkspace(
+							projectId,
+							{
+								fileTreeRevision: projectWorkspaceQuery.data?.fileTreeRevision ?? '',
+								fileChanges: workspaceUpdate.fileChanges
+							},
+							workspaceUpdate.files,
+							envId
+						);
+						workspaceCommitted = true;
+						queryClient.setQueryData(queryKeys.projects.workspace(envId, projectId), workspace);
 
-				loadedProjectWorkspaceContents = { ...loadedProjectWorkspaceContents, ...projectWorkspaceContents };
-				loadedIncludeFileContents = {
-					...loadedIncludeFileContents,
-					...Object.fromEntries(
-						changedIncludeFilePaths.flatMap((relativePath) => {
-							const content = includeFilesState[relativePath];
-							return content === undefined ? [] : [[relativePath, content] as const];
-						})
-					)
-				};
-				projectWorkspaceChanges = [];
-				projectWorkspaceStagedFiles = {};
-				projectWorkspaceStagedUploadedText = {};
-			}
+						loadedProjectWorkspaceContents = { ...loadedProjectWorkspaceContents, ...projectWorkspaceContents };
+						loadedIncludeFileContents = {
+							...loadedIncludeFileContents,
+							...Object.fromEntries(
+								changedIncludeFilePaths.flatMap((relativePath) => {
+									const content = includeFilesState[relativePath];
+									return content === undefined ? [] : [[relativePath, content] as const];
+								})
+							)
+						};
+						projectWorkspaceChanges = [];
+						projectWorkspaceStagedFiles = {};
+						projectWorkspaceStagedUploadedText = {};
+					}
 
-			const updatedProject = await projectService.updateProject(
-				projectId,
-				namePayload,
-				composePayload,
-				envPayload,
-				overridePayload
+					const updatedProject = await projectService.updateProject(
+						projectId,
+						namePayload,
+						composePayload,
+						envPayload,
+						overridePayload
+					);
+					rebaseEditorDraft(updatedProject, { preserveProjectWorkspaceContents: true });
+					await syncProjectQueries(updatedProject);
+					toast.success(
+						m.common_update_success({ resource: m.project() }),
+						activityToastOptions(extractActivityId(updatedProject))
+					);
+				})()
 			);
-			rebaseEditorDraft(updatedProject, { preserveProjectWorkspaceContents: true });
-			await syncProjectQueries(updatedProject);
-			toast.success(m.common_update_success({ resource: m.project() }), activityToastOptions(extractActivityId(updatedProject)));
-		} catch (error) {
-			const message = error instanceof Error ? error.message : m.common_save_failed();
-			toast.error(workspaceCommitted ? m.projects_workspace_saved_configuration_failed({ error: message }) : message);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				const message = error instanceof Error ? error.message : m.common_save_failed();
+				toast.error(workspaceCommitted ? m.projects_workspace_saved_configuration_failed({ error: message }) : message);
+			}
 		} finally {
 			isLoading.saving = false;
 		}
@@ -1089,14 +1099,21 @@
 		projectWorkspaceLoadErrors = removeWorkspaceFileRecord(projectWorkspaceLoadErrors, relativePath);
 
 		try {
-			const file = await getProjectWorkspaceFileResource('workspace', relativePath);
-			projectWorkspaceFileMetadata = { ...projectWorkspaceFileMetadata, [relativePath]: file };
-			if (file.editable) updateLoadedProjectWorkspaceFile(relativePath, file.content ?? '');
-		} catch (error) {
-			projectWorkspaceLoadErrors = {
-				...projectWorkspaceLoadErrors,
-				[relativePath]: error instanceof Error ? error.message : String(error)
-			};
+			const operationResult = await tryCatch(
+				(async () => {
+					const file = await getProjectWorkspaceFileResource('workspace', relativePath);
+					projectWorkspaceFileMetadata = { ...projectWorkspaceFileMetadata, [relativePath]: file };
+					if (file.editable) updateLoadedProjectWorkspaceFile(relativePath, file.content ?? '');
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				projectWorkspaceLoadErrors = {
+					...projectWorkspaceLoadErrors,
+					[relativePath]: error instanceof Error ? error.message : String(error)
+				};
+			}
 		} finally {
 			projectWorkspaceLoading = removeWorkspaceFileRecord(projectWorkspaceLoading, relativePath);
 		}
@@ -1125,12 +1142,19 @@
 		projectWorkspaceLoadErrors = removeWorkspaceFileRecord(projectWorkspaceLoadErrors, relativePath);
 
 		try {
-			await getProjectWorkspaceFileResource(kind, relativePath);
-		} catch (error) {
-			projectWorkspaceLoadErrors = {
-				...projectWorkspaceLoadErrors,
-				[relativePath]: error instanceof Error ? error.message : String(error)
-			};
+			const operationResult = await tryCatch(
+				(async () => {
+					await getProjectWorkspaceFileResource(kind, relativePath);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				projectWorkspaceLoadErrors = {
+					...projectWorkspaceLoadErrors,
+					[relativePath]: error instanceof Error ? error.message : String(error)
+				};
+			}
 		} finally {
 			projectWorkspaceLoading = removeWorkspaceFileRecord(projectWorkspaceLoading, relativePath);
 		}
@@ -1251,9 +1275,14 @@
 	}
 
 	async function downloadProjectWorkspaceFile(relativePath: string) {
-		try {
-			await projectWorkspaceService.downloadWorkspaceFile(projectId, relativePath, envId);
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				await projectWorkspaceService.downloadWorkspaceFile(projectId, relativePath, envId);
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			toast.error(error instanceof Error ? error.message : m.common_download_error());
 		}
 	}

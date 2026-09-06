@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import Ajv, { type ValidateFunction } from 'ajv';
 import type { Completion } from '@codemirror/autocomplete';
 import { browser } from '$app/env';
@@ -376,41 +377,50 @@ export async function getComposeSchemaContext(): Promise<ComposeSchemaContext> {
 
 	composeSchemaPromise = (async () => {
 		try {
-			const response = await fetch(DOCKER_COMPOSE_SCHEMA_URL, { cache: 'no-store' });
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}`);
-			}
+			const requestResult1 = await tryCatch(
+				(async () => {
+					const response = await fetch(DOCKER_COMPOSE_SCHEMA_URL, { cache: 'no-store' });
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}`);
+					}
 
-			const payload = (await response.json()) as unknown;
-			const schema = asSchemaObject(payload);
-			if (!schema) throw new Error('Invalid compose schema payload');
+					const payload = (await response.json()) as unknown;
+					const schema = asSchemaObject(payload);
+					if (!schema) throw new Error('Invalid compose schema payload');
 
-			writeCachedSchema(schema);
-			composeSchemaContext = {
-				schema,
-				validate: createValidator(schema),
-				status: 'ready'
-			};
-			return composeSchemaContext;
-		} catch (error) {
-			const cached = readCachedSchema();
-			if (cached) {
+					writeCachedSchema(schema);
+					composeSchemaContext = {
+						schema,
+						validate: createValidator(schema),
+						status: 'ready'
+					};
+					return composeSchemaContext;
+				})()
+			);
+			if (requestResult1.error !== null) {
+				const error = requestResult1.error;
+
+				const cached = readCachedSchema();
+				if (cached) {
+					composeSchemaContext = {
+						schema: cached,
+						validate: createValidator(cached),
+						status: 'cached',
+						message: 'Using cached Docker Compose schema'
+					};
+					return composeSchemaContext;
+				}
+
 				composeSchemaContext = {
-					schema: cached,
-					validate: createValidator(cached),
-					status: 'cached',
-					message: 'Using cached Docker Compose schema'
+					schema: null,
+					validate: null,
+					status: 'unavailable',
+					message: error instanceof Error ? error.message : 'Schema unavailable'
 				};
 				return composeSchemaContext;
+			} else {
+				return requestResult1.data;
 			}
-
-			composeSchemaContext = {
-				schema: null,
-				validate: null,
-				status: 'unavailable',
-				message: error instanceof Error ? error.message : 'Schema unavailable'
-			};
-			return composeSchemaContext;
 		} finally {
 			composeSchemaPromise = null;
 		}

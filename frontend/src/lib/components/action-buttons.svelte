@@ -4,7 +4,7 @@
 	import { openConfirmDialog } from './confirm-dialog';
 	import { goto, refreshAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { ArcaneButton, arcaneButtonVariants, type ArcaneButtonSize } from '#lib/components/arcane-button/index.js';
 	import DeploySplitButton from '#lib/components/deploy-split-button/deploy-split-button.svelte';
@@ -279,7 +279,7 @@
 						const removeVolumes = checkboxStates['removeVolumes'] === true;
 
 						const result = await removeMutation.mutateAsync({ removeVolumes });
-						handleApiResultWithCallbacks({
+						await handleApiResultWithCallbacks({
 							result,
 							message: m.common_action_failed_with_type({
 								action: type === 'project' ? m.compose_destroy() : m.common_remove(),
@@ -333,7 +333,7 @@
 					if (watch) {
 						enterInteractiveWatchInternal(operationStartedAt);
 					}
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result,
 						message: m.common_action_failed_with_type({ action: m.common_redeploy(), type }),
 						onSuccess: async (data) => {
@@ -380,25 +380,32 @@
 		}
 
 		try {
-			await projectService.deployProject(
-				id,
-				'up',
-				watch ? (frame: unknown) => operationWatchStore.onLine(frame) : () => {},
-				options ?? deployOptionsStore.takeRequestOptions()
+			const operationResult1 = await tryCatch(
+				(async () => {
+					await projectService.deployProject(
+						id,
+						'up',
+						watch ? (frame: unknown) => operationWatchStore.onLine(frame) : () => {},
+						options ?? deployOptionsStore.takeRequestOptions()
+					);
+					if (watch) {
+						enterInteractiveWatchInternal(operationStartedAt);
+					}
+					await refreshAll();
+					itemState = 'running';
+					onActionComplete('running');
+				})()
 			);
-			if (watch) {
-				enterInteractiveWatchInternal(operationStartedAt);
-			}
-			await refreshAll();
-			itemState = 'running';
-			onActionComplete('running');
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : m.common_action_failed_with_type({ action: m.common_start(), type });
-			if (watch) {
-				operationWatchStore.fail(message);
-			} else {
-				toast.error(message);
+			if (operationResult1.error !== null) {
+				const error = operationResult1.error;
+
+				const message =
+					error instanceof Error ? error.message : m.common_action_failed_with_type({ action: m.common_start(), type });
+				if (watch) {
+					operationWatchStore.fail(message);
+				} else {
+					toast.error(message);
+				}
 			}
 		} finally {
 			setLoading('start', false);
@@ -464,15 +471,22 @@
 		}
 
 		try {
-			await projectService.pullProjectImages(id, watch ? (frame: unknown) => operationWatchStore.onLine(frame) : () => {});
-			await refreshAll();
-			onActionComplete(itemState);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : m.images_pull_failed();
-			if (watch) {
-				operationWatchStore.fail(message);
-			} else {
-				toast.error(message);
+			const operationResult2 = await tryCatch(
+				(async () => {
+					await projectService.pullProjectImages(id, watch ? (frame: unknown) => operationWatchStore.onLine(frame) : () => {});
+					await refreshAll();
+					onActionComplete(itemState);
+				})()
+			);
+			if (operationResult2.error !== null) {
+				const error = operationResult2.error;
+
+				const message = error instanceof Error ? error.message : m.images_pull_failed();
+				if (watch) {
+					operationWatchStore.fail(message);
+				} else {
+					toast.error(message);
+				}
 			}
 		} finally {
 			setLoading('pull', false);
@@ -483,20 +497,27 @@
 		setLoading('build', true);
 
 		try {
-			const buildProvider = projectBuildProvider;
-			await projectService.buildProjectImages(
-				id,
-				{
-					provider: buildProvider,
-					push: buildProvider === 'depot',
-					load: buildProvider !== 'depot'
-				},
-				() => {}
+			const operationResult3 = await tryCatch(
+				(async () => {
+					const buildProvider = projectBuildProvider;
+					await projectService.buildProjectImages(
+						id,
+						{
+							provider: buildProvider,
+							push: buildProvider === 'depot',
+							load: buildProvider !== 'depot'
+						},
+						() => {}
+					);
+					await refreshAll();
+				})()
 			);
-			await refreshAll();
-		} catch (error) {
-			const message = error instanceof Error ? error.message : m.build_failed();
-			toast.error(message);
+			if (operationResult3.error !== null) {
+				const error = operationResult3.error;
+
+				const message = error instanceof Error ? error.message : m.build_failed();
+				toast.error(message);
+			}
 		} finally {
 			setLoading('build', false);
 		}

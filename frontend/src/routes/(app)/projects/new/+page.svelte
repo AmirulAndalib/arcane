@@ -17,7 +17,8 @@
 	import { hasPermission } from '#lib/utils/auth.js';
 	import { containerService } from '#lib/services/container-service.js';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
-	import { extractApiErrorMessage, tryCatch } from '#lib/utils/api.js';
+	import { extractApiErrorMessage } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { ComposeEditorSplit } from '#lib/components/compose/index.js';
 	import ResizableSplit from '#lib/components/resizable-split.svelte';
 	import { Switch } from '#lib/components/ui/switch/index.js';

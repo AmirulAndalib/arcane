@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { onMount } from 'svelte';
 	import ResponsiveDialog from '#lib/components/ui/responsive-dialog/responsive-dialog.svelte';
 	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
@@ -44,19 +46,24 @@
 				label: m.activity_clear_history_confirm(),
 				destructive: true,
 				action: async () => {
-					try {
-						const result = await activityStore.clearHistory();
-						if (result.failed.length > 0) {
-							toast.warning(
-								m.activity_clear_history_partial({
-									count: result.succeeded,
-									environments: result.failed.map((failure) => failure.environmentName).join(', ')
-								})
-							);
-							return;
-						}
-						toast.success(m.activity_clear_history_success());
-					} catch (error) {
+					const requestResult1 = await tryCatch(
+						(async () => {
+							const result = await activityStore.clearHistory();
+							if (result.failed.length > 0) {
+								toast.warning(
+									m.activity_clear_history_partial({
+										count: result.succeeded,
+										environments: result.failed.map((failure) => failure.environmentName).join(', ')
+									})
+								);
+								return;
+							}
+							toast.success(m.activity_clear_history_success());
+						})()
+					);
+					if (requestResult1.error !== null) {
+						const error = requestResult1.error;
+
 						console.error('Failed to clear activity history:', error);
 						toast.error(m.activity_clear_history_failed());
 					}

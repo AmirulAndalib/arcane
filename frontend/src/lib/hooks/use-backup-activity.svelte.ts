@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { untrack } from 'svelte';
 import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { queryKeys } from '#lib/query/query-keys.js';
@@ -51,7 +52,14 @@ export function useBackupActivity(
 	$effect(() => {
 		if (!activeQuery.dataUpdatedAt) return;
 		untrack(() => {
-			void onChange().catch((error) => console.warn('Failed to refresh backup history', error));
+			void tryCatch(onChange()).then((result) => {
+				if (result.error !== null) {
+					const error = result.error;
+					return console.warn('Failed to refresh backup history', error);
+				} else {
+					return result.data;
+				}
+			});
 		});
 	});
 

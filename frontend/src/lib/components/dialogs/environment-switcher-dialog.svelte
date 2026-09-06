@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ResponsiveDialog } from '#lib/components/ui/responsive-dialog/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -72,22 +74,29 @@
 		}
 
 		try {
-			const result = await queryClient.fetchQuery({
-				queryKey: queryKeys.environments.switcher(options),
-				queryFn: () => environmentManagementService.getEnvironments(options),
-				staleTime: 0
-			});
-			if (requestId !== currentRequestId) return;
+			const requestResult1 = await tryCatch(
+				(async () => {
+					const result = await queryClient.fetchQuery({
+						queryKey: queryKeys.environments.switcher(options),
+						queryFn: () => environmentManagementService.getEnvironments(options),
+						staleTime: 0
+					});
+					if (requestId !== currentRequestId) return;
 
-			environments = append ? [...environments, ...result.data] : result.data;
-			currentPage = result.pagination.currentPage;
-			totalPages = result.pagination.totalPages;
-		} catch (error) {
-			if (requestId !== currentRequestId) return;
-			console.error('Failed to load environments:', error);
-			loadError = 'Failed to load environments';
-			toast.error(loadError);
-			if (throwOnError) throw error;
+					environments = append ? [...environments, ...result.data] : result.data;
+					currentPage = result.pagination.currentPage;
+					totalPages = result.pagination.totalPages;
+				})()
+			);
+			if (requestResult1.error !== null) {
+				const error = requestResult1.error;
+
+				if (requestId !== currentRequestId) return;
+				console.error('Failed to load environments:', error);
+				loadError = 'Failed to load environments';
+				toast.error(loadError);
+				if (throwOnError) throw error;
+			}
 		} finally {
 			if (requestId !== currentRequestId) return;
 			isLoading = false;
@@ -196,15 +205,20 @@
 		if (currentPage >= totalPages) return;
 		isLoadingMore = true;
 		try {
-			const options: SearchPaginationSortRequest = {
-				...requestOptions,
-				search: normalizeSearch(searchQuery),
-				pagination: { page: currentPage + 1, limit: PAGE_SIZE },
-				sort: { column: 'name', direction: 'asc' }
-			};
-			await fetchEnvironments(options, true, false);
-		} catch {
-			// fetchEnvironments already handles toasts/errors (and stale-response protection)
+			const operationResult1 = await tryCatch(
+				(async () => {
+					const options: SearchPaginationSortRequest = {
+						...requestOptions,
+						search: normalizeSearch(searchQuery),
+						pagination: { page: currentPage + 1, limit: PAGE_SIZE },
+						sort: { column: 'name', direction: 'asc' }
+					};
+					await fetchEnvironments(options, true, false);
+				})()
+			);
+			if (operationResult1.error !== null) {
+				// fetchEnvironments already handles toasts/errors (and stale-response protection)
+			}
 		} finally {
 			// fetchEnvironments controls isLoadingMore; this is only a safety net.
 			isLoadingMore = false;
@@ -213,11 +227,17 @@
 
 	async function handleSelect(env: Environment) {
 		if (!env || !env.enabled) return;
-		try {
-			await environmentStore.setEnvironment(env);
-			closeDialog();
-			toast.success(m.environments_switched_to({ name: env.name }));
-		} catch (error) {
+
+		const operationResult2 = await tryCatch(
+			(async () => {
+				await environmentStore.setEnvironment(env);
+				closeDialog();
+				toast.success(m.environments_switched_to({ name: env.name }));
+			})()
+		);
+		if (operationResult2.error !== null) {
+			const error = operationResult2.error;
+
 			console.error('Failed to set environment:', error);
 			toast.error(m.environments_connect_error());
 		}

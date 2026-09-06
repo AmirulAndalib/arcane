@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { version } from '$app/env';
 import { assets } from '$app/manifest';
 import { asset } from '$app/paths';
@@ -74,11 +75,8 @@ self.addEventListener('fetch', (event) => {
 			return cachedResponse;
 		}
 
-		try {
-			return await fetch(event.request);
-		} catch {
-			return new Response(null, { status: 503 });
-		}
+		const result = await tryCatch(fetch(event.request));
+		return result.data ?? new Response(null, { status: 503 });
 	}
 
 	event.respondWith(respond());

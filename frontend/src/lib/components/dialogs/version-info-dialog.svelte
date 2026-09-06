@@ -11,7 +11,8 @@
 	import { hasPermission } from '#lib/utils/auth.js';
 	import settingsStore from '#lib/stores/config-store.js';
 	import { settingsService } from '#lib/services/settings-service.js';
-	import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { toast } from 'svelte-sonner';
 
 	interface Props {
@@ -48,7 +49,8 @@
 	let savingExperimental = $state(false);
 
 	async function handleExperimentalToggle(enabled: boolean) {
-		handleApiResultWithCallbacks<Settings>({
+		savingExperimental = true;
+		await handleApiResultWithCallbacks<Settings>({
 			result: await tryCatch(settingsService.updateSettings({ experimentalFeaturesEnabled: enabled })),
 			message: m.common_update_failed({ resource: m.settings() }),
 			setLoadingState: (value) => (savingExperimental = value),

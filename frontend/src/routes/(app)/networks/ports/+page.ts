@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { portService } from '#lib/services/port-service.js';
 import { queryKeys } from '#lib/query/query-keys.js';
 import { resolveListPageLoadContext } from '#lib/utils/tables.js';
@@ -15,13 +16,19 @@ export const load: PageLoad = async ({ parent }) => {
 	});
 
 	let ports;
-	try {
-		ports = await queryClient.fetchQuery({
-			queryKey: queryKeys.ports.list(envId, portRequestOptions),
-			queryFn: () => portService.getPortsForEnvironment(envId, portRequestOptions)
-		});
-	} catch (err) {
+	const operationResult = await tryCatch(
+		(async () =>
+			queryClient.fetchQuery({
+				queryKey: queryKeys.ports.list(envId, portRequestOptions),
+				queryFn: () => portService.getPortsForEnvironment(envId, portRequestOptions)
+			}))()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		throwPageLoadError(err, 'Failed to load ports');
+	} else {
+		ports = operationResult.data;
 	}
 
 	return {

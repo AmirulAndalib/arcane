@@ -13,7 +13,7 @@
 	import { m } from '#lib/paraglide/messages.js';
 	import { swarmService } from '#lib/services/swarm-service.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
@@ -110,16 +110,21 @@
 			sourceState = 'forbidden';
 			return;
 		}
-		try {
-			source = await swarmService.getStackSource(stackName);
-			sourceState = 'available';
-		} catch (err: any) {
-			if (err?.status === 404) {
+		const operationResult = await tryCatch(
+			(async () => {
+				source = await swarmService.getStackSource(stackName);
+				sourceState = 'available';
+			})()
+		);
+		if (operationResult.error !== null) {
+			const err = operationResult.error;
+
+			if ('status' in err && err.status === 404) {
 				source = null;
 				sourceState = 'missing';
 				return;
 			}
-			if (err?.status === 403) {
+			if ('status' in err && err.status === 403) {
 				source = null;
 				sourceState = 'forbidden';
 				return;
@@ -183,7 +188,8 @@
 				label: m.common_delete(),
 				destructive: true,
 				action: async () => {
-					handleApiResultWithCallbacks({
+					isLoading.remove = true;
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(swarmService.removeStack(stackName)),
 						message: m.common_delete_failed({ resource: `${m.swarm_stack()} "${stackName}"` }),
 						setLoadingState: (v) => (isLoading.remove = v),

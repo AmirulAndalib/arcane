@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { toast } from 'svelte-sonner';
 	import { toastUpgradeError } from '#lib/utils/api.js';
 	import type { Paginated, SearchPaginationSortRequest } from '#lib/types/shared.js';
@@ -103,7 +103,7 @@
 				action: async () => {
 					isLoading.removing = true;
 					const result = await tryCatch(environmentManagementService.delete(id));
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result,
 						message: m.environments_delete_failed({ name: hostname }),
 						setLoadingState: () => {},
@@ -122,7 +122,7 @@
 	async function handleTest(id: string) {
 		isLoading.testing = true;
 		const result = await tryCatch(environmentManagementService.testConnection(id));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.environments_test_connection_failed(),
 			setLoadingState: () => {},
@@ -150,16 +150,23 @@
 		const envId = selectedEnvironmentForUpgrade.id;
 		upgradingEnvironmentId = envId;
 
-		try {
-			const result = await systemUpgradeService.triggerUpgrade(envId);
-			if (!result.success) {
-				throw new Error(result.error || m.upgrade_failed({ error: m.common_unknown() }));
-			}
-			toast.success(m.upgrade_success());
-			return { upToDate: result.upToDate };
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const result = await systemUpgradeService.triggerUpgrade(envId);
+				if (!result.success) {
+					throw new Error(result.error || m.upgrade_failed({ error: m.common_unknown() }));
+				}
+				toast.success(m.upgrade_success());
+				return { upToDate: result.upToDate };
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			toastUpgradeError(error, m.upgrade_failed);
 			throw error;
+		} else {
+			return operationResult.data;
 		}
 	}
 
@@ -177,7 +184,7 @@
 
 		const result = await tryCatch(environmentManagementService.update(environment.id, { enabled: newEnabled }));
 
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.common_update_failed({ resource: m.resource_environment() }),
 			setLoadingState: () => {},
@@ -362,12 +369,13 @@
 					toast.error(m.environments_cannot_switch_disabled());
 					return;
 				}
-				try {
-					await environmentStore.setEnvironment(item);
-					toast.success(m.environments_switched_to({ name: item.name }));
-				} catch (error) {
-					console.error('Failed to set environment:', error);
-				}
+				const result = await tryCatch(
+					(async () => {
+						await environmentStore.setEnvironment(item);
+						toast.success(m.environments_switched_to({ name: item.name }));
+					})()
+				);
+				if (result.error) console.error('Failed to set environment:', result.error);
 			}}
 			disabled={!item.enabled || environmentStore.selected?.id === item.id}
 		>

@@ -28,7 +28,7 @@
 	import type { OidcRoleMapping, CreateOidcRoleMapping, UpdateOidcRoleMapping } from '#lib/types/auth.js';
 	import { oidcMappingService } from '#lib/services/oidc-mapping-service.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import IfPermitted from '#lib/components/if-permitted.svelte';
 	import { mergeProps } from 'bits-ui';
 	import { useUrlTab } from '#lib/hooks/use-url-tab.svelte.js';
@@ -90,7 +90,7 @@
 
 		if (editingMapping) {
 			const id = editingMapping.id;
-			handleApiResultWithCallbacks({
+			await handleApiResultWithCallbacks({
 				result: await tryCatch(oidcMappingService.update(id, payload)),
 				message: m.common_update_failed({ resource: m.resource_oidc_mapping() }),
 				setLoadingState: (v) => (mappingSaving = v),
@@ -102,7 +102,7 @@
 				}
 			});
 		} else {
-			handleApiResultWithCallbacks({
+			await handleApiResultWithCallbacks({
 				result: await tryCatch(oidcMappingService.create(payload)),
 				message: m.common_create_failed({ resource: m.resource_oidc_mapping() }),
 				setLoadingState: (v) => (mappingSaving = v),
@@ -238,27 +238,34 @@
 		settingsForm.setLoading(true);
 
 		try {
-			await settingsForm.updateSettings({
-				authLocalEnabled: formData.authLocalEnabled,
-				authSessionTimeout: formData.authSessionTimeout,
-				authPasswordPolicy: formData.authPasswordPolicy,
-				oidcEnabled: formData.oidcEnabled,
-				oidcMergeAccounts: formData.oidcMergeAccounts,
-				oidcSkipTlsVerify: formData.oidcSkipTlsVerify,
-				oidcAutoRedirectToProvider: formData.oidcAutoRedirectToProvider,
-				oidcClientId: formData.oidcClientId,
-				oidcIssuerUrl: formData.oidcIssuerUrl,
-				oidcScopes: formData.oidcScopes,
-				oidcGroupsClaim: formData.oidcGroupsClaim,
-				oidcProviderName: formData.oidcProviderName,
-				oidcProviderLogoUrl: formData.oidcProviderLogoUrl,
-				...(formData.oidcClientSecret && { oidcClientSecret: formData.oidcClientSecret })
-			});
-			$formInputs.oidcClientSecret.value = '';
-			toast.success(m.security_settings_saved());
-		} catch (error: any) {
-			console.error('Failed to save settings:', error);
-			toast.error(m.security_settings_save_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					await settingsForm.updateSettings({
+						authLocalEnabled: formData.authLocalEnabled,
+						authSessionTimeout: formData.authSessionTimeout,
+						authPasswordPolicy: formData.authPasswordPolicy,
+						oidcEnabled: formData.oidcEnabled,
+						oidcMergeAccounts: formData.oidcMergeAccounts,
+						oidcSkipTlsVerify: formData.oidcSkipTlsVerify,
+						oidcAutoRedirectToProvider: formData.oidcAutoRedirectToProvider,
+						oidcClientId: formData.oidcClientId,
+						oidcIssuerUrl: formData.oidcIssuerUrl,
+						oidcScopes: formData.oidcScopes,
+						oidcGroupsClaim: formData.oidcGroupsClaim,
+						oidcProviderName: formData.oidcProviderName,
+						oidcProviderLogoUrl: formData.oidcProviderLogoUrl,
+						...(formData.oidcClientSecret && { oidcClientSecret: formData.oidcClientSecret })
+					});
+					$formInputs.oidcClientSecret.value = '';
+					toast.success(m.security_settings_saved());
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Failed to save settings:', error);
+				toast.error(m.security_settings_save_failed());
+			}
 		} finally {
 			settingsForm.setLoading(false);
 		}

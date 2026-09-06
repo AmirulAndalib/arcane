@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as ScrollArea from '#lib/components/ui/scroll-area/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -87,20 +89,26 @@
 
 	async function poll() {
 		if (!pollActive) return;
-		try {
-			const next = await systemUpgradeService.getUpdateAllStatus();
-			reconnecting = false;
-			job = next;
-			if (next.status === 'completed' || next.status === 'failed') {
-				stopPolling();
-				finishTerminalJob(next);
-				return;
-			}
-		} catch {
+
+		const requestResult1 = await tryCatch(
+			(async () => {
+				const next = await systemUpgradeService.getUpdateAllStatus();
+				reconnecting = false;
+				job = next;
+				if (next.status === 'completed' || next.status === 'failed') {
+					stopPolling();
+					finishTerminalJob(next);
+					return true;
+				}
+			})()
+		);
+		if (requestResult1.error !== null) {
 			// The manager is likely restarting after its own upgrade — keep retrying
 			// until the backend answers again.
 			reconnecting = true;
 		}
+		if (requestResult1.data) return;
+
 		schedulePoll();
 	}
 
@@ -114,9 +122,13 @@
 		}
 
 		BaseAPIService.setUpgradeInProgress(true);
-		try {
-			job = await systemUpgradeService.triggerUpdateAll();
-		} catch {
+
+		const operationResult1 = await tryCatch(
+			(async () => {
+				job = await systemUpgradeService.triggerUpdateAll();
+			})()
+		);
+		if (operationResult1.error !== null) {
 			toast.error(m.environments_update_all_trigger_failed());
 			resetState();
 			return;
@@ -139,9 +151,12 @@
 		// lands while agents are still reconnecting after the fleet restart, which
 		// renders every environment as offline for a moment.
 		if (job && !debugDemo) {
-			try {
-				await refreshAll();
-			} catch {
+			const operationResult2 = await tryCatch(
+				(async () => {
+					await refreshAll();
+				})()
+			);
+			if (operationResult2.error !== null) {
 				// A failed refresh must not trap the dialog open.
 			}
 		}

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { createContainerStatsWebSocket, type ReconnectingWebSocket } from '#lib/utils/ws.js';
 	import { environmentStore } from '#lib/stores/environment.store.svelte.js';
 	import type { ContainerStats as ContainerStatsType } from '#lib/types/docker.js';
@@ -30,38 +32,43 @@
 
 		hasInitialStatsLoaded = false;
 		isConnecting = true;
-		try {
-			const envId = await environmentStore.getCurrentEnvironmentId();
+		const operationResult = await tryCatch(
+			(async () => {
+				const envId = await environmentStore.getCurrentEnvironmentId();
 
-			const ws = createContainerStatsWebSocket({
-				getEnvId: () => envId,
-				containerId,
-				onMessage: (statsData) => {
-					if (statsData.removed) {
-						void refreshAll();
-						return;
-					}
+				const ws = createContainerStatsWebSocket({
+					getEnvId: () => envId,
+					containerId,
+					onMessage: (statsData) => {
+						if (statsData.removed) {
+							void refreshAll();
+							return;
+						}
 
-					stats = statsData;
-					hasInitialStatsLoaded = true;
-				},
-				onOpen: () => {
-					isConnecting = false;
-				},
-				onError: (err) => {
-					console.error('Stats WebSocket error:', err);
-					isConnecting = false;
-				},
-				onClose: () => {
-					isConnecting = false;
-				},
-				maxBackoff: 5000,
-				shouldReconnect: () => enabled
-			});
+						stats = statsData;
+						hasInitialStatsLoaded = true;
+					},
+					onOpen: () => {
+						isConnecting = false;
+					},
+					onError: (err) => {
+						console.error('Stats WebSocket error:', err);
+						isConnecting = false;
+					},
+					onClose: () => {
+						isConnecting = false;
+					},
+					maxBackoff: 5000,
+					shouldReconnect: () => enabled
+				});
 
-			ws.connect();
-			statsWebSocket = ws;
-		} catch (error) {
+				ws.connect();
+				statsWebSocket = ws;
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Failed to connect to stats stream:', error);
 			isConnecting = false;
 		}

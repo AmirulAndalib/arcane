@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import RemoveMenuItem from '#lib/components/arcane-table/cells/remove-menu-item.svelte';
 	import ArcaneTable from '#lib/components/arcane-table/arcane-table.svelte';
 	import RowActionsMenu from '#lib/components/arcane-table/row-actions-menu.svelte';
@@ -50,10 +52,17 @@
 	async function testDestination(destination: S3Destination) {
 		testingId = destination.id;
 		try {
-			await s3DestinationService.test(destination.id);
-			toast.success(m.s3_destination_test_success({ name: destination.name }));
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.s3_destination_test_failed({ name: destination.name }));
+			const operationResult = await tryCatch(
+				(async () => {
+					await s3DestinationService.test(destination.id);
+					toast.success(m.s3_destination_test_success({ name: destination.name }));
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.s3_destination_test_failed({ name: destination.name }));
+			}
 		} finally {
 			testingId = null;
 		}

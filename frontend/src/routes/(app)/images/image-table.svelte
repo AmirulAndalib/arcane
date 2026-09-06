@@ -11,7 +11,7 @@
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import ImageUpdateItem from '#lib/components/image-update-item.svelte';
 	import VulnerabilityScanItem from '#lib/components/vulnerability/vulnerability-scan-item.svelte';
 	import UniversalMobileCard from '#lib/components/arcane-table/cards/universal-mobile-card.svelte';
@@ -155,7 +155,7 @@
 					isLoading.removing = true;
 
 					const result = await tryCatch(imageService.deleteImage(id, { force }));
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result,
 						message: m.failed_to_remove_image(),
 						setLoadingState: () => {},
@@ -177,7 +177,7 @@
 		}
 
 		const result = await tryCatch(imageService.pullImage(repoTag));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.images_pull_failed(),
 			setLoadingState: () => {},
@@ -190,7 +190,7 @@
 
 	async function handleInlineVulnerabilityScan(imageId: string) {
 		const result = await tryCatch(vulnerabilityService.scanImage(imageId));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.vuln_scan_failed(),
 			setLoadingState: () => {},
@@ -229,7 +229,7 @@
 
 	async function handleInlineImagePatch(imageId: string) {
 		const result = await tryCatch(imageService.patchImage(imageId));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.images_patch_failed(),
 			setLoadingState: () => {},
@@ -296,43 +296,49 @@
 
 		scanPollInFlight = true;
 		try {
-			const response = await vulnerabilityService.getScanSummaries(imageIds);
-			if (destroyed) return;
-			const summaries = response?.summaries ?? {};
+			const operationResult = await tryCatch(
+				(async () => {
+					const response = await vulnerabilityService.getScanSummaries(imageIds);
+					if (destroyed) return;
+					const summaries = response?.summaries ?? {};
 
-			if (Object.keys(summaries).length > 0 && images.data?.length) {
-				let changed = false;
-				let completed = false;
-				const nextScanRequestedAtByImage = { ...scanRequestedAtByImage };
-				const nextData = images.data.map((img) => {
-					const summary = summaries[img.id];
-					if (!summary) return img;
+					if (Object.keys(summaries).length > 0 && images.data?.length) {
+						let changed = false;
+						let completed = false;
+						const nextScanRequestedAtByImage = { ...scanRequestedAtByImage };
+						const nextData = images.data.map((img) => {
+							const summary = summaries[img.id];
+							if (!summary) return img;
 
-					if (
-						summary.status === 'failed' &&
-						isLikelyStaleFailedSummary(summary, nextScanRequestedAtByImage[img.id]) &&
-						isVulnerabilityScanInProgress(img.vulnerabilityScan?.status)
-					) {
-						return img;
+							if (
+								summary.status === 'failed' &&
+								isLikelyStaleFailedSummary(summary, nextScanRequestedAtByImage[img.id]) &&
+								isVulnerabilityScanInProgress(img.vulnerabilityScan?.status)
+							) {
+								return img;
+							}
+
+							changed = true;
+							if (summary.status === 'completed' || summary.status === 'failed') {
+								completed = true;
+								delete nextScanRequestedAtByImage[img.id];
+							}
+							return { ...img, vulnerabilityScan: summary };
+						});
+						if (changed) {
+							images = { ...images, data: nextData };
+							scanRequestedAtByImage = nextScanRequestedAtByImage;
+						}
+						if (completed) {
+							await onImageUpdated?.();
+						}
 					}
-
-					changed = true;
-					if (summary.status === 'completed' || summary.status === 'failed') {
-						completed = true;
-						delete nextScanRequestedAtByImage[img.id];
-					}
-					return { ...img, vulnerabilityScan: summary };
-				});
-				if (changed) {
-					images = { ...images, data: nextData };
-					scanRequestedAtByImage = nextScanRequestedAtByImage;
-				}
-				if (completed) {
-					await onImageUpdated?.();
-				}
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+				console.error('Failed to poll vulnerability summaries:', error);
 			}
-		} catch (error) {
-			console.error('Failed to poll vulnerability summaries:', error);
 		} finally {
 			scanPollInFlight = false;
 			if (!destroyed && getScanningImageIds().length > 0) {

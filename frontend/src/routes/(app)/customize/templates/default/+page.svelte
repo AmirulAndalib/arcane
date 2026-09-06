@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { toast } from 'svelte-sonner';
 	import { createForm } from '#lib/utils/settings.js';
@@ -86,13 +88,20 @@
 		ui.isLoadingTemplate = true;
 
 		try {
-			const templateContent = await templateService.getTemplateContent(template.id);
-			$inputs.composeContent.value = templateContent.content ?? template.content ?? '';
-			$inputs.envContent.value = templateContent.envContent ?? template.envContent ?? '';
-			toast.success(m.compose_template_loaded({ name: template.name }));
-		} catch (error) {
-			console.error('Error loading template:', error);
-			toast.error(error instanceof Error ? error.message : m.templates_download_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					const templateContent = await templateService.getTemplateContent(template.id);
+					$inputs.composeContent.value = templateContent.content ?? template.content ?? '';
+					$inputs.envContent.value = templateContent.envContent ?? template.envContent ?? '';
+					toast.success(m.compose_template_loaded({ name: template.name }));
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Error loading template:', error);
+				toast.error(error instanceof Error ? error.message : m.templates_download_failed());
+			}
 		} finally {
 			ui.isLoadingTemplate = false;
 		}

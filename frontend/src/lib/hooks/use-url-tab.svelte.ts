@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { goto } from '$app/navigation';
 import { page } from '$app/state';
 import { onMount, untrack } from 'svelte';
@@ -24,8 +25,14 @@ export function useUrlTab<T extends string>({
 
 	function updateUrl(url: URL) {
 		const state = page.state;
-		pendingUrlUpdate = pendingUrlUpdate
-			.catch(() => undefined)
+		pendingUrlUpdate = tryCatch(pendingUrlUpdate)
+			.then((result) => {
+				if (result.error !== null) {
+					return undefined;
+				} else {
+					return result.data;
+				}
+			})
 			.then(() =>
 				goto(url, {
 					replace: true,

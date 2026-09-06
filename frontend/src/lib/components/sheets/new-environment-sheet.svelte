@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { toast } from 'svelte-sonner';
 	import * as ResponsiveDialog from '#lib/components/ui/responsive-dialog/index.js';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
@@ -61,22 +63,29 @@
 
 				isLoadingSnippets = true;
 				try {
-					const snippets = await queryClient.fetchQuery({
-						queryKey: queryKeys.environments.deploymentSnippets(created.id),
-						queryFn: () => environmentManagementService.getDeploymentSnippets(created.id),
-						staleTime: 0
-					});
-					const useGeneratedMTLS = variables.useMTLS && !!snippets.mtls;
-					if (variables.useMTLS && !snippets.mtls) {
-						toast.warning(m.environments_new_agent_mtls_assets_unavailable());
-					}
+					const operationResult1 = await tryCatch(
+						(async () => {
+							const snippets = await queryClient.fetchQuery({
+								queryKey: queryKeys.environments.deploymentSnippets(created.id),
+								queryFn: () => environmentManagementService.getDeploymentSnippets(created.id),
+								staleTime: 0
+							});
+							const useGeneratedMTLS = variables.useMTLS && !!snippets.mtls;
+							if (variables.useMTLS && !snippets.mtls) {
+								toast.warning(m.environments_new_agent_mtls_assets_unavailable());
+							}
 
-					createdEnvironment.dockerRun = useGeneratedMTLS ? snippets.mtls!.dockerRun : snippets.dockerRun;
-					createdEnvironment.dockerCompose = useGeneratedMTLS ? snippets.mtls!.dockerCompose : snippets.dockerCompose;
-					createdEnvironment.mtlsEnabled = useGeneratedMTLS;
-					createdEnvironment.mtlsFiles = useGeneratedMTLS ? snippets.mtls!.files : [];
-				} catch (err) {
-					console.error('Failed to fetch deployment snippets:', err);
+							createdEnvironment.dockerRun = useGeneratedMTLS ? snippets.mtls!.dockerRun : snippets.dockerRun;
+							createdEnvironment.dockerCompose = useGeneratedMTLS ? snippets.mtls!.dockerCompose : snippets.dockerCompose;
+							createdEnvironment.mtlsEnabled = useGeneratedMTLS;
+							createdEnvironment.mtlsFiles = useGeneratedMTLS ? snippets.mtls!.files : [];
+						})()
+					);
+					if (operationResult1.error !== null) {
+						const err = operationResult1.error;
+
+						console.error('Failed to fetch deployment snippets:', err);
+					}
 				} finally {
 					isLoadingSnippets = false;
 				}
@@ -193,21 +202,28 @@
 			toast.error(m.common_download_error());
 			return;
 		}
-		try {
-			const response = await fetch(file.downloadUrl, { credentials: 'include' });
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}`);
-			}
-			const blob = await response.blob();
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = file.name;
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(url);
-		} catch (err) {
+
+		const downloadUrl = file.downloadUrl;
+		const operationResult2 = await tryCatch(
+			(async () => {
+				const response = await fetch(downloadUrl, { credentials: 'include' });
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}`);
+				}
+				const blob = await response.blob();
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = file.name;
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+				URL.revokeObjectURL(url);
+			})()
+		);
+		if (operationResult2.error !== null) {
+			const err = operationResult2.error;
+
 			console.error('Failed to download mTLS asset:', err);
 			toast.error(m.common_download_error());
 		}

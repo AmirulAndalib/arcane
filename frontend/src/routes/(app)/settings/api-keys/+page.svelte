@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import ApiKeyTable from './api-key-table.svelte';
 	import ApiKeyFormSheet from '#lib/components/sheets/api-key-form-sheet.svelte';
 	import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
@@ -57,38 +57,43 @@
 		const loading = isEditMode ? 'editing' : 'creating';
 		isLoading[loading] = true;
 
-		try {
-			if (isEditMode && apiKeyId) {
-				const safeName = apiKey.name?.trim() || 'Unknown';
-				const result = await tryCatch(apiKeyService.update(apiKeyId, apiKey));
-				handleApiResultWithCallbacks({
-					result,
-					message: m.api_key_update_failed({ name: safeName }),
-					setLoadingState: (value) => (isLoading[loading] = value),
-					onSuccess: async () => {
-						toast.success(m.api_key_updated_success({ name: safeName }));
-						apiKeys = await apiKeyService.getApiKeys(requestOptions);
-						isDialogOpen.edit = false;
-						apiKeyToEdit = null;
-					}
-				});
-			} else {
-				const safeName = apiKey.name?.trim() || 'Unknown';
-				const result = await tryCatch(apiKeyService.create({ ...apiKey, permissions: apiKey.permissions ?? [] }));
-				handleApiResultWithCallbacks({
-					result,
-					message: m.api_key_create_failed({ name: safeName }),
-					setLoadingState: (value) => (isLoading[loading] = value),
-					onSuccess: async (createdKey) => {
-						toast.success(m.api_key_created_success({ name: safeName }));
-						apiKeys = await apiKeyService.getApiKeys(requestOptions);
-						isDialogOpen.create = false;
-						newlyCreatedKey = createdKey as ApiKeyCreated;
-						isDialogOpen.showKey = true;
-					}
-				});
-			}
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				if (isEditMode && apiKeyId) {
+					const safeName = apiKey.name?.trim() || 'Unknown';
+					const result = await tryCatch(apiKeyService.update(apiKeyId, apiKey));
+					await handleApiResultWithCallbacks({
+						result,
+						message: m.api_key_update_failed({ name: safeName }),
+						setLoadingState: (value) => (isLoading[loading] = value),
+						onSuccess: async () => {
+							toast.success(m.api_key_updated_success({ name: safeName }));
+							apiKeys = await apiKeyService.getApiKeys(requestOptions);
+							isDialogOpen.edit = false;
+							apiKeyToEdit = null;
+						}
+					});
+				} else {
+					const safeName = apiKey.name?.trim() || 'Unknown';
+					const result = await tryCatch(apiKeyService.create({ ...apiKey, permissions: apiKey.permissions ?? [] }));
+					await handleApiResultWithCallbacks({
+						result,
+						message: m.api_key_create_failed({ name: safeName }),
+						setLoadingState: (value) => (isLoading[loading] = value),
+						onSuccess: async (createdKey) => {
+							toast.success(m.api_key_created_success({ name: safeName }));
+							apiKeys = await apiKeyService.getApiKeys(requestOptions);
+							isDialogOpen.create = false;
+							newlyCreatedKey = createdKey as ApiKeyCreated;
+							isDialogOpen.showKey = true;
+						}
+					});
+				}
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Failed to submit API key:', error);
 		}
 	}

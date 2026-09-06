@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { m } from '#lib/paraglide/messages.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { AlertTriangleIcon, DownloadIcon } from '#lib/icons/index.js';
@@ -29,11 +31,18 @@
 		scanning = true;
 		error = null;
 		try {
-			const next = await diagnosticsService.scanGoroutineLeaks();
-			report = next;
-			onscanned?.(next);
-		} catch (e) {
-			error = e instanceof Error ? e.message : m.diagnostics_error_scan_leaks();
+			const operationResult = await tryCatch(
+				(async () => {
+					const next = await diagnosticsService.scanGoroutineLeaks();
+					report = next;
+					onscanned?.(next);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const e = operationResult.error;
+
+				error = e instanceof Error ? e.message : m.diagnostics_error_scan_leaks();
+			}
 		} finally {
 			scanning = false;
 		}
@@ -43,9 +52,16 @@
 		downloading = true;
 		error = null;
 		try {
-			await diagnosticsService.downloadProfile('goroutineleak');
-		} catch (e) {
-			error = e instanceof Error ? e.message : m.diagnostics_error_download();
+			const operationResult = await tryCatch(
+				(async () => {
+					await diagnosticsService.downloadProfile('goroutineleak');
+				})()
+			);
+			if (operationResult.error !== null) {
+				const e = operationResult.error;
+
+				error = e instanceof Error ? e.message : m.diagnostics_error_download();
+			}
 		} finally {
 			downloading = false;
 		}

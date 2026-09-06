@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { version as currentVersion } from '$app/env';
 import { apiClient } from './api-service';
 import type { AppVersionInformation } from '#lib/types/settings.js';
@@ -7,33 +8,36 @@ function getCurrentVersion() {
 }
 
 async function getVersionInformation(): Promise<AppVersionInformation> {
-	try {
-		const res = await apiClient.get('/app-version', {
-			timeout: 2000
-		});
-		const data = res.data as Partial<AppVersionInformation>;
+	const operationResult = await tryCatch(
+		(async () => {
+			const res = await apiClient.get('/app-version', {
+				timeout: 2000
+			});
+			const data = res.data as Partial<AppVersionInformation>;
 
-		return {
-			currentVersion: data.currentVersion || getCurrentVersion(),
-			currentTag: data.currentTag,
-			currentDigest: data.currentDigest,
-			displayVersion: data.displayVersion || data.currentVersion || getCurrentVersion(),
-			revision: data.revision || 'unknown',
-			shortRevision: data.shortRevision || data.revision?.slice(0, 8) || 'unknown',
-			goVersion: data.goVersion || 'unknown',
-			nodeVersion: data.nodeVersion || 'unknown',
-			svelteKitVersion: data.svelteKitVersion || 'unknown',
-			enabledFeatures: data.enabledFeatures ?? [],
-			buildTime: data.buildTime,
-			isSemverVersion: data.isSemverVersion || false,
-			newestVersion: data.newestVersion,
-			newestDigest: data.newestDigest,
-			updateAvailable: data.updateAvailable || false,
-			releaseUrl: data.releaseUrl,
-			releaseNotes: data.releaseNotes,
-			releasedAt: data.releasedAt
-		};
-	} catch (error) {
+			return {
+				currentVersion: data.currentVersion || getCurrentVersion(),
+				currentTag: data.currentTag,
+				currentDigest: data.currentDigest,
+				displayVersion: data.displayVersion || data.currentVersion || getCurrentVersion(),
+				revision: data.revision || 'unknown',
+				shortRevision: data.shortRevision || data.revision?.slice(0, 8) || 'unknown',
+				goVersion: data.goVersion || 'unknown',
+				nodeVersion: data.nodeVersion || 'unknown',
+				svelteKitVersion: data.svelteKitVersion || 'unknown',
+				enabledFeatures: data.enabledFeatures ?? [],
+				buildTime: data.buildTime,
+				isSemverVersion: data.isSemverVersion || false,
+				newestVersion: data.newestVersion,
+				newestDigest: data.newestDigest,
+				updateAvailable: data.updateAvailable || false,
+				releaseUrl: data.releaseUrl,
+				releaseNotes: data.releaseNotes,
+				releasedAt: data.releasedAt
+			};
+		})()
+	);
+	if (operationResult.error !== null) {
 		// Fallback to basic version info if app-version endpoint fails
 		return {
 			currentVersion: getCurrentVersion(),
@@ -47,6 +51,8 @@ async function getVersionInformation(): Promise<AppVersionInformation> {
 			isSemverVersion: false,
 			updateAvailable: false
 		};
+	} else {
+		return operationResult.data;
 	}
 }
 

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import type { PageProps } from './$types';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -99,12 +101,17 @@
 	} as const;
 
 	onMount(async () => {
-		try {
-			settingsCategories = orderCategoriesByNav(
-				(await settingsSearchService.getCategories()).filter(isAccessibleCategory),
-				getSettingsSubpageUrlsInNavOrder()
-			);
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				settingsCategories = orderCategoriesByNav(
+					(await settingsSearchService.getCategories()).filter(isAccessibleCategory),
+					getSettingsSubpageUrlsInNavOrder()
+				);
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Failed to load categories:', error);
 		}
 	});

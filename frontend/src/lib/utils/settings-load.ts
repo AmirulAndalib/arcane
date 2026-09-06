@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { queryKeys } from '#lib/query/query-keys.js';
 import { settingsService } from '#lib/services/settings-service.js';
 import { environmentStore } from '#lib/stores/environment.store.svelte.js';
@@ -16,14 +17,20 @@ export async function loadMergedSettingsPage(parent: ParentWithQueryClient, erro
 	const client = queryClient as QueryClientLike;
 	const envId = await environmentStore.getCurrentEnvironmentId();
 
-	try {
-		const settings = await client.fetchQuery({
-			queryKey: queryKeys.settings.byEnvironment(envId),
-			queryFn: () => settingsService.getSettingsForEnvironmentMerged(envId)
-		});
-		return { settings };
-	} catch (error) {
+	const operationResult = await tryCatch(
+		(async () => {
+			const settings = await client.fetchQuery({
+				queryKey: queryKeys.settings.byEnvironment(envId),
+				queryFn: () => settingsService.getSettingsForEnvironmentMerged(envId)
+			});
+			return { settings };
+		})()
+	);
+	if (operationResult.error !== null) {
+		const error = operationResult.error;
 		console.error(`Failed to load ${errorContext}:`, error);
 		throw error;
+	} else {
+		return operationResult.data;
 	}
 }

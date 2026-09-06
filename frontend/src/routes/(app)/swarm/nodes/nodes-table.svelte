@@ -22,7 +22,7 @@
 	import RowActionsMenu from '#lib/components/arcane-table/row-actions-menu.svelte';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { toast } from 'svelte-sonner';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { extractApiErrorMessage, handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { goto } from '$app/navigation';
 	import { hasPermission } from '#lib/utils/auth.js';
@@ -78,12 +78,19 @@
 		agentDeploymentError = '';
 
 		try {
-			agentDeployment = await swarmService.getNodeAgentDeployment(node.id, rotate);
-			await refreshNodes();
-		} catch (error) {
-			agentDeployment = null;
-			agentDeploymentError = extractApiErrorMessage(error);
-			throw error;
+			const operationResult = await tryCatch(
+				(async () => {
+					agentDeployment = await swarmService.getNodeAgentDeployment(node.id, rotate);
+					await refreshNodes();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				agentDeployment = null;
+				agentDeploymentError = extractApiErrorMessage(error);
+				throw error;
+			}
 		} finally {
 			isAgentDeploymentLoading = false;
 		}
@@ -98,7 +105,7 @@
 
 	function provisionNodeEnvironment() {
 		if (!selectedNode) return;
-		void loadAgentDeployment(selectedNode).catch(() => undefined);
+		void tryCatch(loadAgentDeployment(selectedNode)).then((result) => (result.error ? undefined : result.data));
 	}
 
 	async function attachEnvironment(environmentId: string) {
@@ -108,11 +115,18 @@
 		const attach = async () => {
 			isAgentDeploymentLoading = true;
 			try {
-				await swarmService.bindNodeAgent(node.id, { environmentId, rebind: true, replaceDeployment });
-				toast.success(m.swarm_node_agent_attach_success());
-				await refreshNodes();
-			} catch (error) {
-				agentDeploymentError = extractApiErrorMessage(error);
+				const operationResult = await tryCatch(
+					(async () => {
+						await swarmService.bindNodeAgent(node.id, { environmentId, rebind: true, replaceDeployment });
+						toast.success(m.swarm_node_agent_attach_success());
+						await refreshNodes();
+					})()
+				);
+				if (operationResult.error !== null) {
+					const error = operationResult.error;
+
+					agentDeploymentError = extractApiErrorMessage(error);
+				}
 			} finally {
 				isAgentDeploymentLoading = false;
 			}
@@ -166,7 +180,7 @@
 
 	function refreshAgentDeployment() {
 		if (!selectedNode) return;
-		void loadAgentDeployment(selectedNode).catch(() => undefined);
+		void tryCatch(loadAgentDeployment(selectedNode)).then((result) => (result.error ? undefined : result.data));
 	}
 
 	function regenerateAgentDeployment() {
@@ -180,10 +194,13 @@
 				label: m.environments_regenerate_api_key(),
 				destructive: true,
 				action: async () => {
-					try {
-						await loadAgentDeployment(node, true);
-						toast.success(m.environments_regenerate_key_success());
-					} catch {
+					const operationResult = await tryCatch(
+						(async () => {
+							await loadAgentDeployment(node, true);
+							toast.success(m.environments_regenerate_key_success());
+						})()
+					);
+					if (operationResult.error !== null) {
 						toast.error(m.environments_regenerate_key_failed());
 					}
 				}
@@ -196,6 +213,7 @@
 	}
 
 	async function mutateNode(action: () => Promise<void>, successMessage: string, failureMessage: string) {
+		isLoading = true;
 		await handleApiResultWithCallbacks({
 			result: await tryCatch(action()),
 			message: failureMessage,

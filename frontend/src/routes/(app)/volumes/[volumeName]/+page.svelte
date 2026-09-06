@@ -19,7 +19,7 @@
 	import { formatDateTimeShort, truncateString } from '#lib/utils/formatting.js';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog//index.js';
 	import { toast } from 'svelte-sonner';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -298,22 +298,28 @@
 		workspaceFileLoadErrors = removeWorkspaceFileRecord(workspaceFileLoadErrors, relativePath);
 		const loadVersion = workspaceFileLoadVersions.get(relativePath) ?? 0;
 		try {
-			const file = await volumeWorkspaceService.getWorkspaceFile(volume.name, relativePath, currentEnvId);
-			if (loadVersion !== (workspaceFileLoadVersions.get(relativePath) ?? 0)) return;
-			workspaceFileMetadata = { ...workspaceFileMetadata, [relativePath]: file };
-			if (file.editable) {
-				const content = file.content ?? '';
-				loadedWorkspaceFileContents = { ...loadedWorkspaceFileContents, [relativePath]: content };
-				if (workspaceFileContents[relativePath] === undefined) {
-					workspaceFileContents = { ...workspaceFileContents, [relativePath]: content };
-				}
+			const operationResult = await tryCatch(
+				(async () => {
+					const file = await volumeWorkspaceService.getWorkspaceFile(volume.name, relativePath, currentEnvId);
+					if (loadVersion !== (workspaceFileLoadVersions.get(relativePath) ?? 0)) return;
+					workspaceFileMetadata = { ...workspaceFileMetadata, [relativePath]: file };
+					if (file.editable) {
+						const content = file.content ?? '';
+						loadedWorkspaceFileContents = { ...loadedWorkspaceFileContents, [relativePath]: content };
+						if (workspaceFileContents[relativePath] === undefined) {
+							workspaceFileContents = { ...workspaceFileContents, [relativePath]: content };
+						}
+					}
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+				if (loadVersion !== (workspaceFileLoadVersions.get(relativePath) ?? 0)) return;
+				workspaceFileLoadErrors = {
+					...workspaceFileLoadErrors,
+					[relativePath]: error instanceof Error ? error.message : String(error)
+				};
 			}
-		} catch (error) {
-			if (loadVersion !== (workspaceFileLoadVersions.get(relativePath) ?? 0)) return;
-			workspaceFileLoadErrors = {
-				...workspaceFileLoadErrors,
-				[relativePath]: error instanceof Error ? error.message : String(error)
-			};
 		} finally {
 			if (loadVersion === (workspaceFileLoadVersions.get(relativePath) ?? 0)) {
 				workspaceFileLoading = removeWorkspaceFileRecord(workspaceFileLoading, relativePath);
@@ -542,7 +548,8 @@
 			workspaceStagedFiles,
 			workspaceStagedUploadedText
 		);
-		handleApiResultWithCallbacks({
+		isLoading.save = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(
 				volumeWorkspaceService.updateWorkspace(
 					volume.name,
@@ -573,11 +580,18 @@
 		showWorkspaceRestore = true;
 		loadingWorkspaceBackups = true;
 		try {
-			const response = await volumeBackupService.listBackups(volume.name, { pagination: { page: 1, limit: 100 } });
-			workspaceBackups = response.data;
-			selectedWorkspaceBackupId = response.data[0]?.id ?? '';
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.common_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					const response = await volumeBackupService.listBackups(volume.name, { pagination: { page: 1, limit: 100 } });
+					workspaceBackups = response.data;
+					selectedWorkspaceBackupId = response.data[0]?.id ?? '';
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.common_failed());
+			}
 		} finally {
 			loadingWorkspaceBackups = false;
 		}
@@ -590,10 +604,15 @@
 		checkingWorkspaceBackup = true;
 		workspaceBackupHasPath = null;
 		try {
-			workspaceBackupHasPath = await volumeBackupService.backupHasPath(backupId, `/${relativePath}`);
-		} catch (error) {
-			workspaceBackupHasPath = null;
-			toast.error(error instanceof Error ? error.message : m.common_failed());
+			const operationResult = await tryCatch((async () => volumeBackupService.backupHasPath(backupId, `/${relativePath}`))());
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				workspaceBackupHasPath = null;
+				toast.error(error instanceof Error ? error.message : m.common_failed());
+			} else {
+				workspaceBackupHasPath = operationResult.data;
+			}
 		} finally {
 			checkingWorkspaceBackup = false;
 		}
@@ -626,9 +645,14 @@
 	}
 
 	async function downloadVolumeWorkspaceFile(relativePath: string) {
-		try {
-			await volumeWorkspaceService.downloadWorkspaceFile(volume.name, relativePath, currentEnvId);
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				await volumeWorkspaceService.downloadWorkspaceFile(volume.name, relativePath, currentEnvId);
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			toast.error(error instanceof Error ? error.message : m.common_download_error());
 		}
 	}
@@ -647,7 +671,8 @@
 				label: m.common_remove(),
 				destructive: true,
 				action: async () => {
-					handleApiResultWithCallbacks({
+					isLoading.remove = true;
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(volumeService.deleteVolume(safeName)),
 						message: m.volumes_remove_failed({ name: safeName }),
 						setLoadingState: (value) => (isLoading.remove = value),

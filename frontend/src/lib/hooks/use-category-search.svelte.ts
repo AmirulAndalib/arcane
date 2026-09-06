@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { debounced } from '#lib/utils/ws.js';
 
 type CategorySearchResponse<T> = {
@@ -33,13 +34,17 @@ export function useCategorySearch<T>({ search, filter, onError }: UseCategorySea
 		isSearching = true;
 		showSearchResults = true;
 
-		try {
-			const response = await search(trimmedQuery);
-			if (requestId === currentSearchRequest) {
-				searchResults = (response.results || []).filter(filter);
-				isSearching = false;
-			}
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const response = await search(trimmedQuery);
+				if (requestId === currentSearchRequest) {
+					searchResults = (response.results || []).filter(filter);
+					isSearching = false;
+				}
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
 			onError?.(error);
 			if (requestId === currentSearchRequest) {
 				searchResults = [];

@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { containerRegistryService } from '#lib/services/container-registry-service.js';
 import { queryKeys } from '#lib/query/query-keys.js';
 import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
@@ -22,12 +23,12 @@ export const load: PageLoad = async ({ parent }) => {
 		queryKey: queryKeys.containerRegistries.list(registryRequestOptions),
 		queryFn: () => containerRegistryService.getRegistries(registryRequestOptions)
 	});
-	const pullUsage = await queryClient
-		.fetchQuery({
+	const pullUsage = await tryCatch(
+		queryClient.fetchQuery({
 			queryKey: queryKeys.containerRegistries.pullUsage(),
 			queryFn: () => containerRegistryService.getPullUsage()
 		})
-		.catch(() => null);
+	).then((result) => (result.error ? null : result.data));
 
 	return { registries, registryRequestOptions, pullUsage };
 };

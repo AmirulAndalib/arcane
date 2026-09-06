@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import BaseAPIService from './api-service';
 
 export type UploadKind = 'image' | 'volume-backup' | 'build-workspace';
@@ -70,24 +71,26 @@ class UploadService extends BaseAPIService {
 			const chunk = file.slice(start, Math.min(start + session.chunkSize, file.size));
 
 			for (let attempt = 1; ; attempt++) {
-				try {
-					const updated = await this.putChunk(envId, kind, session.id, index, chunk);
-					received = new Set(updated.receivedChunks);
-					break;
-				} catch (error) {
-					if (attempt >= chunkRetryAttempts) {
-						await this.deleteSession(envId, kind, session.id).catch(() => {});
-						throw error;
-					}
-					await new Promise((resolve) => setTimeout(resolve, chunkRetryDelayMs * attempt));
-					// Resume: skip anything the server already has.
-					try {
-						received = new Set((await this.getSession(envId, kind, session.id)).receivedChunks);
-						if (received.has(index)) break;
-					} catch {
-						// The status check is best-effort; keep retrying the chunk.
-					}
+				const chunkResult = await tryCatch(
+					(async () => {
+						const updated = await this.putChunk(envId, kind, session.id, index, chunk);
+						received = new Set(updated.receivedChunks);
+					})()
+				);
+				if (chunkResult.error === null) break;
+				if (attempt >= chunkRetryAttempts) {
+					await tryCatch(this.deleteSession(envId, kind, session.id));
+					throw chunkResult.error;
 				}
+				await new Promise((resolve) => setTimeout(resolve, chunkRetryDelayMs * attempt));
+				// The status check is best-effort; resume anything the server already has.
+				const statusResult = await tryCatch(
+					(async () => {
+						received = new Set((await this.getSession(envId, kind, session.id)).receivedChunks);
+						return received.has(index);
+					})()
+				);
+				if (statusResult.data) break;
 			}
 			report();
 		}

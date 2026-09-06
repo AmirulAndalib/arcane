@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { toast } from 'svelte-sonner';
 	import settingsStore from '#lib/stores/config-store.js';
 	import { SettingsPageLayout, type SettingsActionButton } from '#lib/layouts/index.js';
@@ -32,18 +34,25 @@
 	async function saveDestination(input: CreateS3Destination) {
 		saving = true;
 		try {
-			if (selected) {
-				await s3DestinationService.update(selected.id, input);
-				toast.success(m.s3_destination_updated({ name: input.name }));
-			} else {
-				await s3DestinationService.create(input);
-				toast.success(m.s3_destination_created({ name: input.name }));
+			const operationResult = await tryCatch(
+				(async () => {
+					if (selected) {
+						await s3DestinationService.update(selected.id, input);
+						toast.success(m.s3_destination_updated({ name: input.name }));
+					} else {
+						await s3DestinationService.create(input);
+						toast.success(m.s3_destination_created({ name: input.name }));
+					}
+					destinations = await s3DestinationService.list(requestOptions);
+					dialogOpen = false;
+					selected = null;
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				toast.error(error instanceof Error ? error.message : m.s3_destination_save_failed());
 			}
-			destinations = await s3DestinationService.list(requestOptions);
-			dialogOpen = false;
-			selected = null;
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : m.s3_destination_save_failed());
 		} finally {
 			saving = false;
 		}
@@ -57,11 +66,16 @@
 				label: m.common_delete(),
 				destructive: true,
 				action: async () => {
-					try {
-						await s3DestinationService.delete(destination.id);
-						destinations = await s3DestinationService.list(requestOptions);
-						toast.success(m.s3_destination_deleted({ name: destination.name }));
-					} catch (error) {
+					const operationResult = await tryCatch(
+						(async () => {
+							await s3DestinationService.delete(destination.id);
+							destinations = await s3DestinationService.list(requestOptions);
+							toast.success(m.s3_destination_deleted({ name: destination.name }));
+						})()
+					);
+					if (operationResult.error !== null) {
+						const error = operationResult.error;
+
 						toast.error(error instanceof Error ? error.message : m.s3_destination_delete_failed());
 					}
 				}

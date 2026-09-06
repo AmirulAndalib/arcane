@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import type { ProjectTag, ProjectTagColor, ProjectTagOption } from '#lib/types/swarm.js';
 	import * as Command from '#lib/components/ui/command/index.js';
 	import * as Popover from '#lib/components/ui/popover/index.js';
@@ -110,13 +112,20 @@
 			: tags.filter((tag) => tag.name !== normalized);
 		pending = normalized;
 		try {
-			const updated = await onToggle?.(normalized, attached, resolvedColor);
-			if (updated) tags = updated;
-			search = '';
-			selectedColor = 'gray';
-		} catch (error) {
-			tags = previous;
-			toast.error(error instanceof Error ? error.message : m.common_error());
+			const operationResult1 = await tryCatch(
+				(async () => {
+					const updated = await onToggle?.(normalized, attached, resolvedColor);
+					if (updated) tags = updated;
+					search = '';
+					selectedColor = 'gray';
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const error = operationResult1.error;
+
+				tags = previous;
+				toast.error(error instanceof Error ? error.message : m.common_error());
+			}
 		} finally {
 			pending = null;
 		}

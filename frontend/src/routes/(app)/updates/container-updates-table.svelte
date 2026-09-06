@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import ArcaneTable from '#lib/components/arcane-table/arcane-table.svelte';
 	import RowActionsMenu from '#lib/components/arcane-table/row-actions-menu.svelte';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -128,12 +130,19 @@
 		const enable = item.ignored;
 		ignoringContainerIds = { ...ignoringContainerIds, [item.containerId]: true };
 		try {
-			await containerService.setAutoUpdate(item.containerId, enable);
-			toast.success(enable ? m.auto_update_enabled_toast() : m.auto_update_disabled_toast());
-			await onIgnoreChanged?.();
-		} catch (error) {
-			console.error('Auto-update toggle failed:', error);
-			toast.error(m.auto_update_failed());
+			const operationResult = await tryCatch(
+				(async () => {
+					await containerService.setAutoUpdate(item.containerId, enable);
+					toast.success(enable ? m.auto_update_enabled_toast() : m.auto_update_disabled_toast());
+					await onIgnoreChanged?.();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Auto-update toggle failed:', error);
+				toast.error(m.auto_update_failed());
+			}
 		} finally {
 			ignoringContainerIds = { ...ignoringContainerIds, [item.containerId]: false };
 		}

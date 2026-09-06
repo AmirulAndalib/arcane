@@ -6,7 +6,7 @@
 	import ContainerRegistryFormSheet from '#lib/components/sheets/container-registry-sheet.svelte';
 	import RegistryTable from './registry-table.svelte';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { containerRegistryService } from '#lib/services/container-registry-service.js';
 	import { queryKeys } from '#lib/query/query-keys.js';
@@ -40,7 +40,7 @@
 
 	async function refreshRegistries() {
 		isLoading.refresh = true;
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(containerRegistryService.getRegistries(requestOptions)),
 			message: m.common_refresh_failed({ resource: m.registries_title() }),
 			setLoadingState: (value) => (isLoading.refresh = value),
@@ -71,19 +71,26 @@
 		isLoading[loadingKey] = true;
 
 		try {
-			if (isEditMode && registryToEdit?.id) {
-				await containerRegistryService.updateRegistry(registryToEdit.id, registry as ContainerRegistryUpdateDto);
-				toast.success(m.common_update_success({ resource: m.resource_registry() }));
-			} else {
-				await containerRegistryService.createRegistry(registry as ContainerRegistryCreateDto);
-				toast.success(m.common_create_success({ resource: m.resource_registry() }));
-			}
+			const operationResult = await tryCatch(
+				(async () => {
+					if (isEditMode && registryToEdit?.id) {
+						await containerRegistryService.updateRegistry(registryToEdit.id, registry as ContainerRegistryUpdateDto);
+						toast.success(m.common_update_success({ resource: m.resource_registry() }));
+					} else {
+						await containerRegistryService.createRegistry(registry as ContainerRegistryCreateDto);
+						toast.success(m.common_create_success({ resource: m.resource_registry() }));
+					}
 
-			[registries] = await Promise.all([containerRegistryService.getRegistries(requestOptions), pullUsageQuery.refetch()]);
-			isRegistryDialogOpen = false;
-		} catch (error) {
-			console.error('Error saving registry:', error);
-			toast.error(error instanceof Error ? error.message : m.registries_save_failed());
+					[registries] = await Promise.all([containerRegistryService.getRegistries(requestOptions), pullUsageQuery.refetch()]);
+					isRegistryDialogOpen = false;
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Error saving registry:', error);
+				toast.error(error instanceof Error ? error.message : m.registries_save_failed());
+			}
 		} finally {
 			isLoading[loadingKey] = false;
 		}

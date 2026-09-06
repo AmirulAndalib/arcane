@@ -1,5 +1,6 @@
 import { m } from '#lib/paraglide/messages.js';
-import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { toast } from 'svelte-sonner';
 import { z } from 'zod/v4';
 
@@ -103,8 +104,9 @@ export async function runTemplateEditorSave<TValidated, TResult>({
 	const validated = validateTemplateEditorForm(validationState, validate);
 	if (!validated) return;
 
-	handleApiResultWithCallbacks({
-		result: await tryCatch(save(validated)),
+	setLoading(true);
+	await handleApiResultWithCallbacks({
+		result: await tryCatch((async () => await save(validated))()),
 		message: failureMessage,
 		setLoadingState: setLoading,
 		onSuccess: async (result) => {

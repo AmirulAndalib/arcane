@@ -12,7 +12,7 @@ import { type AppVersionInformation } from '#lib/types/settings.js';
 import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
 import type { PermissionsManifest } from '#lib/types/auth.js';
 import { authService } from '#lib/services/auth-service.js';
-import { tryCatch } from '#lib/utils/api.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { QueryClient } from '@tanstack/svelte-query';
 import { queryKeys } from '#lib/query/query-keys.js';
 import { redirect } from '@sveltejs/kit';
@@ -45,7 +45,10 @@ export const load: LayoutLoad = async ({ url }) => {
 				queryFn: () => authService.getAutoLoginConfig()
 			})
 		: Promise.resolve(null);
-	let [user, autoLoginConfig] = await Promise.all([userService.getCurrentUser().catch(() => null), autoLoginConfigRequest]);
+	let [user, autoLoginConfig] = await Promise.all([
+		tryCatch(userService.getCurrentUser()).then((result) => (result.error ? null : result.data)),
+		autoLoginConfigRequest
+	]);
 
 	if (autoLoginConfig) {
 		if (autoLoginConfig.enabled) {
@@ -83,7 +86,9 @@ export const load: LayoutLoad = async ({ url }) => {
 		};
 
 		const environmentsRequest = tryCatch(environmentManagementService.getEnvironments(environmentRequestOptions));
-		const permissionsManifestRequest = roleService.getPermissionsManifest().catch((): PermissionsManifest | null => null);
+		const permissionsManifestRequest = tryCatch(roleService.getPermissionsManifest()).then((result) =>
+			result.error ? null : result.data
+		);
 		const environments = await environmentsRequest;
 		if (!environments.error) {
 			await environmentStore.initialize(environments.data.data);
@@ -92,11 +97,15 @@ export const load: LayoutLoad = async ({ url }) => {
 		}
 
 		const settingsRequest = userHasPermission(user, 'settings:read')
-			? settingsService.getSettings().catch(() => settingsService.getPublicSettings().catch(() => null))
-			: settingsService.getPublicSettings().catch(() => null);
+			? tryCatch(settingsService.getSettings()).then(async (result) => {
+					if (!result.error) return result.data;
+					const publicSettings = await tryCatch(settingsService.getPublicSettings());
+					return publicSettings.error ? null : publicSettings.data;
+				})
+			: tryCatch(settingsService.getPublicSettings()).then((result) => (result.error ? null : result.data));
 		const [loadedSettings, loadedSwarmStatus, loadedPermissionsManifest] = await Promise.all([
 			settingsRequest,
-			swarmService.getSwarmStatus().catch(() => null),
+			tryCatch(swarmService.getSwarmStatus()).then((result) => (result.error ? null : result.data)),
 			permissionsManifestRequest
 		]);
 		settings = loadedSettings;
@@ -108,7 +117,7 @@ export const load: LayoutLoad = async ({ url }) => {
 		await environmentStore.initialize([]);
 
 		// Try to fetch public settings for login page configuration
-		settings = await settingsService.getPublicSettings().catch(() => null);
+		settings = await tryCatch(settingsService.getPublicSettings()).then((result) => (result.error ? null : result.data));
 	}
 
 	if (user) {
@@ -133,29 +142,31 @@ export const load: LayoutLoad = async ({ url }) => {
 		isSemverVersion: false
 	};
 
-	try {
-		const info = await versionInformationRequest;
-		versionInformation = {
-			currentVersion: info.currentVersion,
-			currentTag: info.currentTag,
-			currentDigest: info.currentDigest,
-			displayVersion: info.displayVersion,
-			revision: info.revision,
-			shortRevision: info.shortRevision || (info.revision?.slice(0, 8) ?? 'unknown'),
-			goVersion: info.goVersion || 'unknown',
-			nodeVersion: info.nodeVersion || 'unknown',
-			svelteKitVersion: info.svelteKitVersion || 'unknown',
-			enabledFeatures: info.enabledFeatures ?? [],
-			buildTime: info.buildTime,
-			isSemverVersion: info.isSemverVersion,
-			newestVersion: info.newestVersion,
-			newestDigest: info.newestDigest,
-			updateAvailable: info.updateAvailable,
-			releaseUrl: info.releaseUrl,
-			releaseNotes: info.releaseNotes,
-			releasedAt: info.releasedAt
-		};
-	} catch {}
+	await tryCatch(
+		(async () => {
+			const info = await versionInformationRequest;
+			versionInformation = {
+				currentVersion: info.currentVersion,
+				currentTag: info.currentTag,
+				currentDigest: info.currentDigest,
+				displayVersion: info.displayVersion,
+				revision: info.revision,
+				shortRevision: info.shortRevision || (info.revision?.slice(0, 8) ?? 'unknown'),
+				goVersion: info.goVersion || 'unknown',
+				nodeVersion: info.nodeVersion || 'unknown',
+				svelteKitVersion: info.svelteKitVersion || 'unknown',
+				enabledFeatures: info.enabledFeatures ?? [],
+				buildTime: info.buildTime,
+				isSemverVersion: info.isSemverVersion,
+				newestVersion: info.newestVersion,
+				newestDigest: info.newestDigest,
+				updateAvailable: info.updateAvailable,
+				releaseUrl: info.releaseUrl,
+				releaseNotes: info.releaseNotes,
+				releasedAt: info.releasedAt
+			};
+		})()
+	);
 
 	const redirectPath = getAuthRedirectPath(
 		url.pathname,

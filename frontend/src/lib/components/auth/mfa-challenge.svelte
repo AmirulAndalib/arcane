@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { startAuthentication, type PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 	import { ApiKeyIcon, AlertIcon } from '#lib/icons/index.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -33,14 +35,21 @@
 		busy = true;
 		error = null;
 		try {
-			const credential = await startAuthentication({
-				optionsJSON: challenge.options as unknown as PublicKeyCredentialRequestOptionsJSON
-			});
-			const response = await passkeyService.finishMFA(challenge.transactionId, credential);
-			await onComplete(response);
-		} catch (value) {
-			if (!isCancelledError(value)) {
-				error = normalizeAuthenticationError(value, m.auth_mfa_failed()).message;
+			const operationResult1 = await tryCatch(
+				(async () => {
+					const credential = await startAuthentication({
+						optionsJSON: challenge.options as unknown as PublicKeyCredentialRequestOptionsJSON
+					});
+					const response = await passkeyService.finishMFA(challenge.transactionId, credential);
+					await onComplete(response);
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const value = operationResult1.error;
+
+				if (!isCancelledError(value)) {
+					error = normalizeAuthenticationError(value, m.auth_mfa_failed()).message;
+				}
 			}
 		} finally {
 			busy = false;
@@ -54,10 +63,17 @@
 		busy = true;
 		error = null;
 		try {
-			const response = await passkeyService.finishRecovery(challenge.transactionId, recoveryCode.trim());
-			await onComplete(response);
-		} catch (value) {
-			error = normalizeAuthenticationError(value, m.auth_mfa_failed()).message;
+			const operationResult2 = await tryCatch(
+				(async () => {
+					const response = await passkeyService.finishRecovery(challenge.transactionId, recoveryCode.trim());
+					await onComplete(response);
+				})()
+			);
+			if (operationResult2.error !== null) {
+				const value = operationResult2.error;
+
+				error = normalizeAuthenticationError(value, m.auth_mfa_failed()).message;
+			}
 		} finally {
 			busy = false;
 		}

@@ -23,7 +23,7 @@
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { goto } from '$app/navigation';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { networkService } from '#lib/services/network-service.js';
 	import { ResourceDetailLayout, type DetailAction } from '#lib/layouts/index.js';
@@ -55,13 +55,19 @@
 		sortDir = newSortDir;
 
 		if (data.network?.id) {
-			try {
-				network = await networkService.getNetwork(data.network.id, {
-					sort: { column: sortCol, direction: sortDir }
-				});
-			} catch (err) {
+			const operationResult = await tryCatch(
+				(async () =>
+					networkService.getNetwork(data.network.id, {
+						sort: { column: sortCol, direction: sortDir }
+					}))()
+			);
+			if (operationResult.error !== null) {
+				const err = operationResult.error;
+
 				console.error('Failed to sort network containers:', err);
 				toast.error(m.common_action_failed());
+			} else {
+				network = operationResult.data;
 			}
 		}
 	}
@@ -85,7 +91,8 @@
 				label: m.common_remove(),
 				destructive: true,
 				action: async () => {
-					handleApiResultWithCallbacks({
+					isRemoving = true;
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(networkService.deleteNetwork(network.id)),
 						message: m.networks_remove_failed({ name: network?.name ?? shortId }),
 						setLoadingState: (value) => (isRemoving = value),

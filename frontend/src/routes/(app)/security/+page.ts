@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { vulnerabilityService } from '#lib/services/vulnerability-service.js';
 import { environmentStore } from '#lib/stores/environment.store.svelte.js';
 import { queryKeys } from '#lib/query/query-keys.js';
@@ -37,19 +38,25 @@ export const load: PageLoad = async ({ parent }) => {
 
 	let summary;
 	let vulnerabilities;
-	try {
-		[summary, vulnerabilities] = await Promise.all([
-			queryClient.fetchQuery({
-				queryKey: queryKeys.vulnerabilities.summaryByEnvironment(envId),
-				queryFn: () => vulnerabilityService.getEnvironmentSummaryForEnvironment(envId)
-			}),
-			queryClient.fetchQuery({
-				queryKey: queryKeys.vulnerabilities.allByEnvironment(envId, requestForApi),
-				queryFn: () => vulnerabilityService.getAllVulnerabilitiesForEnvironment(envId, requestForApi)
-			})
-		]);
-	} catch (err) {
+	const operationResult = await tryCatch(
+		(async () =>
+			Promise.all([
+				queryClient.fetchQuery({
+					queryKey: queryKeys.vulnerabilities.summaryByEnvironment(envId),
+					queryFn: () => vulnerabilityService.getEnvironmentSummaryForEnvironment(envId)
+				}),
+				queryClient.fetchQuery({
+					queryKey: queryKeys.vulnerabilities.allByEnvironment(envId, requestForApi),
+					queryFn: () => vulnerabilityService.getAllVulnerabilitiesForEnvironment(envId, requestForApi)
+				})
+			]))()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		throwPageLoadError(err, 'Failed to load security data');
+	} else {
+		[summary, vulnerabilities] = operationResult.data;
 	}
 
 	return {

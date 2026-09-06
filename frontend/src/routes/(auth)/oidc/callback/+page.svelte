@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { onMount } from 'svelte';
 	import { goto, refreshAll } from '$app/navigation';
 	import { page } from '$app/state';
@@ -51,13 +53,18 @@
 		// (with a graceful catch). We don't fetch them here directly — a user with
 		// zero/limited permissions would 403 on settings:read and crash this handler.
 		await refreshAll();
-		try {
-			const settings = await queryClient.fetchQuery({
-				queryKey: queryKeys.settings.global(),
-				queryFn: () => settingsService.getSettings()
-			});
-			settingsStore.set(settings);
-		} catch (settingsError) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const settings = await queryClient.fetchQuery({
+					queryKey: queryKeys.settings.global(),
+					queryFn: () => settingsService.getSettings()
+				});
+				settingsStore.set(settings);
+			})()
+		);
+		if (operationResult.error !== null) {
+			const settingsError = operationResult.error;
+
 			// User lacks settings:read or settings fetch failed — not fatal; the root
 			// layout already pulls public settings as a fallback.
 			console.warn('Skipping post-login settings fetch:', settingsError);

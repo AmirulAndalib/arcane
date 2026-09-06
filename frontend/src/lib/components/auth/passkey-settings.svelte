@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import {
 		browserSupportsWebAuthn,
 		startRegistration,
@@ -102,12 +104,17 @@
 	}
 
 	async function refreshCapabilities(): Promise<PasskeyCapabilities | null> {
-		try {
-			const loadedCapabilities = await passkeyService.getCapabilities();
-			capabilities = loadedCapabilities;
-			return loadedCapabilities;
-		} catch {
+		const requestResult1 = await tryCatch(
+			(async () => {
+				const loadedCapabilities = await passkeyService.getCapabilities();
+				capabilities = loadedCapabilities;
+				return loadedCapabilities;
+			})()
+		);
+		if (requestResult1.error !== null) {
 			return null;
+		} else {
+			return requestResult1.data;
 		}
 	}
 
@@ -144,9 +151,15 @@
 		const action = pendingAction;
 		pendingAction = null;
 		if (!action) return;
-		try {
-			await action(grant.token);
-		} catch (value) {
+
+		const operationResult1 = await tryCatch(
+			(async () => {
+				await action(grant.token);
+			})()
+		);
+		if (operationResult1.error !== null) {
+			const value = operationResult1.error;
+
 			showPasskeyError(m.account_passkey_step_up_failed(), value, m.account_passkey_request_failed_description());
 		}
 	}
@@ -159,17 +172,24 @@
 		await runWithStepUp(async (stepUpToken) => {
 			adding = true;
 			try {
-				const challenge = await passkeyService.beginRegistration(stepUpToken || undefined);
-				const credential = await startRegistration({
-					optionsJSON: challenge.options as unknown as PublicKeyCredentialCreationOptionsJSON
-				});
-				const created = await passkeyService.finishRegistration(challenge.ceremonyId, credential);
-				passkeys = [...passkeys, created];
-				toast.success(m.account_passkey_added());
-				await loadAccountData();
-			} catch (value) {
-				if (!(value instanceof Error && value.name === 'NotAllowedError')) {
-					showPasskeyError(m.account_passkey_add_failed(), value, m.account_passkey_add_failed_description());
+				const operationResult2 = await tryCatch(
+					(async () => {
+						const challenge = await passkeyService.beginRegistration(stepUpToken || undefined);
+						const credential = await startRegistration({
+							optionsJSON: challenge.options as unknown as PublicKeyCredentialCreationOptionsJSON
+						});
+						const created = await passkeyService.finishRegistration(challenge.ceremonyId, credential);
+						passkeys = [...passkeys, created];
+						toast.success(m.account_passkey_added());
+						await loadAccountData();
+					})()
+				);
+				if (operationResult2.error !== null) {
+					const value = operationResult2.error;
+
+					if (!(value instanceof Error && value.name === 'NotAllowedError')) {
+						showPasskeyError(m.account_passkey_add_failed(), value, m.account_passkey_add_failed_description());
+					}
 				}
 			} finally {
 				adding = false;
@@ -193,12 +213,17 @@
 			return;
 		}
 		await runWithStepUp(async (stepUpToken) => {
-			try {
-				const updated = await passkeyService.rename(passkey.id, editingName, stepUpToken);
-				passkeys = passkeys.map((item) => (item.id === updated.id ? updated : item));
-				cancelRename();
-				toast.success(m.account_passkey_renamed());
-			} catch (value) {
+			const operationResult3 = await tryCatch(
+				(async () => {
+					const updated = await passkeyService.rename(passkey.id, editingName, stepUpToken);
+					passkeys = passkeys.map((item) => (item.id === updated.id ? updated : item));
+					cancelRename();
+					toast.success(m.account_passkey_renamed());
+				})()
+			);
+			if (operationResult3.error !== null) {
+				const value = operationResult3.error;
+
 				showPasskeyError(m.account_passkey_rename_failed(), value, m.account_passkey_request_failed_description());
 			}
 		});
@@ -213,12 +238,17 @@
 				destructive: true,
 				action: () => {
 					void runWithStepUp(async (stepUpToken) => {
-						try {
-							await passkeyService.deleteMine(passkey.id, stepUpToken);
-							passkeys = passkeys.filter((item) => item.id !== passkey.id);
-							toast.success(m.account_passkey_deleted());
-							await loadAccountData();
-						} catch (value) {
+						const operationResult4 = await tryCatch(
+							(async () => {
+								await passkeyService.deleteMine(passkey.id, stepUpToken);
+								passkeys = passkeys.filter((item) => item.id !== passkey.id);
+								toast.success(m.account_passkey_deleted());
+								await loadAccountData();
+							})()
+						);
+						if (operationResult4.error !== null) {
+							const value = operationResult4.error;
+
 							showPasskeyError(m.account_passkey_delete_failed(), value, m.account_passkey_request_failed_description());
 						}
 					});
@@ -229,12 +259,17 @@
 
 	async function enableMFA() {
 		await runWithStepUp(async (stepUpToken) => {
-			try {
-				const generated = await passkeyService.enableMFA(stepUpToken);
-				recoveryCodes = generated.codes;
-				toast.success(m.account_passkey_mfa_enabled());
-				await loadAccountData();
-			} catch (value) {
+			const operationResult5 = await tryCatch(
+				(async () => {
+					const generated = await passkeyService.enableMFA(stepUpToken);
+					recoveryCodes = generated.codes;
+					toast.success(m.account_passkey_mfa_enabled());
+					await loadAccountData();
+				})()
+			);
+			if (operationResult5.error !== null) {
+				const value = operationResult5.error;
+
 				showPasskeyError(m.account_passkey_mfa_enable_failed(), value, m.account_passkey_request_failed_description());
 			}
 		});
@@ -242,12 +277,17 @@
 
 	async function disableMFA() {
 		await runWithStepUp(async (stepUpToken) => {
-			try {
-				await passkeyService.disableMFA(stepUpToken);
-				recoveryCodes = [];
-				toast.success(m.account_passkey_mfa_disabled());
-				await loadAccountData();
-			} catch (value) {
+			const operationResult6 = await tryCatch(
+				(async () => {
+					await passkeyService.disableMFA(stepUpToken);
+					recoveryCodes = [];
+					toast.success(m.account_passkey_mfa_disabled());
+					await loadAccountData();
+				})()
+			);
+			if (operationResult6.error !== null) {
+				const value = operationResult6.error;
+
 				showPasskeyError(m.account_passkey_mfa_disable_failed(), value, m.account_passkey_request_failed_description());
 			}
 		});
@@ -255,21 +295,29 @@
 
 	async function regenerateRecoveryCodes() {
 		await runWithStepUp(async (stepUpToken) => {
-			try {
-				const generated = await passkeyService.regenerateRecoveryCodes(stepUpToken);
-				recoveryCodes = generated.codes;
-				await loadAccountData();
-			} catch (value) {
+			const operationResult7 = await tryCatch(
+				(async () => {
+					const generated = await passkeyService.regenerateRecoveryCodes(stepUpToken);
+					recoveryCodes = generated.codes;
+					await loadAccountData();
+				})()
+			);
+			if (operationResult7.error !== null) {
+				const value = operationResult7.error;
+
 				showPasskeyError(m.account_passkey_mfa_regenerate_failed(), value, m.account_passkey_request_failed_description());
 			}
 		});
 	}
 
 	async function copyRecoveryCodes() {
-		try {
-			await navigator.clipboard.writeText(recoveryCodes.join('\n'));
-			toast.success(m.account_passkey_mfa_codes_copied());
-		} catch {
+		const operationResult8 = await tryCatch(
+			(async () => {
+				await navigator.clipboard.writeText(recoveryCodes.join('\n'));
+				toast.success(m.account_passkey_mfa_codes_copied());
+			})()
+		);
+		if (operationResult8.error !== null) {
 			toast.error(m.common_copy_failed());
 		}
 	}

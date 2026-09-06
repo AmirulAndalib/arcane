@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { toast } from 'svelte-sonner';
 	import { ResourcePageLayout, type ActionButton } from '#lib/layouts/index.js';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
@@ -52,39 +54,46 @@
 	async function handleSheetSubmit(payload: VariableFormPayload) {
 		isSubmitting = true;
 		try {
-			let response;
-			if (payload.mode === 'edit') {
-				response = await variableService.update(payload.id, payload.variable);
-			} else if (payload.mode === 'bulk') {
-				response = await variableService.createMany(payload.variables);
-			} else {
-				response = await variableService.create(payload.variable);
-			}
+			const operationResult = await tryCatch(
+				(async () => {
+					let response;
+					if (payload.mode === 'edit') {
+						response = await variableService.update(payload.id, payload.variable);
+					} else if (payload.mode === 'bulk') {
+						response = await variableService.createMany(payload.variables);
+					} else {
+						response = await variableService.create(payload.variable);
+					}
 
-			variables = await variableService.list();
+					variables = await variableService.list();
 
-			if (payload.mode === 'bulk') {
-				toast.success(m.count_variables_created({ count: payload.variables.length }));
-			} else if (payload.mode === 'edit') {
-				toast.success(m.common_update_success({ resource: m.variable() }));
-			} else {
-				toast.success(m.common_create_success({ resource: m.variable() }));
-			}
-			reportSyncResults(response?.syncResults);
+					if (payload.mode === 'bulk') {
+						toast.success(m.count_variables_created({ count: payload.variables.length }));
+					} else if (payload.mode === 'edit') {
+						toast.success(m.common_update_success({ resource: m.variable() }));
+					} else {
+						toast.success(m.common_create_success({ resource: m.variable() }));
+					}
+					reportSyncResults(response?.syncResults);
 
-			isSheetOpen = false;
-			variableToEdit = null;
-		} catch (error) {
-			console.error('Error saving variable:', error);
-			toast.error(
-				payload.mode === 'edit'
-					? m.common_update_failed({ resource: m.variable() })
-					: m.common_create_failed({ resource: m.variable() })
+					isSheetOpen = false;
+					variableToEdit = null;
+				})()
 			);
-			// A bulk create can partially succeed before the failing entry, so
-			// refresh even on error to keep the table and duplicate-key
-			// validation in sync with what was actually persisted.
-			variables = await variableService.list().catch(() => variables);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Error saving variable:', error);
+				toast.error(
+					payload.mode === 'edit'
+						? m.common_update_failed({ resource: m.variable() })
+						: m.common_create_failed({ resource: m.variable() })
+				);
+				// A bulk create can partially succeed before the failing entry, so
+				// refresh even on error to keep the table and duplicate-key
+				// validation in sync with what was actually persisted.
+				variables = await tryCatch(variableService.list()).then((result) => (result.error ? variables : result.data));
+			}
 		} finally {
 			isSubmitting = false;
 		}
@@ -98,15 +107,20 @@
 				label: m.common_delete(),
 				destructive: true,
 				action: async () => {
-					try {
-						const response = await variableService.delete(variable.id);
-						variables = await variableService.list();
-						toast.success(m.common_delete_success({ resource: m.variable() }));
-						reportSyncResults(response?.syncResults);
-					} catch (error) {
+					const operationResult = await tryCatch(
+						(async () => {
+							const response = await variableService.delete(variable.id);
+							variables = await variableService.list();
+							toast.success(m.common_delete_success({ resource: m.variable() }));
+							reportSyncResults(response?.syncResults);
+						})()
+					);
+					if (operationResult.error !== null) {
+						const error = operationResult.error;
+
 						console.error('Error deleting variable:', error);
 						toast.error(m.common_delete_failed({ resource: m.variable() }));
-						variables = await variableService.list().catch(() => variables);
+						variables = await tryCatch(variableService.list()).then((result) => (result.error ? variables : result.data));
 					}
 				}
 			}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import WebhookTable from './webhook-table.svelte';
 	import WebhookFormSheet from '#lib/components/sheets/webhook-form-sheet.svelte';
 	import type { Webhook, WebhookCreated, CreateWebhook } from '#lib/types/environment.js';
@@ -38,7 +38,7 @@
 	async function handleCreateWebhook(webhook: CreateWebhook) {
 		isLoading.creating = true;
 		const result = await tryCatch(webhookService.create(webhook));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.webhook_create_failed({ name: webhook.name }),
 			setLoadingState: (value) => (isLoading.creating = value),

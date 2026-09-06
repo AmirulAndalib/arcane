@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ResponsiveDialog } from '#lib/components/ui/responsive-dialog/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { Card } from '#lib/components/ui/card/index.js';
@@ -110,22 +112,29 @@
 		loadingStates.add(loadingKey);
 
 		try {
-			const details = await selectTemplateMutation.mutateAsync(template);
-			if (!details) {
-				toast.error(m.templates_load_failed());
-				return;
-			}
+			const requestResult1 = await tryCatch(
+				(async () => {
+					const details = await selectTemplateMutation.mutateAsync(template);
+					if (!details) {
+						toast.error(m.templates_load_failed());
+						return;
+					}
 
-			onSelect({
-				...details.template,
-				content: details.content,
-				envContent: details.envContent
-			});
-			open = false;
-			toast.success(m.templates_loaded_success({ name: template.name }));
-		} catch (error) {
-			console.error('Error loading template:', error);
-			toast.error(error instanceof Error ? error.message : m.templates_load_failed());
+					onSelect({
+						...details.template,
+						content: details.content,
+						envContent: details.envContent
+					});
+					open = false;
+					toast.success(m.templates_loaded_success({ name: template.name }));
+				})()
+			);
+			if (requestResult1.error !== null) {
+				const error = requestResult1.error;
+
+				console.error('Error loading template:', error);
+				toast.error(error instanceof Error ? error.message : m.templates_load_failed());
+			}
 		} finally {
 			loadingStates.delete(loadingKey);
 		}
@@ -138,16 +147,23 @@
 		loadingStates.add(loadingKey);
 
 		try {
-			const result = await downloadTemplateMutation.mutateAsync(template);
-			if (result) {
-				toast.success(m.templates_downloaded_success({ name: template.name }));
-				onDownloadSuccess?.();
-			} else {
-				toast.error(m.templates_download_failed());
+			const operationResult1 = await tryCatch(
+				(async () => {
+					const result = await downloadTemplateMutation.mutateAsync(template);
+					if (result) {
+						toast.success(m.templates_downloaded_success({ name: template.name }));
+						onDownloadSuccess?.();
+					} else {
+						toast.error(m.templates_download_failed());
+					}
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const error = operationResult1.error;
+
+				console.error('Error downloading template:', error);
+				toast.error(error instanceof Error ? error.message : m.templates_download_failed());
 			}
-		} catch (error) {
-			console.error('Error downloading template:', error);
-			toast.error(error instanceof Error ? error.message : m.templates_download_failed());
 		} finally {
 			loadingStates.delete(loadingKey);
 		}

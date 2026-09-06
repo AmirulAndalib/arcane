@@ -2,7 +2,8 @@ import { arcaneButtonVariants, actionConfigs } from '#lib/components/arcane-butt
 import { m } from '#lib/paraglide/messages.js';
 import { templateService } from '#lib/services/template-service.js';
 import type { Template } from '#lib/types/swarm.js';
-import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { toast } from 'svelte-sonner';
 import { parseDocument } from 'yaml';
 import { z } from 'zod/v4';
@@ -175,7 +176,8 @@ async function createComposeTemplate({ validate, setLoading, beforeValidate }: C
 
 	const { name, composeContent, envContent } = validated;
 
-	handleApiResultWithCallbacks({
+	setLoading(true);
+	await handleApiResultWithCallbacks({
 		result: await tryCatch(
 			templateService.createTemplate({
 				name,
@@ -201,8 +203,9 @@ export async function submitComposeResourceForm<TResult>({
 	const validated = validate();
 	if (!validated) return;
 
-	handleApiResultWithCallbacks({
-		result: await tryCatch(submit(validated)),
+	setLoading(true);
+	await handleApiResultWithCallbacks({
+		result: await tryCatch((async () => await submit(validated))()),
 		message: failureMessage(validated.name),
 		setLoadingState: setLoading,
 		onSuccess: async (result) => {

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Slider from '#lib/components/ui/slider/index.js';
 	import userStore from '#lib/stores/user-store.js';
 	import { userService } from '#lib/services/user-service.js';
@@ -19,11 +21,17 @@
 
 	const persist = debounced(async (px: number) => {
 		const previous = lastPersisted;
-		try {
-			await userService.updateMyProfile({ fontSize: px });
-			lastPersisted = px;
-			await queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
-		} catch (err) {
+
+		const operationResult1 = await tryCatch(
+			(async () => {
+				await userService.updateMyProfile({ fontSize: px });
+				lastPersisted = px;
+				await queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+			})()
+		);
+		if (operationResult1.error !== null) {
+			const err = operationResult1.error;
+
 			console.error('Failed to update font size', err);
 			currentSize = previous;
 			applyFontSize(previous);

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import FileList from '#lib/components/file-browser/FileList.svelte';
 	import FileBreadcrumb from '#lib/components/file-browser/FileBreadcrumb.svelte';
 	import CreateFolderDialog from '#lib/components/file-browser/CreateFolderDialog.svelte';
@@ -172,15 +174,22 @@
 		if (!editorFile) return;
 		editorSaving = true;
 		try {
-			const dirPath = editorFile.path.split('/').slice(0, -1).join('/') || '/';
-			const file = new File([editorContent], editorFile.name, { type: 'text/plain' });
-			await uploadMutation.mutateAsync({ path: dirPath, file });
-			await queryClient.invalidateQueries({ queryKey: queryKeys.buildWorkspace.content(envId, editorFile.path) });
-			toast.success(m.common_file_saved());
-			editorOpen = false;
-			await filesQuery.refetch();
-		} catch (e: any) {
-			toast.error(e.message || 'Failed to save file');
+			const operationResult = await tryCatch(
+				(async () => {
+					const dirPath = editorFile.path.split('/').slice(0, -1).join('/') || '/';
+					const file = new File([editorContent], editorFile.name, { type: 'text/plain' });
+					await uploadMutation.mutateAsync({ path: dirPath, file });
+					await queryClient.invalidateQueries({ queryKey: queryKeys.buildWorkspace.content(envId, editorFile.path) });
+					toast.success(m.common_file_saved());
+					editorOpen = false;
+					await filesQuery.refetch();
+				})()
+			);
+			if (operationResult.error !== null) {
+				const e = operationResult.error;
+
+				toast.error(e.message || 'Failed to save file');
+			}
 		} finally {
 			editorSaving = false;
 		}

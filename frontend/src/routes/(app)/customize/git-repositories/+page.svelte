@@ -4,7 +4,7 @@
 	import GitRepositoryFormSheet from '#lib/components/sheets/git-repository-sheet.svelte';
 	import RepositoryTable from './repository-table.svelte';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { gitRepositoryService } from '#lib/services/git-repository-service.js';
 	import { ResourcePageLayout, type ActionButton } from '#lib/layouts/index.js';
@@ -26,7 +26,7 @@
 
 	async function refreshRepositories() {
 		isLoading.refresh = true;
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(gitRepositoryService.getRepositories(requestOptions)),
 			message: m.common_refresh_failed({ resource: m.git_repositories_title() }),
 			setLoadingState: (value) => (isLoading.refresh = value),
@@ -56,19 +56,26 @@
 		isLoading[loadingKey] = true;
 
 		try {
-			if (isEditMode && repositoryToEdit?.id) {
-				await gitRepositoryService.updateRepository(repositoryToEdit.id, repository as GitRepositoryUpdateDto);
-				toast.success(m.common_update_success({ resource: m.resource_repository() }));
-			} else {
-				await gitRepositoryService.createRepository(repository as GitRepositoryCreateDto);
-				toast.success(m.common_create_success({ resource: m.resource_repository() }));
-			}
+			const operationResult = await tryCatch(
+				(async () => {
+					if (isEditMode && repositoryToEdit?.id) {
+						await gitRepositoryService.updateRepository(repositoryToEdit.id, repository as GitRepositoryUpdateDto);
+						toast.success(m.common_update_success({ resource: m.resource_repository() }));
+					} else {
+						await gitRepositoryService.createRepository(repository as GitRepositoryCreateDto);
+						toast.success(m.common_create_success({ resource: m.resource_repository() }));
+					}
 
-			repositories = await gitRepositoryService.getRepositories(requestOptions);
-			isRepositoryDialogOpen = false;
-		} catch (error) {
-			console.error('Error saving repository:', error);
-			toast.error(error instanceof Error ? error.message : m.common_save_failed());
+					repositories = await gitRepositoryService.getRepositories(requestOptions);
+					isRepositoryDialogOpen = false;
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Error saving repository:', error);
+				toast.error(error instanceof Error ? error.message : m.common_save_failed());
+			}
 		} finally {
 			isLoading[loadingKey] = false;
 		}

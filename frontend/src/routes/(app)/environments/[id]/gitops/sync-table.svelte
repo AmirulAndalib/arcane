@@ -7,7 +7,7 @@
 	import RemoveMenuItem from '#lib/components/arcane-table/cells/remove-menu-item.svelte';
 	import { toast } from 'svelte-sonner';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import type { Paginated, SearchPaginationSortRequest } from '#lib/types/shared.js';
 	import type { GitOpsSync } from '#lib/types/automation.js';
 	import type { ColumnSpec, BulkAction, ArcaneRow } from '#lib/components/arcane-table/index.js';
@@ -106,7 +106,7 @@
 	async function handlePerformSync(id: string, _name: string) {
 		isLoading.syncing = true;
 		const result = await tryCatch(gitOpsSyncService.performSync(environmentId, id));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.git_sync_failed(),
 			setLoadingState: () => {},

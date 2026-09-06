@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import type { Project, ProjectTagColor, ProjectTagOption } from '#lib/types/swarm.js';
 	import ArcaneTable from '#lib/components/arcane-table/arcane-table.svelte';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
@@ -91,19 +93,24 @@
 		};
 
 		try {
-			const results = await imageService.checkMultipleImages(imageRefs);
-			const firstError = Object.values(results)
-				.find((result) => !!result?.error?.trim())
-				?.error?.trim();
-			const hasErrors = !!firstError;
-			if (hasErrors) {
-				toast.error(firstError || m.containers_check_updates_failed());
-			} else {
-				toast.success(m.images_update_check_completed());
+			const operationResult = await tryCatch(
+				(async () => {
+					const results = await imageService.checkMultipleImages(imageRefs);
+					const firstError = Object.values(results)
+						.find((result) => !!result?.error?.trim())
+						?.error?.trim();
+					const hasErrors = !!firstError;
+					if (hasErrors) {
+						toast.error(firstError || m.containers_check_updates_failed());
+					} else {
+						toast.success(m.images_update_check_completed());
+					}
+					await refreshProjects(requestOptions);
+				})()
+			);
+			if (operationResult.error !== null) {
+				toast.error(m.containers_check_updates_failed());
 			}
-			await refreshProjects(requestOptions);
-		} catch {
-			toast.error(m.containers_check_updates_failed());
 		} finally {
 			checkingProjectIds = {
 				...checkingProjectIds,

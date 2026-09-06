@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { FileDropZone, displaySize, type FileDropZoneProps } from '#lib/components/ui/file-drop-zone/index.js';
@@ -40,17 +42,24 @@
 		if (files.length === 0) return;
 		uploading = true;
 		try {
-			let lastResult: unknown;
-			for (const file of files) {
-				uploadingFile = file.name;
-				uploadProgress = null;
-				lastResult = await onUploadAction(file, (progress) => (uploadProgress = progress));
+			const operationResult1 = await tryCatch(
+				(async () => {
+					let lastResult: unknown;
+					for (const file of files) {
+						uploadingFile = file.name;
+						uploadProgress = null;
+						lastResult = await onUploadAction(file, (progress) => (uploadProgress = progress));
+					}
+					toast.success(m.common_success(), activityToastOptions(extractActivityId(lastResult)));
+					open = false;
+					files = [];
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const e = operationResult1.error;
+
+				toast.error(e.message || m.common_failed());
 			}
-			toast.success(m.common_success(), activityToastOptions(extractActivityId(lastResult)));
-			open = false;
-			files = [];
-		} catch (e: any) {
-			toast.error(e.message || m.common_failed());
 		} finally {
 			uploading = false;
 			uploadingFile = null;

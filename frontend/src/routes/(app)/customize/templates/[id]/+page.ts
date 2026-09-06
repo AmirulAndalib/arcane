@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { templateService } from '#lib/services/template-service.js';
 import { variableService } from '#lib/services/variable-service.js';
 import { queryKeys } from '#lib/query/query-keys.js';
@@ -16,31 +17,38 @@ export const load: PageLoad = async ({
 }> => {
 	const { queryClient } = await parent();
 
-	try {
-		const [templateData, allTemplates, globalVariables] = await Promise.all([
-			queryClient.fetchQuery({
-				queryKey: queryKeys.templates.content(params.id),
-				queryFn: () => templateService.getTemplateContent(params.id)
-			}),
-			queryClient.fetchQuery({
-				queryKey: queryKeys.templates.allTemplates(),
-				queryFn: () => templateService.getAllTemplates()
-			}),
-			queryClient
-				.fetchQuery({
-					queryKey: queryKeys.variables.list(),
-					queryFn: () => variableService.list()
-				})
-				.catch(() => [] as GlobalVariable[])
-		]);
+	const operationResult = await tryCatch(
+		(async () => {
+			const [templateData, allTemplates, globalVariables] = await Promise.all([
+				queryClient.fetchQuery({
+					queryKey: queryKeys.templates.content(params.id),
+					queryFn: () => templateService.getTemplateContent(params.id)
+				}),
+				queryClient.fetchQuery({
+					queryKey: queryKeys.templates.allTemplates(),
+					queryFn: () => templateService.getAllTemplates()
+				}),
+				tryCatch(
+					queryClient.fetchQuery({
+						queryKey: queryKeys.variables.list(),
+						queryFn: () => variableService.list()
+					})
+				).then((result) => (result.error ? ([] as GlobalVariable[]) : result.data))
+			]);
 
-		return {
-			templateData,
-			allTemplates,
-			globalVariables
-		};
-	} catch (err) {
+			return {
+				templateData,
+				allTemplates,
+				globalVariables
+			};
+		})()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		console.error('Failed to load template:', err);
 		throw error(404, 'Template not found');
+	} else {
+		return operationResult.data;
 	}
 };

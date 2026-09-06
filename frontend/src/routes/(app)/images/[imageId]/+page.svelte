@@ -5,7 +5,7 @@
 	import { bytes, formatDateTimeShort, nowInstantString } from '#lib/utils/formatting.js';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { toast } from 'svelte-sonner';
 	import { onDestroy } from 'svelte';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
@@ -89,11 +89,14 @@
 
 	async function loadVulnerabilityScan() {
 		if (!image?.id) return;
-		try {
-			const result = await vulnerabilityService.getScanResult(image.id);
-			vulnerabilityScan = result;
-			lastScanRequestedAt = result.scanTime || lastScanRequestedAt;
-		} catch {
+		const operationResult = await tryCatch(
+			(async () => {
+				const result = await vulnerabilityService.getScanResult(image.id);
+				vulnerabilityScan = result;
+				lastScanRequestedAt = result.scanTime || lastScanRequestedAt;
+			})()
+		);
+		if (operationResult.error !== null) {
 			// No scan data found, that's okay
 			vulnerabilityScan = null;
 		}
@@ -104,18 +107,25 @@
 		if (!image?.id || isLoading.scanning) return;
 		isLoading.scanning = true;
 		try {
-			const result = await vulnerabilityService.scanImage(image.id);
-			vulnerabilityScan = result;
-			lastScanRequestedAt = result.scanTime || nowInstantString();
-			if (isVulnerabilityScanInProgress(result.status)) {
-				toastVulnerabilityScanStatus(result, { includeStarted: true });
-				beginScanPolling(true);
-			} else {
-				toastVulnerabilityScanStatus(result);
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await vulnerabilityService.scanImage(image.id);
+					vulnerabilityScan = result;
+					lastScanRequestedAt = result.scanTime || nowInstantString();
+					if (isVulnerabilityScanInProgress(result.status)) {
+						toastVulnerabilityScanStatus(result, { includeStarted: true });
+						beginScanPolling(true);
+					} else {
+						toastVulnerabilityScanStatus(result);
+					}
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Failed to scan image:', error);
+				toast.error(m.vuln_scan_failed());
 			}
-		} catch (error) {
-			console.error('Failed to scan image:', error);
-			toast.error(m.vuln_scan_failed());
 		} finally {
 			isLoading.scanning = false;
 		}
@@ -129,7 +139,7 @@
 		// patching all outdated OS packages.
 		const options = vulnerabilityScan?.hasReport ? { scanId: image.id } : undefined;
 		const result = await tryCatch(imageService.patchImage(image.id, options));
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result,
 			message: m.images_patch_failed(),
 			setLoadingState: (value) => (isLoading.patching = value),
@@ -162,15 +172,16 @@
 			},
 			onComplete: async (summary) => {
 				let resolvedSummary = summary;
-				try {
-					resolvedSummary = await stabilizeFailedVulnerabilitySummary(
-						summary.imageId,
-						summary,
-						(id) => vulnerabilityService.getScanSummary(id),
-						{ scanRequestedAt: lastScanRequestedAt ?? vulnerabilityScan?.scanTime }
-					);
-				} catch {
+				const operationResult = await tryCatch(
+					(async () =>
+						stabilizeFailedVulnerabilitySummary(summary.imageId, summary, (id) => vulnerabilityService.getScanSummary(id), {
+							scanRequestedAt: lastScanRequestedAt ?? vulnerabilityScan?.scanTime
+						}))()
+				);
+				if (operationResult.error !== null) {
 					// Keep original summary when stabilization check fails.
+				} else {
+					resolvedSummary = operationResult.data;
 				}
 
 				if (isVulnerabilityScanInProgress(resolvedSummary.status)) {
@@ -189,9 +200,10 @@
 				}
 
 				stopPolling();
-				try {
-					vulnerabilityScan = await vulnerabilityService.getScanResult(resolvedSummary.imageId);
-				} catch (error) {
+				const operationResult2 = await tryCatch((async () => vulnerabilityService.getScanResult(resolvedSummary.imageId))());
+				if (operationResult2.error !== null) {
+					const error = operationResult2.error;
+
 					console.error('Failed to load scan result:', error);
 					vulnerabilityScan = {
 						...(vulnerabilityScan ?? {}),
@@ -202,6 +214,8 @@
 						summary: resolvedSummary.summary,
 						error: resolvedSummary.error
 					} as VulnerabilityScanResult;
+				} else {
+					vulnerabilityScan = operationResult2.data;
 				}
 				if (showToast) {
 					toastVulnerabilityScanStatus(resolvedSummary);
@@ -268,6 +282,7 @@
 				destructive: true,
 				action: async (checkboxStates) => {
 					const force = !!checkboxStates['force'];
+					isLoading.removing = true;
 					await handleApiResultWithCallbacks({
 						result: await tryCatch(imageService.deleteImage(id, { force })),
 						message: m.failed_to_remove_image(),

@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { Temporal } from 'temporal-polyfill';
 
 /**
@@ -54,7 +55,7 @@ export async function readNdjsonStream(
 			const stopFromLine = onLine?.(obj) === true;
 			const stopFromMessage = onMessage?.(obj) === true;
 			if (stopFromLine || stopFromMessage) {
-				await reader.cancel().catch(() => {});
+				await tryCatch(reader.cancel());
 				return;
 			}
 		}

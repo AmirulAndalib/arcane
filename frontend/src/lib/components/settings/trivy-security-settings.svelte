@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { Switch } from '#lib/components/ui/switch/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
@@ -132,18 +133,17 @@
 		const targetEnvironmentId = environmentId;
 		let cancelled = false;
 
-		void fetchTrivyNetworkOptions(targetEnvironmentId)
-			.then((options) => {
-				if (!cancelled) {
-					customTrivyNetworkOptions = options;
-				}
-			})
-			.catch((error) => {
-				if (!cancelled) {
-					console.warn('Failed to load Trivy network options:', error);
-					toast.info(m.security_trivy_network_fetch_failed());
-				}
-			});
+		void (async () => {
+			const result = await tryCatch(
+				fetchTrivyNetworkOptions(targetEnvironmentId).then((options) => {
+					if (!cancelled) customTrivyNetworkOptions = options;
+				})
+			);
+			if (result.error !== null && !cancelled) {
+				console.warn('Failed to load Trivy network options:', result.error);
+				toast.info(m.security_trivy_network_fetch_failed());
+			}
+		})();
 
 		return () => {
 			cancelled = true;

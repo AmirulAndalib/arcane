@@ -12,7 +12,7 @@
 	import RowActionsMenu from '#lib/components/arcane-table/row-actions-menu.svelte';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { toast } from 'svelte-sonner';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { goto } from '$app/navigation';
 	import IfPermitted from '#lib/components/if-permitted.svelte';
@@ -39,7 +39,8 @@
 				label: m.common_delete(),
 				destructive: true,
 				action: async () => {
-					handleApiResultWithCallbacks({
+					isLoading = true;
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(swarmService.removeStack(stack.name)),
 						message: m.common_delete_failed({ resource: `${m.swarm_stack()} "${stack.name}"` }),
 						setLoadingState: (v) => (isLoading = v),

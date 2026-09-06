@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { redirect } from '@sveltejs/kit';
 import { getEffectiveLandingPage } from '#lib/utils/navigation.js';
 import { passkeyService } from '#lib/services/passkey-service.js';
@@ -16,7 +17,9 @@ export const load = async ({ parent, url }) => {
 		throw redirect(302, redirectTo || getEffectiveLandingPage());
 	}
 
-	const passkeyAvailability = await passkeyService.getLoginAvailability().catch(() => null);
+	const passkeyAvailability = await tryCatch(passkeyService.getLoginAvailability()).then((result) =>
+		result.error ? null : result.data
+	);
 
 	const error = url.searchParams.get('error');
 	const errorMessage =

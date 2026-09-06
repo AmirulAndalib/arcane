@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { onMount } from 'svelte';
 	import { z } from 'zod/v4';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
@@ -267,9 +269,13 @@
 			});
 
 			if (!response.ok || !response.body) {
-				const errorData = (await response.json().catch(() => ({
-					data: { message: m.build_request_failed() }
-				}))) as Record<string, unknown>;
+				const errorData = (await tryCatch(response.json()).then((result) =>
+					result.error
+						? {
+								data: { message: m.build_request_failed() }
+							}
+						: result.data
+				)) as Record<string, unknown>;
 				const errorDataPayload = errorData['data'] as Record<string, unknown> | undefined;
 				const errorMessage =
 					errorDataPayload?.['message'] ||
@@ -297,7 +303,12 @@
 				streamComplete = lines.some(handleBuildLine);
 			}
 			if (streamComplete) {
-				await reader.cancel().catch(() => {});
+				await tryCatch(reader.cancel()).then((result) => {
+					if (result.error) {
+						return;
+					}
+					return result.data;
+				});
 			}
 
 			if (buildError) {
@@ -572,17 +583,24 @@
 		};
 
 		try {
-			const resolvedEnvId = await environmentStore.getCurrentEnvironmentId();
-			await buildMutation.mutateAsync({ envId: resolvedEnvId, ...payload });
-			toast.success(m.build_completed());
-		} catch (error) {
-			const message = sanitizeLogText(error instanceof Error ? error.message : m.build_failed());
-			buildError = message;
-			buildStatusText = message.toLowerCase().startsWith(m.build_failed().toLowerCase())
-				? message
-				: m.build_failed_with_error({ error: message });
-			appendLog(m.build_error_log({ error: message }));
-			toast.error(message);
+			const operationResult = await tryCatch(
+				(async () => {
+					const resolvedEnvId = await environmentStore.getCurrentEnvironmentId();
+					await buildMutation.mutateAsync({ envId: resolvedEnvId, ...payload });
+					toast.success(m.build_completed());
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				const message = sanitizeLogText(error instanceof Error ? error.message : m.build_failed());
+				buildError = message;
+				buildStatusText = message.toLowerCase().startsWith(m.build_failed().toLowerCase())
+					? message
+					: m.build_failed_with_error({ error: message });
+				appendLog(m.build_error_log({ error: message }));
+				toast.error(message);
+			}
 		} finally {
 			isBuilding = false;
 		}

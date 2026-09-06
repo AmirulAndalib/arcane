@@ -9,7 +9,7 @@
 	import { toast } from 'svelte-sonner';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import type { Webhook } from '#lib/types/environment.js';
 	import type { Paginated, SearchPaginationSortRequest } from '#lib/types/shared.js';
 	import { webhookService } from '#lib/services/webhook-service.js';
@@ -105,7 +105,7 @@
 		const name = webhook.name;
 		const enabling = !webhook.enabled;
 		isLoading.toggling = true;
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(webhookService.update(webhook.id, { enabled: enabling })),
 			message: enabling ? m.webhook_enable_failed({ name }) : m.webhook_disable_failed({ name }),
 			setLoadingState: (value) => (isLoading.toggling = value),
@@ -125,7 +125,7 @@
 				destructive: true,
 				action: async () => {
 					isLoading.removing = true;
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(webhookService.delete(webhookId)),
 						message: m.webhook_delete_failed({ name }),
 						setLoadingState: (value) => (isLoading.removing = value),

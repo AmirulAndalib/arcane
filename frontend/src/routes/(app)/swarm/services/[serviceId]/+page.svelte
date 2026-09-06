@@ -8,7 +8,7 @@
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { toast } from 'svelte-sonner';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { swarmService } from '#lib/services/swarm-service.js';
 	import type {
@@ -215,7 +215,7 @@
 	async function handleUpdate(payload: { spec: Record<string, unknown>; options?: Record<string, unknown> }) {
 		if (!service?.id) return;
 		isLoading.update = true;
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(swarmService.updateService(service.id, { version: editVersion, ...payload })),
 			message: m.common_update_failed({ resource: `${m.swarm_service()} "${serviceName}"` }),
 			setLoadingState: (v) => (isLoading.update = v),
@@ -236,7 +236,7 @@
 				destructive: false,
 				action: async () => {
 					isLoading.rollback = true;
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(swarmService.rollbackService(service.id)),
 						message: m.swarm_service_rollback_failed({ name: serviceName }),
 						setLoadingState: (v) => (isLoading.rollback = v),
@@ -259,7 +259,7 @@
 				destructive: true,
 				action: async () => {
 					isLoading.remove = true;
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(swarmService.removeService(service.id)),
 						message: m.common_delete_failed({ resource: `${m.swarm_service()} "${serviceName}"` }),
 						setLoadingState: (v) => (isLoading.remove = v),
@@ -277,7 +277,7 @@
 		if (!service?.id || !canScaleService) return;
 		const replicas = Math.max(0, Number(scaleReplicas) || 0);
 		isLoading.scale = true;
-		handleApiResultWithCallbacks({
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(swarmService.scaleService(service.id, { replicas })),
 			message: m.common_update_failed({ resource: `${m.swarm_service()} "${serviceName}"` }),
 			setLoadingState: (v) => (isLoading.scale = v),

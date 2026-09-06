@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { imageService } from '#lib/services/image-service.js';
 import { settingsService } from '#lib/services/settings-service.js';
 import { queryKeys } from '#lib/query/query-keys.js';
@@ -17,23 +18,29 @@ export const load: PageLoad = async ({ parent }) => {
 	let images;
 	let settings;
 	let imageUsageCounts;
-	try {
-		[images, settings, imageUsageCounts] = await Promise.all([
-			queryClient.fetchQuery({
-				queryKey: queryKeys.images.list(envId, imageRequestOptions),
-				queryFn: () => imageService.getImagesForEnvironment(envId, imageRequestOptions)
-			}),
-			queryClient.fetchQuery({
-				queryKey: queryKeys.settings.byEnvironment(envId),
-				queryFn: () => settingsService.getSettingsForEnvironmentMerged(envId)
-			}),
-			queryClient.fetchQuery({
-				queryKey: queryKeys.images.usageCounts(envId),
-				queryFn: () => imageService.getImageUsageCountsForEnvironment(envId)
-			})
-		]);
-	} catch (err) {
+	const operationResult = await tryCatch(
+		(async () =>
+			Promise.all([
+				queryClient.fetchQuery({
+					queryKey: queryKeys.images.list(envId, imageRequestOptions),
+					queryFn: () => imageService.getImagesForEnvironment(envId, imageRequestOptions)
+				}),
+				queryClient.fetchQuery({
+					queryKey: queryKeys.settings.byEnvironment(envId),
+					queryFn: () => settingsService.getSettingsForEnvironmentMerged(envId)
+				}),
+				queryClient.fetchQuery({
+					queryKey: queryKeys.images.usageCounts(envId),
+					queryFn: () => imageService.getImageUsageCountsForEnvironment(envId)
+				})
+			]))()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		throwPageLoadError(err, 'Failed to load images');
+	} else {
+		[images, settings, imageUsageCounts] = operationResult.data;
 	}
 
 	return { envId, images, imageRequestOptions, settings, imageUsageCounts };

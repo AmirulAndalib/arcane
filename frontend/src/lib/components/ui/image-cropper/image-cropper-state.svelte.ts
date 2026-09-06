@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import type { ReadableBoxedValues, WritableBoxedValues } from 'svelte-toolbelt';
 import { Context } from 'runed';
 import type { CropArea, DispatchEvents } from 'svelte-easy-crop';
@@ -48,11 +49,17 @@ class ImageCropperRootState {
 	async onCrop() {
 		if (!this.pixelCrop || !this.tempUrl) return;
 
-		try {
-			this.opts.src.current = await getCroppedImg(this.tempUrl, this.pixelCrop);
-			this.open = false;
-			this.opts.onCropped.current(this.opts.src.current);
-		} catch (error) {
+		const { tempUrl, pixelCrop } = this;
+		const operationResult1 = await tryCatch(
+			(async () => {
+				this.opts.src.current = await getCroppedImg(tempUrl, pixelCrop);
+				this.open = false;
+				this.opts.onCropped.current(this.opts.src.current);
+			})()
+		);
+		if (operationResult1.error !== null) {
+			const error = operationResult1.error;
+
 			this.opts.onError.current(error instanceof Error ? error : new Error('failed to crop image'));
 		}
 	}

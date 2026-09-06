@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { onMount } from 'svelte';
 	import { cn } from '#lib/utils.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -233,9 +235,14 @@
 	}
 
 	async function refresh() {
-		try {
-			applySnapshot(await diagnosticsService.getDiagnostics());
-		} catch (e) {
+		const operationResult = await tryCatch(
+			(async () => {
+				applySnapshot(await diagnosticsService.getDiagnostics());
+			})()
+		);
+		if (operationResult.error !== null) {
+			const e = operationResult.error;
+
 			error = e instanceof Error ? e.message : m.diagnostics_error_load();
 		}
 	}
@@ -247,9 +254,14 @@
 	async function loadDump(name: 'goroutine' | 'heap') {
 		dumpLoading[name] = true;
 		try {
-			dumpText[name] = await diagnosticsService.getDump(name);
-		} catch (e) {
-			dumpText[name] = e instanceof Error ? e.message : m.diagnostics_error_dump();
+			const operationResult = await tryCatch((async () => diagnosticsService.getDump(name))());
+			if (operationResult.error !== null) {
+				const e = operationResult.error;
+
+				dumpText[name] = e instanceof Error ? e.message : m.diagnostics_error_dump();
+			} else {
+				dumpText[name] = operationResult.data;
+			}
 		} finally {
 			dumpLoading[name] = false;
 		}
@@ -288,9 +300,16 @@
 	async function download(p: PprofProfile) {
 		downloading = p;
 		try {
-			await diagnosticsService.downloadProfile(p);
-		} catch (e) {
-			error = e instanceof Error ? e.message : m.diagnostics_error_download();
+			const operationResult = await tryCatch(
+				(async () => {
+					await diagnosticsService.downloadProfile(p);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const e = operationResult.error;
+
+				error = e instanceof Error ? e.message : m.diagnostics_error_download();
+			}
 		} finally {
 			downloading = null;
 		}

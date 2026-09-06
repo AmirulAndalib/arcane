@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import SheetFooterActions from '#lib/components/sheets/sheet-footer-actions.svelte';
 	import * as ResponsiveDialog from '#lib/components/ui/responsive-dialog/index.js';
 	import * as Alert from '#lib/components/ui/alert/index.js';
@@ -53,20 +55,27 @@
 		isCommitting = true;
 		let didCommit = false;
 		try {
-			const result = await containerService.commitContainer(containerId, {
-				repository: data.repository.trim() || undefined,
-				tag: data.tag?.trim() || undefined,
-				comment: data.comment.trim() || undefined,
-				author: data.author.trim() || undefined,
-				noPause: data.noPause
-			});
-			toast.success(m.containers_commit_success({ imageId: result.id }));
-			didCommit = true;
-			open = false;
-			onOpenChange?.(false);
-		} catch (error) {
-			console.error('Failed to commit container:', error);
-			toast.error(m.containers_commit_failed({ name: containerName }));
+			const operationResult = await tryCatch(
+				(async () => {
+					const result = await containerService.commitContainer(containerId, {
+						repository: data.repository.trim() || undefined,
+						tag: data.tag?.trim() || undefined,
+						comment: data.comment.trim() || undefined,
+						author: data.author.trim() || undefined,
+						noPause: data.noPause
+					});
+					toast.success(m.containers_commit_success({ imageId: result.id }));
+					didCommit = true;
+					open = false;
+					onOpenChange?.(false);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Failed to commit container:', error);
+				toast.error(m.containers_commit_failed({ name: containerName }));
+			}
 		} finally {
 			isCommitting = false;
 		}

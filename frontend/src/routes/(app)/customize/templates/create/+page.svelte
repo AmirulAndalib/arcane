@@ -5,7 +5,7 @@
 	import { templateService } from '#lib/services/template-service.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { createForm } from '#lib/utils/settings.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { toast } from 'svelte-sonner';
 	import TemplateEditorWorkspace from '../components/template-editor-workspace.svelte';
 	import { globalVariablesToMap } from '#lib/utils/template-load.js';
@@ -63,7 +63,8 @@
 		);
 		if (!validated) return;
 
-		handleApiResultWithCallbacks({
+		saving = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(
 				templateService.createTemplate({
 					name: validated.name,

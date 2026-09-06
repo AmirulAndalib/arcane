@@ -2,7 +2,7 @@
 	import { UsersIcon } from '#lib/icons/index.js';
 	import { toast } from 'svelte-sonner';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import UserTable from './user-table.svelte';
 	import UserFormSheet from '#lib/components/sheets/user-form-sheet.svelte';
 	import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
@@ -85,76 +85,81 @@
 		const loading = isEditMode ? 'editing' : 'creating';
 		isLoading[loading] = true;
 
-		try {
-			if (isEditMode && userId) {
-				const safeUsername = userToEdit?.username || m.common_unknown();
-				// Split: profile fields go to PUT /users/{id}; role assignments
-				// go to PUT /users/{id}/role-assignments (separate endpoint).
-				const { roleAssignments, ...profile } = user;
+		const operationResult = await tryCatch(
+			(async () => {
+				if (isEditMode && userId) {
+					const safeUsername = userToEdit?.username || m.common_unknown();
+					// Split: profile fields go to PUT /users/{id}; role assignments
+					// go to PUT /users/{id}/role-assignments (separate endpoint).
+					const { roleAssignments, ...profile } = user;
 
-				// OIDC users submit role assignments only — skip the empty profile PUT.
-				if (Object.keys(profile).length === 0 && isAdmin && roleAssignments) {
-					const assignmentsResult = await tryCatch(roleService.setUserAssignments(userId, { assignments: roleAssignments }));
+					// OIDC users submit role assignments only — skip the empty profile PUT.
+					if (Object.keys(profile).length === 0 && isAdmin && roleAssignments) {
+						const assignmentsResult = await tryCatch(roleService.setUserAssignments(userId, { assignments: roleAssignments }));
+						await handleApiResultWithCallbacks({
+							result: assignmentsResult,
+							message: m.common_update_failed({ resource: `${m.resource_user()} "${safeUsername}"` }),
+							setLoadingState: (value) => (isLoading[loading] = value),
+							onSuccess: async () => {
+								await completeUserEdit(safeUsername);
+							}
+						});
+						return !assignmentsResult.error;
+					}
+
+					const result = await tryCatch(userService.update(userId, profile));
 					await handleApiResultWithCallbacks({
-						result: assignmentsResult,
+						result,
 						message: m.common_update_failed({ resource: `${m.resource_user()} "${safeUsername}"` }),
 						setLoadingState: (value) => (isLoading[loading] = value),
 						onSuccess: async () => {
+							if (isAdmin && roleAssignments) {
+								await roleService.setUserAssignments(userId, { assignments: roleAssignments });
+							}
 							await completeUserEdit(safeUsername);
 						}
 					});
-					return !assignmentsResult.error;
-				}
-
-				const result = await tryCatch(userService.update(userId, profile));
-				await handleApiResultWithCallbacks({
-					result,
-					message: m.common_update_failed({ resource: `${m.resource_user()} "${safeUsername}"` }),
-					setLoadingState: (value) => (isLoading[loading] = value),
-					onSuccess: async () => {
-						if (isAdmin && roleAssignments) {
-							await roleService.setUserAssignments(userId, { assignments: roleAssignments });
-						}
-						await completeUserEdit(safeUsername);
+					return !result.error;
+				} else {
+					if (!user.username) {
+						toast.error(m.common_username_required());
+						isLoading[loading] = false;
+						return false;
 					}
-				});
-				return !result.error;
-			} else {
-				if (!user.username) {
-					toast.error(m.common_username_required());
-					isLoading[loading] = false;
-					return false;
-				}
 
-				const safeUsername = user.username!.trim() || m.common_unknown();
+					const safeUsername = user.username!.trim() || m.common_unknown();
 
-				const createUser: CreateUser = {
-					username: user.username!,
-					displayName: user.displayName,
-					email: user.email,
-					password: user.password!
-				};
+					const createUser: CreateUser = {
+						username: user.username!,
+						displayName: user.displayName,
+						email: user.email,
+						password: user.password!
+					};
 
-				const result = await tryCatch(userService.create(createUser));
-				await handleApiResultWithCallbacks({
-					result,
-					message: m.common_create_failed({ resource: `${m.resource_user()} "${safeUsername}"` }),
-					setLoadingState: (value) => (isLoading[loading] = value),
-					onSuccess: async (created) => {
-						if (isAdmin && user.roleAssignments && created?.id) {
-							await roleService.setUserAssignments(created.id, { assignments: user.roleAssignments });
+					const result = await tryCatch(userService.create(createUser));
+					await handleApiResultWithCallbacks({
+						result,
+						message: m.common_create_failed({ resource: `${m.resource_user()} "${safeUsername}"` }),
+						setLoadingState: (value) => (isLoading[loading] = value),
+						onSuccess: async (created) => {
+							if (isAdmin && user.roleAssignments && created?.id) {
+								await roleService.setUserAssignments(created.id, { assignments: user.roleAssignments });
+							}
+							toast.success(m.common_create_success({ resource: `${m.resource_user()} "${safeUsername}"` }));
+							users = await userService.getUsers(requestOptions);
+							isDialogOpen.create = false;
 						}
-						toast.success(m.common_create_success({ resource: `${m.resource_user()} "${safeUsername}"` }));
-						users = await userService.getUsers(requestOptions);
-						isDialogOpen.create = false;
-					}
-				});
-				return !result.error;
-			}
-		} catch (error) {
+					});
+					return !result.error;
+				}
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
 			console.error('Failed to submit user:', error);
 			return false;
 		}
+		return operationResult.data;
 	}
 
 	// Avatar policy: server-wide settings that belong with user management.
@@ -171,11 +176,16 @@
 	});
 
 	async function saveAvatarSettings(patch: Partial<Settings>) {
-		try {
-			const updated = await settingsService.updateSettings(patch);
-			settingsStore.set(updated);
-			toast.success(m.common_update_success({ resource: m.settings() }));
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				const updated = await settingsService.updateSettings(patch);
+				settingsStore.set(updated);
+				toast.success(m.common_update_success({ resource: m.settings() }));
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			toast.error(error instanceof Error ? error.message : m.common_update_failed({ resource: m.settings() }));
 		}
 	}

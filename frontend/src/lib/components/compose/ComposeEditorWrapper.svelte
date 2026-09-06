@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { ArcaneButton } from '#lib/components/arcane-button/index.js';
 	import { AlertIcon, ExternalLinkIcon } from '#lib/icons/index.js';
@@ -33,12 +35,19 @@
 	async function handleSave() {
 		isSaving = true;
 		try {
-			await onSave();
-			toast.success(m.container_compose_save_success());
-			await refreshAll();
-		} catch (err: unknown) {
-			const message = err instanceof Error ? err.message : m.container_compose_save_failed();
-			toast.error(message);
+			const operationResult1 = await tryCatch(
+				(async () => {
+					await onSave();
+					toast.success(m.container_compose_save_success());
+					await refreshAll();
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const err = operationResult1.error;
+
+				const message = err instanceof Error ? err.message : m.container_compose_save_failed();
+				toast.error(message);
+			}
 		} finally {
 			isSaving = false;
 		}

@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { m } from '#lib/paraglide/messages.js';
 import ky, { HTTPError as KyHTTPError, NetworkError, TimeoutError, type Options as KyOptions, type SearchParamsOption } from 'ky';
 import { toast } from 'svelte-sonner';
@@ -259,20 +260,27 @@ export async function handleUnauthorizedResponseInternal(
 	const recoverable = isVersionMismatch || upgradeInProgressInternal;
 
 	if (!tokenRefreshHandler) return 'none';
-	try {
-		await tokenRefreshHandler();
-		if (!isVersionMismatch || !upgradeInProgressInternal) return 'retry';
-		if (!upgradeReloadStartedInternal) {
-			upgradeReloadStartedInternal = true;
-			window.location.reload();
-		}
-		return 'reload';
-	} catch (error) {
+
+	const operationResult = await tryCatch(
+		(async () => {
+			await tokenRefreshHandler();
+			if (!isVersionMismatch || !upgradeInProgressInternal) return 'retry';
+			if (!upgradeReloadStartedInternal) {
+				upgradeReloadStartedInternal = true;
+				window.location.reload();
+			}
+			return 'reload';
+		})()
+	);
+	if (operationResult.error !== null) {
+		const error = operationResult.error;
 		const isTransientRefreshFailure =
 			error instanceof APIError && (error.name === 'NetworkError' || error.name === 'TimeoutError');
 		if (recoverable && isTransientRefreshFailure) return 'none';
 		window.location.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
 		return 'redirect';
+	} else {
+		return operationResult.data;
 	}
 }
 
@@ -335,18 +343,23 @@ class APIClient {
 			url
 		};
 
-		try {
-			const options = buildRequestOptionsInternal(method, data, config);
+		const operationResult = await tryCatch(
+			(async () => {
+				const options = buildRequestOptionsInternal(method, data, config);
 
-			const response = await this.client(requestUrl, options);
-			const parsed = method.toUpperCase() === 'HEAD' ? undefined : await parseResponseBody(response.clone(), config.responseType);
-			return {
-				data: parsed as T,
-				headers: response.headers,
-				raw: response,
-				status: response.status
-			};
-		} catch (error) {
+				const response = await this.client(requestUrl, options);
+				const parsed =
+					method.toUpperCase() === 'HEAD' ? undefined : await parseResponseBody(response.clone(), config.responseType);
+				return {
+					data: parsed as T,
+					headers: response.headers,
+					raw: response,
+					status: response.status
+				};
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
 			if (error instanceof KyHTTPError) {
 				return this.handleHttpError<T>(error, method, url, data, config, requestConfig, requestUrl);
 			}
@@ -383,6 +396,8 @@ class APIClient {
 				config: requestConfig,
 				requestUrl
 			});
+		} else {
+			return operationResult.data;
 		}
 	}
 

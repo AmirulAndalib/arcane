@@ -5,7 +5,7 @@ import { gitOpsSyncService } from '#lib/services/gitops-sync-service.js';
 import { projectService } from '#lib/services/project-service.js';
 import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
 import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
-import { tryCatch } from '#lib/utils/api.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { activityToastOptions, extractActivityId } from '#lib/utils/activity-toast.js';
 import type { TableActionConfig, TableBulkActionConfig } from '#lib/utils/table-action-types.js';
 import { toast } from 'svelte-sonner';
@@ -103,19 +103,22 @@ export function createProjectActions({
 		const config = projectActionConfigs[action];
 		actionStatus[id] = config.status;
 
-		try {
-			await handleApiResultWithCallbacks({
-				result: await tryCatch(config.run(id)),
-				message: config.failure(),
-				setLoadingState: (value) => {
-					actionStatus[id] = value ? config.status : '';
-				},
-				onSuccess: async (data) => {
-					toast.success(config.success(), activityToastOptions(extractActivityId(data)));
-					await refreshProjects();
-				}
-			});
-		} catch {
+		const operationResult = await tryCatch(
+			(async () => {
+				await handleApiResultWithCallbacks({
+					result: await tryCatch(config.run(id)),
+					message: config.failure(),
+					setLoadingState: (value) => {
+						actionStatus[id] = value ? config.status : '';
+					},
+					onSuccess: async (data) => {
+						toast.success(config.success(), activityToastOptions(extractActivityId(data)));
+						await refreshProjects();
+					}
+				});
+			})()
+		);
+		if (operationResult.error !== null) {
 			toast.error(m.common_action_failed());
 			actionStatus[id] = '';
 		}

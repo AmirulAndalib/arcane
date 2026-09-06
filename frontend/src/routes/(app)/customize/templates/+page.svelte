@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import AddTemplateRegistrySheet from '#lib/components/sheets/add-template-registry-sheet.svelte';
@@ -51,26 +53,32 @@
 		isLoading.updating[id] = true;
 
 		try {
-			const registry = registries.find((r) => r.id === id);
-			if (!registry) {
-				toast.error(m.templates_registry_not_found());
-				delete isLoading.updating[id];
-				return;
+			const operationResult = await tryCatch(
+				(async () => {
+					const registry = registries.find((r) => r.id === id);
+					if (!registry) {
+						toast.error(m.templates_registry_not_found());
+						delete isLoading.updating[id];
+						return;
+					}
+
+					await templateService.updateRegistry(id, {
+						name: registry.name,
+						url: registry.url,
+						description: registry.description,
+						enabled: updates.enabled ?? registry.enabled
+					});
+
+					registries = await templateService.getRegistries();
+					templates = await templateService.getTemplates(requestOptions);
+					toast.success(m.common_update_success({ resource: m.resource_registry() }));
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+				console.error('Error updating registry:', error);
+				toast.error(error instanceof Error ? error.message : m.registries_save_failed());
 			}
-
-			await templateService.updateRegistry(id, {
-				name: registry.name,
-				url: registry.url,
-				description: registry.description,
-				enabled: updates.enabled ?? registry.enabled
-			});
-
-			registries = await templateService.getRegistries();
-			templates = await templateService.getTemplates(requestOptions);
-			toast.success(m.common_update_success({ resource: m.resource_registry() }));
-		} catch (error) {
-			console.error('Error updating registry:', error);
-			toast.error(error instanceof Error ? error.message : m.registries_save_failed());
 		} finally {
 			delete isLoading.updating[id];
 		}
@@ -81,29 +89,41 @@
 		isLoading.removing[id] = true;
 
 		try {
-			const reg = registries.find((r) => r.id === id);
-			await templateService.deleteRegistry(id);
-			registries = registries.filter((r) => r.id !== id);
-			registries = await templateService.getRegistries();
-			templates = await templateService.getTemplates(requestOptions);
-			toast.success(
-				reg
-					? m.common_delete_success({ resource: `${m.resource_registry()} "${reg.url}"` })
-					: m.templates_registry_removed_success()
+			const operationResult = await tryCatch(
+				(async () => {
+					const reg = registries.find((r) => r.id === id);
+					await templateService.deleteRegistry(id);
+					registries = registries.filter((r) => r.id !== id);
+					registries = await templateService.getRegistries();
+					templates = await templateService.getTemplates(requestOptions);
+					toast.success(
+						reg
+							? m.common_delete_success({ resource: `${m.resource_registry()} "${reg.url}"` })
+							: m.templates_registry_removed_success()
+					);
+				})()
 			);
-		} catch (error) {
-			console.error('Error removing registry:', error);
-			toast.error(error instanceof Error ? error.message : m.registries_save_failed());
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Error removing registry:', error);
+				toast.error(error instanceof Error ? error.message : m.registries_save_failed());
+			}
 		} finally {
 			delete isLoading.removing[id];
 		}
 	}
 
 	async function refreshTemplates() {
-		try {
-			templates = await templateService.getTemplates(requestOptions);
-			toast.success(m.templates_refreshed());
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				templates = await templateService.getTemplates(requestOptions);
+				toast.success(m.templates_refreshed());
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Error refreshing templates:', error);
 			toast.error(m.common_refresh_failed({ resource: m.templates_title() }));
 		}
@@ -113,21 +133,28 @@
 		isLoading.addingRegistry = true;
 
 		try {
-			await templateService.addRegistry({
-				name: registry.name.trim(),
-				url: registry.url.trim(),
-				description: registry.description?.trim() || undefined,
-				enabled: registry.enabled
-			});
+			const operationResult = await tryCatch(
+				(async () => {
+					await templateService.addRegistry({
+						name: registry.name.trim(),
+						url: registry.url.trim(),
+						description: registry.description?.trim() || undefined,
+						enabled: registry.enabled
+					});
 
-			registries = await templateService.getRegistries();
-			templates = await templateService.getTemplates(requestOptions);
-			showAddRegistrySheet = false;
+					registries = await templateService.getRegistries();
+					templates = await templateService.getTemplates(requestOptions);
+					showAddRegistrySheet = false;
 
-			toast.success(m.common_create_success({ resource: m.resource_registry() }));
-		} catch (error) {
-			console.error('Error adding registry:', error);
-			toast.error(error instanceof Error ? error.message : m.registries_save_failed());
+					toast.success(m.common_create_success({ resource: m.resource_registry() }));
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+
+				console.error('Error adding registry:', error);
+				toast.error(error instanceof Error ? error.message : m.registries_save_failed());
+			}
 		} finally {
 			isLoading.addingRegistry = false;
 		}

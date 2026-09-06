@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
 import { containerService } from '#lib/services/container-service.js';
 import { resolveInitialTableRequest } from '#lib/utils/tables.js';
@@ -16,13 +17,19 @@ export const load: PageLoad = async ({ parent }) => {
 	} satisfies SearchPaginationSortRequest);
 
 	let containers;
-	try {
-		containers = await queryClient.fetchQuery({
-			queryKey: queryKeys.containers.list(envId, containerRequestOptions),
-			queryFn: () => containerService.getContainersForEnvironment(envId, containerRequestOptions)
-		});
-	} catch (err) {
+	const operationResult = await tryCatch(
+		(async () =>
+			queryClient.fetchQuery({
+				queryKey: queryKeys.containers.list(envId, containerRequestOptions),
+				queryFn: () => containerService.getContainersForEnvironment(envId, containerRequestOptions)
+			}))()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		throwPageLoadError(err, 'Failed to load containers');
+	} else {
+		containers = operationResult.data;
 	}
 
 	return {

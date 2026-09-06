@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import type { PageLoad } from './$types';
 import type { SearchPaginationSortRequest } from '#lib/types/shared.js';
 import { environmentManagementService } from '#lib/services/env-mgmt-service.js';
@@ -20,13 +21,19 @@ export const load: PageLoad = async ({ parent }) => {
 	} satisfies SearchPaginationSortRequest);
 
 	let environments;
-	try {
-		environments = await queryClient.fetchQuery({
-			queryKey: queryKeys.environments.list(environmentRequestOptions),
-			queryFn: () => environmentManagementService.getEnvironments(environmentRequestOptions)
-		});
-	} catch (err) {
+	const operationResult = await tryCatch(
+		(async () =>
+			queryClient.fetchQuery({
+				queryKey: queryKeys.environments.list(environmentRequestOptions),
+				queryFn: () => environmentManagementService.getEnvironments(environmentRequestOptions)
+			}))()
+	);
+	if (operationResult.error !== null) {
+		const err = operationResult.error;
+
 		throwPageLoadError(err, 'Failed to load environments');
+	} else {
+		environments = operationResult.data;
 	}
 
 	return { environments, environmentRequestOptions };

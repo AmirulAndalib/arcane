@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import type { CodeLanguage } from '#lib/components/code-editor/analysis/types.js';
 import { m } from '#lib/paraglide/messages.js';
 import { toast } from 'svelte-sonner';
@@ -200,12 +201,18 @@ export async function readWorkspaceUpload(
 	maxFileSizeMb: number
 ): Promise<{ content?: string; binary: boolean; error?: string }> {
 	if (file.size > maxFileSizeMb * 1024 * 1024) return { binary: false, error: m.workspace_upload_too_large({ maxFileSizeMb }) };
-	try {
-		const bytes = new Uint8Array(await file.arrayBuffer());
-		if (bytes.includes(0)) return { binary: true };
-		return { binary: false, content: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
-	} catch {
+
+	const operationResult = await tryCatch(
+		(async () => {
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			if (bytes.includes(0)) return { binary: true };
+			return { binary: false, content: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
+		})()
+	);
+	if (operationResult.error !== null) {
 		return { binary: true };
+	} else {
+		return operationResult.data;
 	}
 }
 

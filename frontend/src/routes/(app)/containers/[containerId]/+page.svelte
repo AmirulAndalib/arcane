@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { ArcaneButton, type ArcaneButtonSize } from '#lib/components/arcane-button/index.js';
 	import { goto, refreshAll } from '$app/navigation';
 	import settingsStore from '#lib/stores/config-store.js';
@@ -166,14 +168,18 @@
 		}
 		// A slower lookup for a previous image must not overwrite the current one.
 		let current = true;
-		imageService
-			.getUpdateInfoByRefs([image])
-			.then((infoByRef) => {
+		tryCatch(
+			imageService.getUpdateInfoByRefs([image]).then((infoByRef) => {
 				if (current) updateInfo = infoByRef[image] ?? null;
 			})
-			.catch(() => {
+		).then((result) => {
+			if (result.error) {
 				if (current) updateInfo = null;
-			});
+
+				return;
+			}
+			return result.data;
+		});
 		return () => {
 			current = false;
 		};
@@ -262,21 +268,24 @@
 		const includes = proj.includeFiles ?? [];
 		if (includes.length === 0) return null;
 
-		const envId = await environmentStore.getCurrentEnvironmentId().catch(() => null);
+		const envId = await tryCatch(environmentStore.getCurrentEnvironmentId()).then((result) =>
+			result.error ? null : result.data
+		);
 		if (!envId) return null;
 
 		for (const f of includes) {
 			if (f.content && hasServiceInContent(f.content, svcName)) {
 				return { includeFile: f };
 			}
-			try {
-				const loaded = await projectWorkspaceService.getWorkspaceFile(proj.id, f.relativePath, envId);
-				if (loaded?.content && hasServiceInContent(loaded.content, svcName)) {
-					return { includeFile: { ...f, content: loaded.content } };
-				}
-			} catch {
-				// Skip files that fail to load
-			}
+			const sourceResult = await tryCatch(
+				(async () => {
+					const loaded = await projectWorkspaceService.getWorkspaceFile(proj.id, f.relativePath, envId);
+					if (loaded?.content && hasServiceInContent(loaded.content, svcName)) {
+						return { includeFile: { ...f, content: loaded.content } };
+					}
+				})()
+			);
+			if (sourceResult.error === null && sourceResult.data) return sourceResult.data;
 		}
 		return null;
 	}

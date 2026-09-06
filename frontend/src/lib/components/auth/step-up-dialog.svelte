@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import { startAuthentication, type PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 	import { AlertIcon, ApiKeyIcon } from '#lib/icons/index.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -46,17 +48,24 @@
 		busy = true;
 		error = null;
 		try {
-			const challenge: PasskeyChallenge = await passkeyService.beginStepUp();
-			if (!challenge.transactionId) throw new Error(m.account_passkey_step_up_failed());
-			const credential = await startAuthentication({
-				optionsJSON: challenge.options as unknown as PublicKeyCredentialRequestOptionsJSON
-			});
-			const grant = await passkeyService.finishStepUp(challenge.transactionId, credential);
-			await onResolved(grant);
-			open = false;
-		} catch (value) {
-			if (!(value instanceof Error && value.name === 'NotAllowedError')) {
-				error = value instanceof Error ? value.message : m.account_passkey_step_up_failed();
+			const operationResult1 = await tryCatch(
+				(async () => {
+					const challenge: PasskeyChallenge = await passkeyService.beginStepUp();
+					if (!challenge.transactionId) throw new Error(m.account_passkey_step_up_failed());
+					const credential = await startAuthentication({
+						optionsJSON: challenge.options as unknown as PublicKeyCredentialRequestOptionsJSON
+					});
+					const grant = await passkeyService.finishStepUp(challenge.transactionId, credential);
+					await onResolved(grant);
+					open = false;
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const value = operationResult1.error;
+
+				if (!(value instanceof Error && value.name === 'NotAllowedError')) {
+					error = value instanceof Error ? value.message : m.account_passkey_step_up_failed();
+				}
 			}
 		} finally {
 			busy = false;
@@ -70,11 +79,18 @@
 		busy = true;
 		error = null;
 		try {
-			const grant = await passkeyService.passwordStepUp(password);
-			await onResolved(grant);
-			open = false;
-		} catch (value) {
-			error = value instanceof Error ? value.message : m.account_passkey_step_up_failed();
+			const operationResult2 = await tryCatch(
+				(async () => {
+					const grant = await passkeyService.passwordStepUp(password);
+					await onResolved(grant);
+					open = false;
+				})()
+			);
+			if (operationResult2.error !== null) {
+				const value = operationResult2.error;
+
+				error = value instanceof Error ? value.message : m.account_passkey_step_up_failed();
+			}
 		} finally {
 			busy = false;
 		}

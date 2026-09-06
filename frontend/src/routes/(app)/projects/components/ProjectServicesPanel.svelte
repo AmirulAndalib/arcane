@@ -16,7 +16,8 @@
 	import { environmentStore } from '#lib/stores/environment.store.svelte.js';
 	import { hasPermission } from '#lib/utils/auth.js';
 	import { toast } from 'svelte-sonner';
-	import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { activityToastOptions, extractActivityId } from '#lib/utils/activity-toast.js';
 	import { confirmAndRemoveContainer, runContainerLifecycleAction } from '#lib/utils/container-actions.js';
 	import { cn } from '#lib/utils.js';
@@ -107,19 +108,24 @@
 		const id = item.id;
 		actionStatus[id] = 'restarting';
 
-		try {
-			handleApiResultWithCallbacks({
-				result: await tryCatch(projectService.restartProject(projectId, [item.name])),
-				message: m.containers_restart_failed(),
-				setLoadingState: (value) => {
-					actionStatus[id] = value ? 'restarting' : '';
-				},
-				async onSuccess(data) {
-					toast.success(m.containers_restart_success(), activityToastOptions(extractActivityId(data)));
-					await onRefresh?.();
-				}
-			});
-		} catch (error) {
+		const operationResult = await tryCatch(
+			(async () => {
+				await handleApiResultWithCallbacks({
+					result: await tryCatch(projectService.restartProject(projectId, [item.name])),
+					message: m.containers_restart_failed(),
+					setLoadingState: (value) => {
+						actionStatus[id] = value ? 'restarting' : '';
+					},
+					async onSuccess(data) {
+						toast.success(m.containers_restart_success(), activityToastOptions(extractActivityId(data)));
+						await onRefresh?.();
+					}
+				});
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
+
 			console.error('Service restart failed:', error);
 			toast.error(m.containers_action_error());
 			actionStatus[id] = '';

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { AlertTriangleIcon, UsersIcon } from '#lib/icons/index.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -35,10 +37,7 @@
 		const environmentId = currentEnvironmentId;
 		if (!environmentId || !canManageNodes || reconciledEnvironmentId === environmentId) return;
 		reconciledEnvironmentId = environmentId;
-		void swarmService
-			.reconcileNodeAgents()
-			.then(refresh)
-			.catch(() => undefined);
+		void tryCatch(swarmService.reconcileNodeAgents().then(refresh)).then((result) => (result.error ? undefined : result.data));
 	});
 
 	const totalNodes = $derived(nodes?.pagination?.totalItems ?? nodes?.data?.length ?? 0);

@@ -5,7 +5,7 @@
 	import { toast } from 'svelte-sonner';
 	import { openConfirmDialog } from '#lib/components/confirm-dialog/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
-	import { tryCatch } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
 	import { formatRelativeTime } from '#lib/utils/formatting.js';
 	import type { Paginated, SearchPaginationSortRequest } from '#lib/types/shared.js';
@@ -60,7 +60,7 @@
 				destructive: true,
 				action: async () => {
 					isLoading.removing = true;
-					handleApiResultWithCallbacks({
+					await handleApiResultWithCallbacks({
 						result: await tryCatch(eventService.delete(eventId)),
 						message: m.events_delete_failed({ title: safeTitle }),
 						setLoadingState: (value) => (isLoading.removing = value),

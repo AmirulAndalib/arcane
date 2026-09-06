@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { tryCatch } from '#lib/utils/try-catch.js';
+
 	import type { FileEntry } from '#lib/types/shared.js';
 	import { onMount } from 'svelte';
 	import * as Sheet from '#lib/components/ui/sheet/index.js';
@@ -30,10 +32,17 @@
 
 	onMount(async () => {
 		try {
-			const res = await fetchContent(file.path);
-			content = b64DecodeUnicode(res);
-		} catch (e: any) {
-			error = e.message || 'Failed to load preview';
+			const operationResult1 = await tryCatch(
+				(async () => {
+					const res = await fetchContent(file.path);
+					content = b64DecodeUnicode(res);
+				})()
+			);
+			if (operationResult1.error !== null) {
+				const e = operationResult1.error;
+
+				error = e.message || 'Failed to load preview';
+			}
 		} finally {
 			loading = false;
 		}

@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import { browser } from '$app/env';
 
 const MAX_RECONNECT_DELAY = 15_000;
@@ -97,26 +98,34 @@ export function createJSONLineStream<TEvent extends JSONLineEventBase>(config: J
 		const controller = new AbortController();
 		streamAbortController = controller;
 		try {
-			const response = await config.openStream(controller.signal);
-			if (!isCurrentGeneration(generation) || !response.body) {
-				// The response body is live even though nobody will read it;
-				// dropping it on the floor leaves the server streaming into a
-				// connection that stays open until its TCP timers expire.
-				controller.abort();
-				if (streamAbortController === controller) {
-					streamAbortController = null;
-				}
-				return;
-			}
+			const operationResult = await tryCatch(
+				(async () => {
+					const response = await config.openStream(controller.signal);
+					if (!isCurrentGeneration(generation) || !response.body) {
+						// The response body is live even though nobody will read it;
+						// dropping it on the floor leaves the server streaming into a
+						// connection that stays open until its TCP timers expire.
+						controller.abort();
+						if (streamAbortController === controller) {
+							streamAbortController = null;
+						}
+						return;
+					}
 
-			_streamConnected = true;
-			_streamFailed = false;
-			reconnectAttempt = 0;
-			config.onConnected?.();
-			await readJSONLines(response.body, generation);
-		} catch (error) {
-			if (!controller.signal.aborted && isCurrentGeneration(generation)) {
-				console.warn(`${config.label} stream disconnected:`, error);
+					_streamConnected = true;
+					_streamFailed = false;
+					reconnectAttempt = 0;
+					config.onConnected?.();
+					await readJSONLines(response.body, generation);
+				})()
+			);
+			if (operationResult.error !== null) {
+				const error = operationResult.error;
+				if (!controller.signal.aborted && isCurrentGeneration(generation)) {
+					console.warn(`${config.label} stream disconnected:`, error);
+				}
+			} else {
+				return operationResult.data;
 			}
 		} finally {
 			if (streamAbortController === controller) {
@@ -162,7 +171,7 @@ export function createJSONLineStream<TEvent extends JSONLineEventBase>(config: J
 			// The loop also exits when the generation advances, with the stream
 			// still open. Cancelling is what actually closes the fetch and lets
 			// the server see the disconnect; releaseLock alone does not.
-			await reader.cancel().catch(() => {});
+			await tryCatch(reader.cancel());
 			reader.releaseLock();
 		}
 	}

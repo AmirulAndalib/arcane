@@ -1,3 +1,4 @@
+import { tryCatch } from '#lib/utils/try-catch.js';
 import BaseAPIService from './api-service';
 import { uploadService, type UploadProgressCallback } from './upload-service';
 import { environmentStore, LOCAL_DOCKER_ENVIRONMENT_ID } from '#lib/stores/environment.store.svelte.js';
@@ -105,41 +106,55 @@ class ImageService extends BaseAPIService {
 
 	async pullImageStream(imageName: string, onLine?: (data: any) => void): Promise<ImagePullResult> {
 		const envId = await environmentStore.getCurrentEnvironmentId();
-		try {
-			const response = await fetch(`/api/environments/${envId}/images/pull`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ imageName })
-			});
 
-			if (!response.ok || !response.body) {
-				const errorData = await response.json().catch(() => ({
-					data: { message: m.images_pull_server_error() }
-				}));
-				const errorMessage =
-					errorData.data?.message ||
-					errorData.error ||
-					errorData.message ||
-					`${m.images_pull_server_error()}: HTTP ${response.status}`;
-				throw new Error(errorMessage);
-			}
+		const operationResult = await tryCatch(
+			(async () => {
+				const response = await fetch(`/api/environments/${envId}/images/pull`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ imageName })
+				});
 
-			await readNdjsonStream(response.body, (parsed) => {
-				onLine?.(parsed);
-				if (parsed?.error) {
-					const message = typeof parsed.error === 'string' ? parsed.error : parsed.error.message || m.images_pull_stream_failed();
-					throw new Error(message);
+				if (!response.ok || !response.body) {
+					const errorData = await tryCatch(response.json()).then((result) => {
+						if (result.error !== null) {
+							return {
+								data: { message: m.images_pull_server_error() }
+							};
+						} else {
+							return result.data;
+						}
+					});
+					const errorMessage =
+						errorData.data?.message ||
+						errorData.error ||
+						errorData.message ||
+						`${m.images_pull_server_error()}: HTTP ${response.status}`;
+					throw new Error(errorMessage);
 				}
-				// The terminal frame marks success; don't wait on the network EOF.
-				return parsed?.done === true;
-			});
-			return { success: true, imageName };
-		} catch (error) {
+
+				await readNdjsonStream(response.body, (parsed) => {
+					onLine?.(parsed);
+					if (parsed?.error) {
+						const message =
+							typeof parsed.error === 'string' ? parsed.error : parsed.error.message || m.images_pull_stream_failed();
+						throw new Error(message);
+					}
+					// The terminal frame marks success; don't wait on the network EOF.
+					return parsed?.done === true;
+				});
+				return { success: true, imageName };
+			})()
+		);
+		if (operationResult.error !== null) {
+			const error = operationResult.error;
 			return {
 				success: false,
 				imageName,
 				error: error instanceof Error ? error.message : m.images_pull_stream_failed()
 			};
+		} else {
+			return operationResult.data;
 		}
 	}
 

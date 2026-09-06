@@ -6,7 +6,8 @@
 	import { CopyIcon } from '#lib/icons/index.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { systemService } from '#lib/services/system-service.js';
-	import { handleApiResultWithCallbacks, tryCatch } from '#lib/utils/api.js';
+	import { handleApiResultWithCallbacks } from '#lib/utils/api.js';
+	import { tryCatch } from '#lib/utils/try-catch.js';
 	import { tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -39,7 +40,8 @@
 			return;
 		}
 
-		handleApiResultWithCallbacks({
+		converting = true;
+		await handleApiResultWithCallbacks({
 			result: await tryCatch(systemService.convert(dockerRunCommand)),
 			message: m.compose_convert_failed(),
 			setLoadingState: (value) => (converting = value),
