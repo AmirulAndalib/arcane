@@ -90,8 +90,8 @@
 <article class="flex min-w-0 flex-col gap-3 py-5">
 	<div class="flex min-w-0 flex-wrap items-start justify-between gap-x-6 gap-y-3">
 		<div class="flex min-w-0 flex-[1_1_20rem] flex-col gap-1.5">
-			<div class="flex flex-wrap items-center gap-2">
-				{#if headerAccessory}<div class="mr-1 flex items-center">{@render headerAccessory()}</div>{/if}
+			<div class="flex min-h-9 flex-wrap items-center gap-2">
+				{@render headerAccessory?.()}
 				<h4 class="text-base font-semibold">{jobNameLabel(job)}</h4>
 				{#if !isEnabled}
 					<Badge variant="secondary" size="sm">{m.common_disabled()}</Badge>
@@ -125,7 +125,7 @@
 				{#if job.workerHealth}<p>{m.jobs_worker_health()}: {jobStatusLabel(job.workerHealth.status)}</p>{/if}
 			</div>
 		</div>
-		<div class="flex max-w-full flex-wrap items-center gap-1">
+		<div class="flex min-h-9 max-w-full flex-wrap items-center gap-1">
 			{#if isEnabled && job.settingsKey}
 				<Button
 					variant="ghost"

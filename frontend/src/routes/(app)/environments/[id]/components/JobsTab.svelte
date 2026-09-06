@@ -259,7 +259,7 @@
 							<div
 								class="grid min-w-0 gap-x-6 gap-y-2 rounded-xl border border-border bg-transparent px-4 py-2 sm:px-5 lg:grid-cols-[7rem_minmax(0,1fr)]"
 							>
-								<h3 class="text-sm font-semibold text-foreground lg:pt-5">
+								<h3 class="flex min-h-9 items-center text-sm font-semibold text-foreground lg:mt-5 lg:self-start">
 									{category.label}
 								</h3>
 								<div class="min-w-0 divide-y divide-border/50">
