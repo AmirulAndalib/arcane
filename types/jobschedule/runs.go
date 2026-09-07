@@ -24,7 +24,7 @@ type ListRunsOutput struct{ Body st.RunList }
 type ResolveRunInput struct {
 	RunInput
 
-	Body struct {
+	Body *struct {
 		ResolvedBy string `json:"resolvedBy,omitempty"`
 	}
 }

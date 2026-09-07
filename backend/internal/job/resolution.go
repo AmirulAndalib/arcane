@@ -15,7 +15,7 @@ import (
 func (h *JobSchedulesHandler) ResolveRun(ctx context.Context, input *jobschedule.ResolveRunInput) (*jobschedule.RunOutput, error) {
 	actor, _ := middleware.GetUserIDFromContext(ctx)
 	permissions, _ := middleware.PermissionsFromContext(ctx)
-	if input.Body.ResolvedBy != "" {
+	if input.Body != nil && input.Body.ResolvedBy != "" {
 		if permissions == nil || !permissions.Sudo || !h.jobService.cfg.AgentMode {
 			return nil, huma.Error403Forbidden("only authenticated manager transport may forward an operator identity")
 		}
