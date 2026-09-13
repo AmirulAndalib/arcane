@@ -1,3 +1,26 @@
+## v2.11.1
+
+### Bug fixes
+
+* align first-login password validation with configured policy([b71892d](https://github.com/getarcaneapp/arcane/commit/b71892d0902480a5e430bf4c10439d167508301c) by @kmendell)
+* fall back to cpuset for trivy when the docker host lacks CFS quota support ([#3910](https://github.com/getarcaneapp/arcane/pull/3910) by @kmendell)
+* allow disabling vulnerability management per environment ([#3914](https://github.com/getarcaneapp/arcane/pull/3914) by @kmendell)
+* pull pre-deploy runner images with configured registry credentials ([#3918](https://github.com/getarcaneapp/arcane/pull/3918) by @kmendell)
+* preserve existing file mode when saving project and global env files ([#3919](https://github.com/getarcaneapp/arcane/pull/3919) by @kmendell)
+* preserve configured directory mode for gitops directory-sync project roots ([#3920](https://github.com/getarcaneapp/arcane/pull/3920) by @kmendell)
+* keep environment detail page stable during navigation back to the list ([#3921](https://github.com/getarcaneapp/arcane/pull/3921) by @kmendell)
+* sort projects by live status instead of the stale persisted column ([#3923](https://github.com/getarcaneapp/arcane/pull/3923) by @kmendell)
+* treat identity bind mounts as mapped when re-resolving escaped relative compose paths ([#3924](https://github.com/getarcaneapp/arcane/pull/3924) by @kmendell)
+* preserve notification event subscriptions on partial settings updates and warn when none are subscribed ([#3925](https://github.com/getarcaneapp/arcane/pull/3925) by @kmendell)
+* prevent passkey MFA failures caused by reactive options ([#3926](https://github.com/getarcaneapp/arcane/pull/3926) by @kmendell)
+* stop project log panel from recursing on viewer stop callback ([#3927](https://github.com/getarcaneapp/arcane/pull/3927) by @kmendell)
+* fail image patching early when Docker lacks the containerd image store ([#3928](https://github.com/getarcaneapp/arcane/pull/3928) by @kmendell)
+* end dashboard stats loading on stream failure and retry on refresh ([#3930](https://github.com/getarcaneapp/arcane/pull/3930) by @kmendell)
+
+
+
+**Full Changelog**: https://github.com/getarcaneapp/arcane/compare/v2.11.0...v2.11.1
+
 ## v2.11.0
 
 ### New features
