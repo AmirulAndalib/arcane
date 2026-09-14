@@ -871,7 +871,12 @@
 		min-height: 120px;
 	}
 	:global(.arcane-code-editor.auto-height .cm-editor .cm-scroller) {
+		flex: 1 1 auto;
 		overflow-y: visible;
+	}
+	:global(.arcane-code-editor.auto-height .cm-editor .cm-gutters) {
+		align-self: stretch;
+		height: auto;
 	}
 	:global(.arcane-code-editor .cm-editor .cm-scroller) {
 		overflow-x: auto;
@@ -891,6 +896,11 @@
 	:global(:root:not(.dark) .arcane-code-editor .cm-editor .cm-activeLineGutter) {
 		background-color: #f0f1f3;
 		color: #24292f;
+	}
+	:global(.arcane-code-editor .cm-editor:has(.cm-placeholder) .cm-activeLine),
+	:global(.dark .arcane-code-editor .cm-editor:has(.cm-placeholder) .cm-activeLineGutter),
+	:global(:root:not(.dark) .arcane-code-editor .cm-editor:has(.cm-placeholder) .cm-activeLineGutter) {
+		background-color: transparent;
 	}
 	:global(.arcane-code-editor .cm-mergeView) {
 		height: 100%;
