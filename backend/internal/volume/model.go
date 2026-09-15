@@ -44,6 +44,7 @@ type VolumeBackup struct {
 	LocalSnapshotID   string                     `json:"localSnapshotId,omitempty" gorm:"column:local_snapshot_id;type:text"`
 	RemoteSnapshotID  string                     `json:"remoteSnapshotId,omitempty" gorm:"column:remote_snapshot_id;type:text"`
 	S3DestinationID   string                     `json:"s3DestinationId,omitempty" gorm:"column:s3_destination_id;type:text;index"`
+	RemoteInstanceID  string                     `json:"remoteInstanceId,omitempty" gorm:"column:remote_instance_id;type:text"`
 	S3DestinationName string                     `json:"s3DestinationName,omitempty" gorm:"-"`
 	PolicyID          string                     `json:"policyId,omitempty" gorm:"column:policy_id;type:text;index"`
 	Error             string                     `json:"error,omitempty" gorm:"column:error;type:text"`

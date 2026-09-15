@@ -1,4 +1,8 @@
+import { toast } from 'svelte-sonner';
 import { m } from '#lib/paraglide/messages.js';
+import { systemBackupService } from '#lib/services/system-backup-service.js';
+import { volumeBackupService } from '#lib/services/volume-backup-service.js';
+import { tryCatch } from '#lib/utils/try-catch.js';
 import type {
 	BackupDestination,
 	BackupManagementType,
@@ -116,4 +120,40 @@ export function backupPolicyUpdateFromPolicy(policy: BackupPolicy, includeStopCo
 		s3DestinationId: policy.s3DestinationId ?? '',
 		...(includeStopContainers ? { stopContainers: policy.stopContainers ?? false } : {})
 	};
+}
+
+export async function discoverDestinationBackups(destinationId: string): Promise<void> {
+	const policiesResult = await tryCatch(systemBackupService.getPolicies());
+	if (policiesResult.error !== null || !policiesResult.data.recoveryKeyStored) return;
+	const systemResult = await tryCatch(systemBackupService.discover(destinationId, ''));
+	if (systemResult.error === null && systemResult.data > 0) {
+		toast.success(m.system_backups_discovered({ count: systemResult.data }));
+	}
+	const volumeResult = await tryCatch(volumeBackupService.discoverBackups(destinationId));
+	if (volumeResult.error === null) {
+		if (volumeResult.data.count > 0) {
+			toast.success(m.volume_backups_discovered({ count: volumeResult.data.count }));
+		}
+		for (const failure of volumeResult.data.errors ?? []) {
+			toast.warning(m.volume_backups_discover_failed(), { description: failure });
+		}
+	} else {
+		toast.error(volumeResult.error instanceof Error ? volumeResult.error.message : m.volume_backups_discover_failed());
+	}
+}
+
+export async function runAutomaticBackupDiscovery(destinations: { id: string }[]): Promise<boolean> {
+	const results = await Promise.allSettled([
+		...destinations.map((item) => systemBackupService.discover(item.id, '')),
+		...destinations.map((item) => volumeBackupService.discoverBackups(item.id))
+	]);
+	let discovered = 0;
+	for (const result of results) {
+		if (result.status === 'rejected') {
+			console.warn('S3 backup discovery failed', result.reason);
+			continue;
+		}
+		discovered += typeof result.value === 'number' ? result.value : result.value.count;
+	}
+	return discovered > 0;
 }

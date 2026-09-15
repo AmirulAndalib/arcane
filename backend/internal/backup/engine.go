@@ -5,11 +5,14 @@ package backup
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base32"
 	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log/slog"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -17,6 +20,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/actors"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/common"
+	"github.com/getarcaneapp/arcane/backend/v2/internal/database"
 	"github.com/getarcaneapp/arcane/backend/v2/internal/image"
 	"github.com/getarcaneapp/arcane/backend/v2/pkg/libarcane"
 	rusticruntime "github.com/getarcaneapp/arcane/backend/v2/pkg/libarcane/rustic"
@@ -25,6 +29,8 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/client"
+	"go.getarcane.app/sys/crypto"
+	"gorm.io/gorm"
 )
 
 // Admission scopes shared by the backup engine and the per-policy job
@@ -251,6 +257,7 @@ func (e *Engine) ReadSnapshotTextFile(ctx context.Context, dockerClient *client.
 type DiscoveredSnapshot struct {
 	ID      string    `json:"id"`
 	Time    time.Time `json:"time"`
+	Label   string    `json:"label"`
 	Summary struct {
 		TotalBytesProcessed int64 `json:"total_bytes_processed"`
 	} `json:"summary"`
@@ -290,6 +297,15 @@ func (e *Engine) ForgetSnapshots(ctx context.Context, dockerClient *client.Clien
 		return errors.New("at least one snapshot ID is required")
 	}
 	_, err := e.runInternal(ctx, dockerClient, repository, password, append([]string{"forget", "--prune", "--"}, snapshotIDs...))
+	return err
+}
+
+// ChangeRepositoryPassword re-keys the repository; the scratch Rustic image has no shell, so the new password travels as an argument.
+func (e *Engine) ChangeRepositoryPassword(ctx context.Context, dockerClient *client.Client, repository Repository, currentPassword, newPassword string) error {
+	if strings.TrimSpace(newPassword) == "" {
+		return errors.New("new repository password is required")
+	}
+	_, err := e.runInternal(ctx, dockerClient, repository, currentPassword, []string{"key", "password", "--new-password", newPassword})
 	return err
 }
 
@@ -385,4 +401,94 @@ func (e *Engine) runContainerInternal(ctx context.Context, dockerClient *client.
 	mounts := append([]mount.Mount{}, repository.Mounts...)
 	mounts = append(mounts, extraMounts...)
 	return rusticruntime.Run(ctx, dockerClient, password, command, repository.Environment, mounts, arcaneNetworkModeInternal(ctx, dockerClient))
+}
+
+// RecoveryKeyConfigID is the singleton row holding the instance-wide backup recovery key.
+const RecoveryKeyConfigID = "system-recovery"
+
+var (
+	ErrRecoveryKeyNotConfigured = errors.New("recovery key is not configured")
+
+	// RecoveryKeyFormat is 8 hyphenated groups of 6 base32 characters, used verbatim as the Rustic password.
+	RecoveryKeyFormat = regexp.MustCompile(`^[A-Z2-7]{6}(-[A-Z2-7]{6}){7}$`)
+)
+
+// SystemBackupRecoveryConfig stores the encrypted recovery key; it must be reversible because Rustic needs the plaintext.
+type SystemBackupRecoveryConfig struct {
+	database.BaseModel
+
+	EncryptedRecoveryKey string `gorm:"column:encrypted_recovery_key;type:text;not null"`
+}
+
+func (SystemBackupRecoveryConfig) TableName() string { return "system_backup_recovery_config" }
+
+func ValidateRecoveryKey(key string) error {
+	if !RecoveryKeyFormat.MatchString(strings.TrimSpace(key)) {
+		return errors.New("enter the generated recovery key (8 groups of 6 characters)")
+	}
+	return nil
+}
+
+func GenerateRecoveryKey() (string, error) {
+	raw := make([]byte, 30)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("failed to generate recovery key: %w", err)
+	}
+	encoded := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(raw)
+	groups := make([]string, 0, len(encoded)/6)
+	for i := 0; i < len(encoded); i += 6 {
+		groups = append(groups, encoded[i:i+6])
+	}
+	return strings.Join(groups, "-"), nil
+}
+
+// RecoveryKeyStore persists the recovery key shared by the system and volume backup domains.
+type RecoveryKeyStore struct {
+	db *database.DB
+}
+
+func NewRecoveryKeyStore(db *database.DB) *RecoveryKeyStore {
+	return &RecoveryKeyStore{db: db}
+}
+
+func (s *RecoveryKeyStore) Configured(ctx context.Context) (bool, error) {
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&SystemBackupRecoveryConfig{}).
+		Where("id = ? AND encrypted_recovery_key <> ''", RecoveryKeyConfigID).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("failed to load recovery key status: %w", err)
+	}
+	return count > 0, nil
+}
+
+// Get returns the decrypted recovery key or ErrRecoveryKeyNotConfigured.
+func (s *RecoveryKeyStore) Get(ctx context.Context) (string, error) {
+	var config SystemBackupRecoveryConfig
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND encrypted_recovery_key <> ''", RecoveryKeyConfigID).
+		First(&config).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrRecoveryKeyNotConfigured
+		}
+		return "", fmt.Errorf("failed to load recovery key: %w", err)
+	}
+	key, err := crypto.Decrypt(config.EncryptedRecoveryKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt recovery key: %w", err)
+	}
+	return key, nil
+}
+
+func (s *RecoveryKeyStore) Set(ctx context.Context, recoveryKey string) error {
+	if err := ValidateRecoveryKey(recoveryKey); err != nil {
+		return err
+	}
+	encrypted, err := crypto.Encrypt(recoveryKey)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt recovery key: %w", err)
+	}
+	config := SystemBackupRecoveryConfig{ID: RecoveryKeyConfigID, EncryptedRecoveryKey: encrypted}
+	if err := s.db.WithContext(ctx).Save(&config).Error; err != nil {
+		return fmt.Errorf("failed to save recovery key: %w", err)
+	}
+	return nil
 }
