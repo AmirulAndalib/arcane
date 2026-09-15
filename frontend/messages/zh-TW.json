@@ -14,6 +14,8 @@
   "application_theme_default_description": "使用 Arcane 預設調色板平衡中性色調。",
   "application_theme_graphite": "石墨",
   "application_theme_graphite_description": "冷色板岩表面，具有更緊密、對比度更低的感覺。",
+  "application_theme_carbon": "碳",
+  "application_theme_carbon_description": "中性炭灰色調的表面，點綴著低調的藍色元素。",
   "application_theme_ocean": "海洋",
   "application_theme_ocean_description": "乾淨的藍色表面，具有較酷的應用程式殼層。",
   "application_theme_amber": "琥珀色",
