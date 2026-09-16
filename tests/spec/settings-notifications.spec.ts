@@ -473,16 +473,14 @@ test.describe('Notification settings', () => {
 
 		await page.getByPlaceholder('localhost').fill('signal-api.example.com');
 		await page.getByPlaceholder('8080').fill('8080');
+		await page.locator('#signal-token').fill('signal-test-token');
 		await page.locator('#signal-source').fill('+1234567890');
 		await page.locator('#signal-recipients').fill('+1987654321');
 
 		await openTestMenu(page);
 		await page.getByRole('menuitem', { name: 'Simple', exact: true }).click();
 
-		const saveAndTestButton = page.getByRole('button', { name: 'Save & Test', exact: true });
-		if (await saveAndTestButton.isVisible().catch(() => false)) {
-			await saveAndTestButton.click();
-		}
+		await page.getByRole('button', { name: 'Save & Test', exact: true }).click();
 
 		await expect.poll(wasTestEndpointCalled, { timeout: 10_000 }).toBe(true);
 		getErrorCheck();
