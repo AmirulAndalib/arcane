@@ -1,3 +1,42 @@
+## v2.12.0
+
+### New features
+
+* add Back up to Git sync mode and link existing projects to syncs ([#3932](https://github.com/getarcaneapp/arcane/pull/3932) by @kmendell)
+* add CSV export to the security vulnerabilities table ([#3936](https://github.com/getarcaneapp/arcane/pull/3936) by @kmendell)
+* add subnet and gateway columns to the networks table ([#3942](https://github.com/getarcaneapp/arcane/pull/3942) by @kmendell)
+* add shift-select ranges to selectable tables ([#3943](https://github.com/getarcaneapp/arcane/pull/3943) by @kmendell)
+* add fix available filter to the security vulnerabilities table ([#3944](https://github.com/getarcaneapp/arcane/pull/3944) by @kmendell)
+* add vulnerability count sorting to the images table ([#3945](https://github.com/getarcaneapp/arcane/pull/3945) by @kmendell)
+* allow binary files in git backups, reuse editor file tree in sync dialog ([#3946](https://github.com/getarcaneapp/arcane/pull/3946) by @kmendell)
+* add trivy config and ignore file settings for vulnerability scans ([#3949](https://github.com/getarcaneapp/arcane/pull/3949) by @kmendell)
+* clarify ntfy token auth, require matrix credential, and tidy test menu labels ([#3951](https://github.com/getarcaneapp/arcane/pull/3951) by @kmendell)
+* carry pre-deploy hook and deploy options through gitops sync import ([#3952](https://github.com/getarcaneapp/arcane/pull/3952) by @kmendell)
+* display IPv6 addresses for containers and network members ([#3957](https://github.com/getarcaneapp/arcane/pull/3957) by @kmendell)
+* link container overview volume and network counts to their tabs ([#3958](https://github.com/getarcaneapp/arcane/pull/3958) by @kmendell)
+* add optional IP range to network creation ([#3959](https://github.com/getarcaneapp/arcane/pull/3959) by @kmendell)
+* support for downloading container logs ([#3960](https://github.com/getarcaneapp/arcane/pull/3960) by @kmendell)
+* discover S3 backups and re-key volume backups to the recovery key ([#3885](https://github.com/getarcaneapp/arcane/pull/3885) by @neurekadev)
+* allow decimal CPU limits for Trivy scans ([#3972](https://github.com/getarcaneapp/arcane/pull/3972) by @kmendell)
+
+### Bug fixes
+
+* allow defining git identity for pushes ([#3935](https://github.com/getarcaneapp/arcane/pull/3935) by @kmendell)
+* add explicit env backup switch with warning for project backup ([#3937](https://github.com/getarcaneapp/arcane/pull/3937) by @kmendell)
+* surface OIDC and settings errors, allow clearing the OIDC secret, require it while enabled ([#3954](https://github.com/getarcaneapp/arcane/pull/3954) by @kmendell)
+* hide Automations tab and stop jobs polling without jobs:manage ([#3963](https://github.com/getarcaneapp/arcane/pull/3963) by @kmendell)
+* run legacy users.roles backfill once ([#3964](https://github.com/getarcaneapp/arcane/pull/3964) by @kmendell)
+* use port number from agent address input in docker snippets ([#3955](https://github.com/getarcaneapp/arcane/pull/3955) by @tinkrynite)
+* add missing job commands to edge tunnel([6af4589](https://github.com/getarcaneapp/arcane/commit/6af4589a12376f7fe40a9f1d8778fbbe6e5afbf4) by @kmendell)
+
+### Other
+
+* update theme colors and allow inheriting from them colors ([#3965](https://github.com/getarcaneapp/arcane/pull/3965) by @kmendell)
+
+
+
+**Full Changelog**: https://github.com/getarcaneapp/arcane/compare/v2.11.1...v2.12.0
+
 ## v2.11.1
 
 ### Bug fixes
