@@ -15,12 +15,14 @@ import {
 import type { TableActionConfig, TableBulkActionConfig } from '#lib/utils/table-action-types.js';
 import { toast } from 'svelte-sonner';
 import { getContainerDisplayName, type ActionStatus } from './container-table.helpers';
+import { throwOnUpdateFailure } from '#lib/utils/update-actions.ts';
 
 type BulkLoadingState = {
 	start: boolean;
 	stop: boolean;
 	restart: boolean;
 	remove: boolean;
+	update: boolean;
 };
 
 type ActionDeps = {
@@ -211,6 +213,34 @@ export function createContainerActions({
 		});
 	}
 
+	function handleBulkUpdate(validIds: string[], allIds: string[]) {
+		const totalCount = allIds.length;
+		const filteredCount = validIds.length;
+		const message =
+			validIds?.length < allIds?.length
+				? m.containers_bulk_update_filtered_confirm_message({ filteredCount, totalCount })
+				: m.containers_bulk_update_confirm_message({ count: filteredCount });
+
+		bulkConfirmAndRun({
+			ids: validIds,
+			title: m.containers_bulk_update_confirm_title({ count: filteredCount }),
+			message,
+			confirmLabel: m.common_update(),
+			destructive: false,
+			run: (id) => containerService.updateContainer(id).then(throwOnUpdateFailure),
+			messages: {
+				success: (count) => m.containers_bulk_update_success({ count }),
+				partial: (success, total, failed) => m.containers_bulk_update_partial({ success, total, failed }),
+				failure: () => m.containers_bulk_update_failed()
+			},
+			setLoading: (loading) => {
+				isBulkLoading['update'] = loading;
+			},
+			onComplete: () => reloadContainers(),
+			clearSelection: () => setSelectedIds([])
+		});
+	}
+
 	function handleBulkRemove(ids: string[]) {
 		bulkConfirmAndRun({
 			ids,
@@ -245,6 +275,7 @@ export function createContainerActions({
 		handleBulkStart,
 		handleBulkStop,
 		handleBulkRestart,
-		handleBulkRemove
+		handleBulkRemove,
+		handleBulkUpdate
 	};
 }
