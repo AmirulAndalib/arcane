@@ -236,6 +236,8 @@ jobs:
     name: E2E Tests (${{ matrix.database.name }})
     if: ${{ github.head_ref != 'l10n_crowdin' }}
     runs-on: depot-ubuntu-24.04-4
+    env:
+      PLAYWRIGHT_DOCKER_IMAGE_REPOSITORY: g7r5wqb57k.registry.depot.dev/mirrors/playwright
     permissions:
       contents: read
       actions: write
@@ -272,16 +274,18 @@ jobs:
         with:
           configure-docker: true
 
+      - name: Install E2E test dependencies
+        run: vp -C tests install
+
       - name: Pull and save test images
         run: |
+          version="$(vp -C tests exec node -p 'require("@playwright/test/package.json").version')"
+          docker pull "$PLAYWRIGHT_DOCKER_IMAGE_REPOSITORY:v$version-noble"
           docker pull public.ecr.aws/nginx/nginx:stable-alpine
           docker pull public.ecr.aws/docker/library/busybox:1.37
           docker pull quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
           docker pull ghcr.io/rustic-rs/rustic:v0.11.2
           docker save public.ecr.aws/nginx/nginx:stable-alpine public.ecr.aws/docker/library/busybox:1.37 > /tmp/test-images.tar
-
-      - name: Install E2E test dependencies
-        run: vp -C tests install
 
       - name: Run Playwright E2E tests
         run: vp -C tests exec playwright test ${{ matrix.database.playwright_projects }}

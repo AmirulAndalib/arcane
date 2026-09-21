@@ -140,6 +140,8 @@ jobs:
 
   e2e-tests:
     name: E2E Tests (${{ matrix.database.name }})
+    env:
+      PLAYWRIGHT_DOCKER_IMAGE_REPOSITORY: g7r5wqb57k.registry.depot.dev/mirrors/playwright
     runs-on:
       size: 4x16
       image: g7r5wqb57k.registry.depot.dev/ci:latest
@@ -176,16 +178,22 @@ jobs:
         with:
           configure-docker: true
 
+      - name: Install E2E test dependencies
+        run: vp -C tests install
+
       - name: Ensure test images are available
+        retry: 2
+        timeout-minutes: 5
         run: |
-          for image in public.ecr.aws/nginx/nginx:stable-alpine public.ecr.aws/docker/library/busybox:1.37; do
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$DEPOT_TOKEN" | docker login g7r5wqb57k.registry.depot.dev --username x-token --password-stdin
+          version="$(vp -C tests exec node -p 'require("@playwright/test/package.json").version')"
+          for image in public.ecr.aws/nginx/nginx:stable-alpine public.ecr.aws/docker/library/busybox:1.37 "$PLAYWRIGHT_DOCKER_IMAGE_REPOSITORY:v$version-noble"; do
             if ! docker image inspect "$image" > /dev/null 2>&1; then
               docker pull "$image"
             fi
           done
-
-      - name: Install E2E test dependencies
-        run: vp -C tests install
 
       - name: Run Playwright E2E tests
         run: mkdir -p tests/test-results && vp -C tests exec playwright test --project=chromium

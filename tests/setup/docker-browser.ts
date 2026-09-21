@@ -13,6 +13,8 @@ export default async function dockerBrowserSetup(config: FullConfig) {
 	)
 		return;
 	const version = createRequire(import.meta.url)('@playwright/test/package.json').version as string;
+	const imageRepository =
+		process.env.PLAYWRIGHT_DOCKER_IMAGE_REPOSITORY || 'mcr.microsoft.com/playwright';
 	const name = `arcane-e2e-browser-${process.pid}-${Date.now()}`;
 	let created = false;
 	const cleanup = () => {
@@ -54,7 +56,7 @@ export default async function dockerBrowserSetup(config: FullConfig) {
 				'bridge',
 				'--publish',
 				'127.0.0.1::3000',
-				`mcr.microsoft.com/playwright:v${version}-noble`,
+				`${imageRepository}:v${version}-noble`,
 				'npx',
 				'-y',
 				`playwright@${version}`,

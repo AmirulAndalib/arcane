@@ -8,6 +8,8 @@ on:
     paths:
       - ".depot/workflows/**"
       - ".depot/actions/publish-images/action.yml"
+      - "pnpm-lock.yaml"
+      - "tests/package.json"
   schedule:
     - cron: "17 4 * * 1"
 
@@ -28,6 +30,19 @@ jobs:
     runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 15
     steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@24d870228786dc83ae73482406bdd1e7befaec14 # v1.21.0
+        with:
+          node-version: 26
+          cache: true
+          run-install: false
+
+      - name: Install E2E test dependencies
+        run: vp -C tests install
+
       - name: Install GCC and envsubst
         run: |
           sudo apt-get update
@@ -52,9 +67,16 @@ jobs:
           done
 
       - name: Pre-pull test images
+        retry: 2
+        timeout-minutes: 5
         run: |
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$DEPOT_TOKEN" | docker login g7r5wqb57k.registry.depot.dev --username x-token --password-stdin
+          version="$(vp -C tests exec node -p 'require("@playwright/test/package.json").version')"
           docker pull public.ecr.aws/nginx/nginx:stable-alpine
           docker pull public.ecr.aws/docker/library/busybox:1.37
+          docker pull "g7r5wqb57k.registry.depot.dev/mirrors/playwright:v$version-noble"
 
       - name: Snapshot CI image
         uses: depot/snapshot-action@a082cbabd407afdf324a7b4f41889795636f4b24 # v1.2.1
