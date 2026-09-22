@@ -3,7 +3,7 @@ import { test, expect, type Page, type Route } from '../fixtures/test.fixture';
 const REFRESH_TOKEN_KEY = 'arcane_refresh_token';
 const TOKEN_EXPIRY_KEY = 'arcane_token_expiry';
 const REFRESH_COOKIE = 'arcane_refresh_test=complete';
-const RELOAD_COUNT_KEY = 'arcane_upgrade_reload_count';
+const reloadCounts = new WeakMap<Page, number>();
 
 type ManagerStatus = 'updated' | 'failed' | 'updating';
 type JobStatus = 'running' | 'completed' | 'failed';
@@ -58,11 +58,11 @@ function dashboardSnapshot() {
 	};
 }
 
-async function registerReloadCounter(page: Page) {
-	await page.addInitScript((key: string) => {
-		const count = Number(sessionStorage.getItem(key) ?? '0');
-		sessionStorage.setItem(key, String(count + 1));
-	}, RELOAD_COUNT_KEY);
+function registerReloadCounter(page: Page) {
+	reloadCounts.set(page, 0);
+	page.on('domcontentloaded', () => {
+		reloadCounts.set(page, (reloadCounts.get(page) ?? 0) + 1);
+	});
 }
 
 async function registerTokenSeeding(page: Page) {
@@ -92,11 +92,8 @@ async function openAndConfirmUpdateAll(page: Page) {
 	await dialog.getByRole('button', { name: 'Update All', exact: true }).click();
 }
 
-async function currentReloadCount(page: Page) {
-	return page.evaluate(
-		(key: string) => Number(sessionStorage.getItem(key) ?? '0'),
-		RELOAD_COUNT_KEY
-	);
+function currentReloadCount(page: Page) {
+	return reloadCounts.get(page) ?? 0;
 }
 
 // Huma renders errors as RFC 7807 problem documents; the dialog surfaces `detail`.
@@ -273,7 +270,7 @@ test.describe('Manager self-update recovery', () => {
 	test('Update All keeps the manager result visible and refreshes without a document reload', async ({
 		page
 	}) => {
-		await registerReloadCounter(page);
+		registerReloadCounter(page);
 		await page.route(/\/api\/environments\/0\/system\/upgrade\/all$/, async (route) => {
 			await fulfillJob(route, 'running', 'updating');
 		});
@@ -301,7 +298,7 @@ test.describe('Manager self-update recovery', () => {
 	});
 
 	test('Update All leaves failed manager results visible without reloading', async ({ page }) => {
-		await registerReloadCounter(page);
+		registerReloadCounter(page);
 		await page.route(/\/api\/environments\/0\/system\/upgrade\/all$/, async (route) => {
 			await fulfillJob(route, 'running', 'updating');
 		});
@@ -322,7 +319,7 @@ test.describe('Manager self-update recovery', () => {
 	test('the single-manager flow reloads immediately after version verification', async ({
 		page
 	}) => {
-		await registerReloadCounter(page);
+		registerReloadCounter(page);
 		const snapshot = dashboardSnapshot();
 		let upgradeTriggered = false;
 
@@ -398,7 +395,7 @@ test.describe('Manager self-update recovery', () => {
 
 	test('status and activity 401s share one refresh before the upgrade reload', async ({ page }) => {
 		await page.clock.install();
-		await registerReloadCounter(page);
+		registerReloadCounter(page);
 		await registerTokenSeeding(page);
 
 		let releaseActivity!: () => void;
@@ -509,7 +506,7 @@ test.describe('Manager self-update recovery', () => {
 	test('a transient refresh failure keeps the token and recovers on the next poll', async ({
 		page
 	}) => {
-		await registerReloadCounter(page);
+		registerReloadCounter(page);
 		await registerTokenSeeding(page);
 
 		let refreshCalls = 0;
