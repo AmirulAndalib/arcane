@@ -790,9 +790,7 @@ test('administers scoped identities and enforces their browser access immediatel
 			await composeContent.click({ position: { x: 10, y: 10 } });
 			await composeContent.press('ControlOrMeta+A');
 			await environmentAdminPage.keyboard.insertText(TEST_COMPOSE_YAML);
-			await expect(
-				environmentAdminPage.getByRole('button', { name: 'Create Project', exact: true })
-			).toBeVisible();
+			await expect(environmentAdminPage.locator('button[data-action="create"]')).toBeVisible();
 			environmentAdminPage.off('request', recordOptionalRequest);
 			expect(optionalRequests).toEqual([]);
 
