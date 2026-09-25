@@ -6,13 +6,13 @@ replace github.com/getarcaneapp/arcane/types/v2 => ../types
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.0.9
+	charm.land/bubbletea/v2 v2.0.10
 	charm.land/fang/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.6
 	charm.land/log/v2 v2.0.1
 	emperror.dev/errors v0.8.1
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/getarcaneapp/arcane/types/v2 v2.13.0
+	github.com/getarcaneapp/arcane/types/v2 v2.13.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/samber/hot v0.13.1
