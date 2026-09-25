@@ -394,9 +394,9 @@
 						<SecurityOverview {overview} onSelectVulnerability={showVulnerability} />
 					{/if}
 				</Tabs.Content>
-				<Tabs.Content value="vulnerabilities" class="mt-4 space-y-3">
+				<Tabs.Content value="vulnerabilities" class="mt-4">
 					{#if overview}
-						<div class="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
+						<div class="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
 							<span>
 								{m.security_images_scanned()}:
 								<span class="font-medium text-foreground tabular-nums"

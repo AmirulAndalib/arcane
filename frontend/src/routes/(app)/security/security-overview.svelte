@@ -283,7 +283,7 @@
 							<li>
 								<button
 									type="button"
-									class="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-muted/40"
+									class="-mx-2 grid w-full-outset grid-cols-index-content-action items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-muted/40"
 									onclick={() => onSelectVulnerability(finding.vulnerabilityId)}
 								>
 									<span class="text-xs text-muted-foreground tabular-nums">{index + 1}</span>
@@ -339,7 +339,7 @@
 						<li>
 							<a
 								href="/images/{image.imageId}?tab=vulnerabilities"
-								class="-mx-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-md px-2 py-3 transition-colors hover:bg-muted/40"
+								class="-mx-2 grid grid-cols-content-action items-center gap-4 rounded-md px-2 py-3 transition-colors hover:bg-muted/40"
 							>
 								<span class="min-w-0 space-y-1">
 									<span class="block truncate text-sm font-medium">{image.imageName}</span>
@@ -352,7 +352,10 @@
 								</span>
 								<span class="flex items-center gap-3">
 									<span class="h-1.5 w-20 overflow-hidden rounded-full bg-muted" title={band.label}>
-										<span class="block h-full rounded-full {band.barClass}" style="width: {image.riskScore}%"></span>
+										<span
+											class="block h-full w-(--risk-width) rounded-full {band.barClass}"
+											style="--risk-width: {image.riskScore}%"
+										></span>
 									</span>
 									<span class="w-8 text-right text-sm font-semibold tabular-nums">{image.riskScore}</span>
 								</span>
