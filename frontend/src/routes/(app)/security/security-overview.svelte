@@ -57,11 +57,6 @@
 	};
 
 	const threatDataUnavailable = $derived(!overview.threatIntel.enabled || !overview.threatIntel.lastSyncedAt);
-	const scoreBasis = $derived(
-		overview.drivers.scoredImages === 1
-			? m.security_patch_priority_basis_one()
-			: m.security_patch_priority_basis({ count: overview.drivers.scoredImages })
-	);
 
 	const drivers = $derived<Driver[]>([
 		{
@@ -188,7 +183,6 @@
 					size={460}
 					stroke={22}
 				/>
-				<p class="text-xs text-muted-foreground">{scoreBasis}</p>
 				{#if overview.scoreDriver}
 					{@const driver = overview.scoreDriver}
 					<button

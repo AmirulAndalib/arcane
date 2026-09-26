@@ -143,7 +143,7 @@ export interface VulnerabilityWithImage extends Vulnerability {
 }
 
 export type VulnerabilityRiskBand = 'none' | 'low' | 'medium' | 'high' | 'critical';
-export type VulnerabilityScoreStatus = 'complete' | 'provisional' | 'unavailable';
+export type VulnerabilityScoreStatus = 'complete' | 'unavailable';
 
 export interface VulnerabilityPackageInsight {
 	pkgName: string;
